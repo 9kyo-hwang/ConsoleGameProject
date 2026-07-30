@@ -1,6 +1,10 @@
 ﻿#include <iostream>
+#include <Engine/Engine.h>  // additional include directories: $(ProjectDir)
 
 int main()
 {
-    std::cout << "Hello World!\n";
+    Craft::Engine engine;
+    engine.Run();
+
+    return 0;
 }
