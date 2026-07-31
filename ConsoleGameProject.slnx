@@ -2,5 +2,8 @@
   <Configurations>
     <Platform Name="x64" />
   </Configurations>
-  <Project Path="CraftEngine/CraftEngine.vcxproj" />
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
+  <Project Path="CraftEngine/CraftEngine.vcxproj" Id="9eafa265-5871-4026-82c3-5c9f46e089d0" />
 </Solution>

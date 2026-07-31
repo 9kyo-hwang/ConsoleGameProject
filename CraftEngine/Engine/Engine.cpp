@@ -1,15 +1,31 @@
+﻿#include <pch.h>
 #include "Engine.h"
-
-#include <iostream>
-#include <Windows.h>
+#include <Level/Level.h>
 
 namespace Craft
 {
+	Engine* Engine::instance = nullptr;
+
+	Engine& Engine::Get()
+	{
+		// TODO: 여기에 return 문을 삽입합니다.
+		assert(instance != nullptr, "엔진 인스턴스가 Null이면 안됨");
+		return *instance;
+	}
+
 	Engine::Engine()
 	{
+		if (!instance)
+		{
+			instance = this;
+		}
 	}
 	Engine::~Engine()
 	{
+		if (instance)
+		{
+			instance = nullptr;
+		}
 	}
 
 	void Engine::Run()
@@ -34,10 +50,29 @@ namespace Craft
 			{
 				ProcessInput();
 
+                // Gameplay Logic
 				OnInitialized();
 				BeginPlay();
 				Tick(deltaTime);
 				Draw();
+
+                // Level Handling
+                if (subLevel)
+                {
+                    if (mainLevel)
+                    {
+                        mainLevel.reset();
+                    }
+
+                    mainLevel = subLevel;
+
+                    subLevel.reset();
+                }
+
+                if (mainLevel)
+                {
+                    mainLevel->ProcessRequestedActors();
+                }
 
 				SavePreviousInputStates();
 
@@ -59,30 +94,52 @@ namespace Craft
 
 	void Engine::OnInitialized()
 	{
+        // Level Initialize
+        if (!mainLevel || mainLevel->HasInitialized())
+        {
+            return;
+        }
+
+        mainLevel->OnInitialized();
 	}
 
 	void Engine::BeginPlay()
 	{
+        if (!mainLevel)
+        {
+            return;
+        }
+
+        mainLevel->BeginPlay();
 	}
 
 	void Engine::Tick(float deltaTime)
 	{
-		std::cout << "Engine::Tick() - deltaTime: "
-			<< deltaTime
-			<< " | FPS: "
-			<< 1.f / deltaTime
-			<< "\n";
+        if (!mainLevel)
+        {
+            return;
+        }
+
+        mainLevel->Tick(deltaTime);
 	}
 
 	void Engine::Draw()
 	{
+        if (!mainLevel)
+        {
+            return;
+        }
+
+        mainLevel->Draw();
 	}
 
 	void Engine::SavePreviousInputStates()
 	{
+
 	}
 
 	void Engine::Shutdown()
 	{
+
 	}
 }

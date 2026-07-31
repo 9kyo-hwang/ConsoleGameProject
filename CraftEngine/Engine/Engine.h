@@ -2,6 +2,8 @@
 
 namespace Craft
 {
+    class Level;
+
 	// 메인 엔진 클래스.
 	// 엔진 루프를 제공.
 	// 게임 엔진의 핵심 기능 제공.
@@ -13,6 +15,17 @@ namespace Craft
 			// 목표 프레임 수 (초당 프레임).
 			float framerate = 120.0f;
 		};
+
+	public:
+		static Engine& Get();
+
+        template<typename LevelType>
+        void AddNewLevel() requires std::is_base_of_v<Level, LevelType>
+        {
+            subLevel = std::make_shared<LevelType>();
+
+            // main level(levels[0]) 처리 끝나면 sub level(levels[1])을 main으로 승격
+        }
 
 	public:
 		Engine();
@@ -54,5 +67,10 @@ namespace Craft
 
 		// 엔진 설정 함수.
 		Setting setting;
+
+		static Engine* instance;
+
+        std::shared_ptr<Level> mainLevel;
+        std::shared_ptr<Level> subLevel;
 	};
 }
