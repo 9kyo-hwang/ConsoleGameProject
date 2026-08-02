@@ -6,4 +6,5 @@
     <File Path=".editorconfig" />
   </Folder>
   <Project Path="CraftEngine/CraftEngine.vcxproj" Id="9eafa265-5871-4026-82c3-5c9f46e089d0" />
+  <Project Path="SokobanGame/SokobanGame.vcxproj" Id="b3f0a50e-1435-43be-b165-f35124003f13" />
 </Solution>

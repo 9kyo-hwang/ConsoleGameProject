@@ -35,7 +35,7 @@ namespace Craft
 
     void Input::ProcessInput()
     {
-        for(size_t key = 0; key < KeyCount; ++key)
+        for (int32 key = 0; key < KeyCount; ++key)
         {
             _keyStates[key].isKeyDown = (GetAsyncKeyState(key) & 0x8000) != 0;
         }

@@ -1,5 +1,6 @@
 ﻿#pragma once
-#include "Level.h"
+#include <Level/Level.h>
+
 class TestLevel : public Craft::Level
 {
 public:

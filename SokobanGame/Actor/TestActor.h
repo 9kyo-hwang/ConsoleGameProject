@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "Actor.h"
+#include <Actor/Actor.h>
 
 class TestActor : public Craft::Actor
 {
