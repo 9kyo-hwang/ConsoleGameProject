@@ -4,5 +4,7 @@
 class TestActor : public Craft::Actor
 {
 public:
+    TestActor();
+    
     void Tick(float deltaTime) override;
 };

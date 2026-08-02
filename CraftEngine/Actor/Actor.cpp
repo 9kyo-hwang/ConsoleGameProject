@@ -2,11 +2,17 @@
 #include "Actor.h"
 #include <Engine/Engine.h>
 #include <Level/Level.h>
+#include <Render/Renderer.h>
 
 namespace Craft
 {
-	Actor::Actor()
+	Actor::Actor(const std::string& image, const Vector2& position, Color color)
+        : image(image)
+        , position(position)
+        , color(color)
+        , width((int32)image.length())
 	{
+
 	}
 
 	Actor::~Actor()
@@ -24,6 +30,13 @@ namespace Craft
 
 	void Actor::Draw()
 	{
+        if (!IsActive())
+        {
+            return;
+        }
+
+        // Renderer에 이 액터의 정보 제출
+        Renderer::Get().Submit(image, position, color, sortingOrder);
 	}
 
 	void Actor::Destroy()
@@ -34,5 +47,15 @@ namespace Craft
 	void Actor::QuitGame()
 	{
 		Engine::Get().Quit();
+	}
+
+	void Actor::SetPosition(Vector2 newPosition)
+	{
+        if (position == newPosition)
+        {
+            return;
+        }
+
+        position = newPosition;
 	}
 }

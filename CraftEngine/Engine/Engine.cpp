@@ -2,6 +2,7 @@
 #include "Engine.h"
 #include <Level/Level.h>
 #include <Core/Input.h>
+#include <Render/Renderer.h>
 
 namespace Craft
 {
@@ -20,6 +21,7 @@ namespace Craft
         instance = this;
 
         input = std::make_unique<Input>();
+        renderer = std::make_unique<Renderer>();
 	}
 
 	Engine::~Engine()
@@ -131,7 +133,9 @@ namespace Craft
             return;
         }
 
-        mainLevel->Draw();
+        mainLevel->Draw();  // 레벨에 속한 액터들의 Draw를 호출해 RenderQueue에 Submit
+
+        renderer->Draw();  // 위에서 제출한 데이터를 기반으로 실제 드로우 시행
 	}
 
 	void Engine::SavePreviousInputStates()

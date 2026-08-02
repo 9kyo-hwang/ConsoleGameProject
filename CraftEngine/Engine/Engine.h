@@ -7,6 +7,7 @@ namespace Craft
 {
     class Level;
     class Input;
+    class Renderer;
 
 	// 메인 엔진 클래스.
 	// 엔진 루프를 제공.
@@ -78,5 +79,6 @@ namespace Craft
         std::shared_ptr<Level> subLevel;
 
         std::unique_ptr<Input> input;
+        std::unique_ptr<Renderer> renderer;
 	};
 }

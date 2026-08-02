@@ -22,7 +22,7 @@ namespace Craft
 		virtual void Tick(float deltaTime);
 		virtual void Draw();
 
-		inline bool HasInitialized() const { return hasInitialized; }
+        inline bool HasInitialized() const { return hasInitialized; }
 
 		template<typename ActorType, typename... Args>
 		std::shared_ptr<ActorType> SpawnActor(Args&&... args) requires std::is_base_of_v<Actor, ActorType>

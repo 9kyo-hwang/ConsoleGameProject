@@ -116,6 +116,8 @@ xcopy $(OutDir)CraftEngine.lib ..\Libraries\CraftEngine\$(Configuration)\ /e /y 
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Math\Vector2.cpp" />
+    <ClCompile Include="Render\Renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Actor\Actor.h" />
@@ -123,7 +125,10 @@ xcopy $(OutDir)CraftEngine.lib ..\Libraries\CraftEngine\$(Configuration)\ /e /y 
     <ClInclude Include="Core\Input.h" />
     <ClInclude Include="Engine\Engine.h" />
     <ClInclude Include="Level\Level.h" />
+    <ClInclude Include="Math\Color.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="Math\Vector2.h" />
+    <ClInclude Include="Render\Renderer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -1,6 +1,5 @@
 ﻿#pragma once
 
-#define FORCEINLINE __forceinline
 #define NOMINMAX
 
 using int8 = __int8;
