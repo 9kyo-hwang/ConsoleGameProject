@@ -96,6 +96,7 @@
   <ItemGroup>
     <ClCompile Include="Actor\Actor.cpp" />
     <ClCompile Include="Actor\TestActor.cpp" />
+    <ClCompile Include="Core\Input.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Engine\Engine.cpp" />
     <ClCompile Include="Level\Level.cpp" />
@@ -109,6 +110,7 @@
     <ClInclude Include="Actor\Actor.h" />
     <ClInclude Include="Actor\TestActor.h" />
     <ClInclude Include="Engine\Engine.h" />
+    <ClInclude Include="Core\Input.h" />
     <ClInclude Include="Level\Level.h" />
     <ClInclude Include="Level\TestLevel.h" />
     <ClInclude Include="pch.h" />

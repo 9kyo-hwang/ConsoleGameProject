@@ -1,6 +1,7 @@
 ﻿#include <pch.h>
 #include "Engine.h"
 #include <Level/Level.h>
+#include <Core/Input.h>
 
 namespace Craft
 {
@@ -15,17 +16,15 @@ namespace Craft
 
 	Engine::Engine()
 	{
-		if (!instance)
-		{
-			instance = this;
-		}
+        assert(instance == nullptr);
+        instance = this;
+
+        input = std::make_unique<Input>();
 	}
+
 	Engine::~Engine()
 	{
-		if (instance)
-		{
-			instance = nullptr;
-		}
+        instance = nullptr;
 	}
 
 	void Engine::Run()
@@ -90,6 +89,8 @@ namespace Craft
 
 	void Engine::ProcessInput()
 	{
+        assert(input != nullptr);
+        input->ProcessInput();
 	}
 
 	void Engine::OnInitialized()
@@ -135,7 +136,8 @@ namespace Craft
 
 	void Engine::SavePreviousInputStates()
 	{
-
+        assert(input != nullptr);
+        input->SaveKeyStates();
 	}
 
 	void Engine::Shutdown()

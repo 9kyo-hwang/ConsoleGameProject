@@ -1,6 +1,7 @@
-#pragma once
+﻿#pragma once
 
 #define FORCEINLINE __forceinline
+#define NOMINMAX
 
 using int8 = __int8;
 using int16 = __int16;
@@ -19,3 +20,4 @@ using byte = unsigned char;
 #include <memory>
 #include <vector>
 #include <string>
+#include <array>
