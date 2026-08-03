@@ -18,17 +18,17 @@ namespace Craft
 		struct Setting
 		{
 			// 목표 프레임 수 (초당 프레임).
-			float framerate = 120.0f;
+			float framerate = 0.f;
 
-            int width = 60;
-            int height = 25;
+            int width = 0;
+            int height = 0;
 		};
 
 	public:
 		static Engine& Get();
 
         template<typename LevelType>
-        void AddNewLevel() requires std::is_base_of_v<Level, LevelType>
+        void AddNewLevel() requires std::derived_from<LevelType, Level>
         {
             subLevel = std::make_shared<LevelType>();
 
@@ -39,35 +39,24 @@ namespace Craft
 		Engine();
 		virtual ~Engine();
 
-		// 엔진 실행 함수.
-		void Run();
+		void Run(); // 엔진 실행 함수.
+		void Quit(); // 엔진 종료 함수.
 
-		// 엔진 종료 함수.
-		void Quit();
+        inline int GetWidth() const { return setting.width; }
+        inline int GetHeight() const { return setting.height; }
 
 	protected:
-		// 입력 처리 함수 (입력 폴링).
-		void ProcessInput();
-
-		// 초기화 함수.
-		void OnInitialized();
+		
+		void ProcessInput();    // 입력 처리 함수 (입력 폴링).
+		void OnInitialized();   // 초기화 함수.
 
 		// 게임 플레이 이벤트 함수.
-
-		// 게임 플레이 초기화 함수.
-		void BeginPlay();
-
-		// 게임 플레이 업데이트 함수.
-		void Tick(float deltaTime);
-
-		// 레벨 그리기 함수.
-		void Draw();
-
-		// 프레임 간 입력 값 저장을 위한 함수.
-		void SavePreviousInputStates();
-
-		// 엔진 종료 시 정리가 필요할 때 사용할 함수.
-		void Shutdown();
+		void BeginPlay();   // 게임 플레이 초기화 함수.
+		void Tick(float deltaTime); // 게임 플레이 업데이트 함수.
+		void Draw();    // 레벨 그리기 함수.
+		void SavePreviousInputStates(); // 프레임 간 입력 값 저장을 위한 함수.
+		void Shutdown();    // 엔진 종료 시 정리가 필요할 때 사용할 함수.
+        void LoadSettings();  // 엔진 설정 로드 함수
 
 	protected:
 		// 엔진 종료 요청 여부 플래그.

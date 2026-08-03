@@ -3,6 +3,8 @@
 #include <Level/Level.h>
 #include <Core/Input.h>
 #include <Render/Renderer.h>
+#include <fstream>
+#include <sstream>
 
 namespace Craft
 {
@@ -19,6 +21,8 @@ namespace Craft
 	{
         assert(instance == nullptr);
         instance = this;
+
+        LoadSettings();
 
         input = std::make_unique<Input>();
         renderer = std::make_unique<Renderer>(Vector2(setting.width, setting.height));
@@ -147,5 +151,63 @@ namespace Craft
 	void Engine::Shutdown()
 	{
 
+	}
+
+    void Engine::LoadSettings()
+    {
+        std::ifstream file("../Config/Setting.txt");
+        assert(file.is_open());
+
+        std::string line{};
+        while (std::getline(file, line))
+        {
+            if (line.empty() || line[0] == '#')
+            {
+                continue;
+            }
+
+            const size_t equalPos = line.find('=');
+            assert(equalPos != std::string::npos);
+
+            auto Trim = [](std::string& str) -> bool
+                {
+                    const char* whitespace = " \t\r\n";
+
+                    const size_t begin = str.find_first_not_of(whitespace);
+                    if (begin == std::string::npos)
+                    {
+                        str.clear();
+                        return false;
+                    }
+
+                    const size_t end = str.find_last_not_of(whitespace);
+
+                    str = str.substr(begin, end - begin + 1);
+                    return true;
+                };
+
+            std::string key = line.substr(0, equalPos); Trim(key);
+            std::string value = line.substr(equalPos + 1); Trim(value);
+
+            assert(!key.empty() && !value.empty());
+
+            if (key == "framerate")
+            {
+                setting.framerate = (float)atof(value.c_str());
+                assert(setting.framerate > 0.f);
+            }
+            else if (key == "width")
+            {
+                setting.width = atoi(value.c_str());
+                assert(setting.width > 0);
+            }
+            else if (key == "height")
+            {
+                setting.height = atoi(value.c_str());
+                assert(setting.height > 0);
+            }
+        }
+
+        file.close();
 	}
 }
