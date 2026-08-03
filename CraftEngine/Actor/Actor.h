@@ -55,8 +55,8 @@ namespace Craft
         // Render에 필요한 데이터
         std::string image{};
         Color color = Color::White;
-        int32 width = 0;  // 구현의 단순함을 위해 N x 1 크기 그림(문자열)만 갖도록 제한
-        int32 sortingOrder = 0;
+        int width = 0;  // 구현의 단순함을 위해 N x 1 크기 그림(문자열)만 갖도록 제한
+        int sortingOrder = 0;
         Vector2 position{};
 	};
 }

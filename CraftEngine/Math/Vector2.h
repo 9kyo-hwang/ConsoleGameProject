@@ -7,14 +7,14 @@ namespace Craft
     class CRAFT_API Vector2
     {
     public:
-        Vector2(int32 x = 0, int32 y = 0);
+        Vector2(int x = 0, int y = 0);
         ~Vector2();
 
     public:
         Vector2 operator+(const Vector2& other) const;
         Vector2 operator-(const Vector2& other) const;
         Vector2 operator*(const Vector2& other) const;
-        Vector2 operator*(int32 value) const;
+        Vector2 operator*(int value) const;
         Vector2 operator/(const Vector2& other) const;
 
         Vector2& operator=(const Vector2& other);
@@ -30,7 +30,7 @@ namespace Craft
 
     public:
         // 좌상단 기준 (0, 0), 오른쪽/아래로 갈 수록 +
-        int32 x = 0;
-        int32 y = 0;
+        int x = 0;
+        int y = 0;
     };
 }

@@ -1,16 +1,16 @@
 ﻿#include <pch.h>
-#include "TestActor.h"
+#include "Player.h"
 #include <Core/Input.h>
 
 using namespace Craft;
 
-TestActor::TestActor()
-    : Super("P", Vector2(5, 5), Color::Green)
+Player::Player(const Craft::Vector2& position)
+    : Super("P", position, Color::Green)
 {
     sortingOrder = 5;
 }
 
-void TestActor::Tick(float deltaTime)
+void Player::Tick(float deltaTime)
 {
     Super::Tick(deltaTime);
 

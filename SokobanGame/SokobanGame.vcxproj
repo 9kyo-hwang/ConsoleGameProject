@@ -73,6 +73,9 @@
     <PostBuildEvent>
       <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir)\ /e /y /i</Command>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>xcopy ..\Assets\* $(OutDir)..\Assets\ /e /y /i</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -98,15 +101,26 @@
     <PostBuildEvent>
       <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir)\ /e /y /i</Command>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>xcopy ..\Assets\* $(OutDir)..\Assets\ /e /y /i</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Actor\TestActor.cpp" />
-    <ClCompile Include="Level\TestLevel.cpp" />
+    <ClCompile Include="Actor\Box.cpp" />
+    <ClCompile Include="Actor\Ground.cpp" />
+    <ClCompile Include="Actor\Player.cpp" />
+    <ClCompile Include="Actor\Target.cpp" />
+    <ClCompile Include="Actor\Wall.cpp" />
+    <ClCompile Include="Level\GameLevel.cpp" />
     <ClCompile Include="Main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Actor\TestActor.h" />
-    <ClInclude Include="Level\TestLevel.h" />
+    <ClInclude Include="Actor\Box.h" />
+    <ClInclude Include="Actor\Ground.h" />
+    <ClInclude Include="Actor\Player.h" />
+    <ClInclude Include="Actor\Target.h" />
+    <ClInclude Include="Actor\Wall.h" />
+    <ClInclude Include="Level\GameLevel.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
