@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <Core/Core.h>
+#include <Core/CObject.h>
 #include <Math/Vector2.h>
 #include <Math/Color.h>
 #include <string>
@@ -10,8 +11,10 @@ namespace Craft
 {
 	class Level;
 
-	class CRAFT_API Actor
+	class CRAFT_API Actor : public CObject
 	{
+        TYPE_DECLARATIONS(Actor, CObject)
+
 	public:
 		Actor(
             const std::string& image = "", 

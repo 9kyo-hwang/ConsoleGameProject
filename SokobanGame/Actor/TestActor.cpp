@@ -5,14 +5,14 @@
 using namespace Craft;
 
 TestActor::TestActor()
-    : Actor("P", Vector2(5, 5), Color::Green)
+    : Super("P", Vector2(5, 5), Color::Green)
 {
     sortingOrder = 5;
 }
 
 void TestActor::Tick(float deltaTime)
 {
-    Actor::Tick(deltaTime);
+    Super::Tick(deltaTime);
 
     // ESC키 종료
     if(Input::Get().GetKeyDown(VK_ESCAPE))

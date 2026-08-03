@@ -3,6 +3,8 @@
 
 class TestActor : public Craft::Actor
 {
+    TYPE_DECLARATIONS(TestActor, Actor)
+
 public:
     TestActor();
     
