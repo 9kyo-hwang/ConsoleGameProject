@@ -25,19 +25,18 @@ namespace Craft
         inline bool HasInitialized() const { return hasInitialized; }
 
 		template<typename ActorType, typename... Args>
-		std::shared_ptr<ActorType> SpawnActor(Args&&... args) requires std::is_base_of_v<Actor, ActorType>
+		std::shared_ptr<ActorType> SpawnActor(Args&&... args) requires std::derived_from<ActorType, Actor>
 		{
 			auto actor = std::make_shared<ActorType>(std::forward<Args>(args)...);
 			addRequestedActors.emplace_back(actor);
 
-			// TODO: SetOwner. UE에서는 부모를 타고 올라가서 서버/클라/'내' 클라 등등 구분
 			actor->SetOwner(weak_from_this());
 
 			return actor;
 		}
 
 		template<typename ActorType>
-		std::shared_ptr<ActorType> FindActor() requires std::is_base_of_v<Actor, ActorType>
+		std::shared_ptr<ActorType> FindActor() requires std::derived_from<ActorType, Actor>
 		{
 			// TypeCasting
 			for (const auto& actor : actors)

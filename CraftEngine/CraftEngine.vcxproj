@@ -118,6 +118,7 @@ xcopy $(OutDir)CraftEngine.lib ..\Libraries\CraftEngine\$(Configuration)\ /e /y 
     </ClCompile>
     <ClCompile Include="Math\Vector2.cpp" />
     <ClCompile Include="Render\Renderer.cpp" />
+    <ClCompile Include="Render\ScreenBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Actor\Actor.h" />
@@ -129,6 +130,7 @@ xcopy $(OutDir)CraftEngine.lib ..\Libraries\CraftEngine\$(Configuration)\ /e /y 
     <ClInclude Include="pch.h" />
     <ClInclude Include="Math\Vector2.h" />
     <ClInclude Include="Render\Renderer.h" />
+    <ClInclude Include="Render\ScreenBuffer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

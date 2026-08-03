@@ -19,6 +19,9 @@ namespace Craft
 		{
 			// 목표 프레임 수 (초당 프레임).
 			float framerate = 120.0f;
+
+            int width = 60;
+            int height = 25;
 		};
 
 	public:
