@@ -120,6 +120,7 @@
     <ClInclude Include="Actor\Player.h" />
     <ClInclude Include="Actor\Target.h" />
     <ClInclude Include="Actor\Wall.h" />
+    <ClInclude Include="Interface\ICanPlayerMove.h" />
     <ClInclude Include="Level\GameLevel.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

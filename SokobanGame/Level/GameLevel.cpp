@@ -10,6 +10,10 @@
 #include <Actor/Target.h>
 #include <Actor/Wall.h>
 
+#include <Render/Renderer.h>
+
+using namespace Craft;
+
 void GameLevel::OnInitialized()
 {
     Level::OnInitialized();
@@ -21,6 +25,103 @@ void GameLevel::OnInitialized()
 void GameLevel::Draw()
 {
     Level::Draw();  // Level에서 액터 Draw 호출
+
+    if (_isGameCleared)
+    {
+        Renderer::Get().Submit("Game Clear!", Vector2(30, 0));
+    }
+}
+
+bool GameLevel::CanMoveTo(const Vector2& from, const Vector2& to)
+{
+    if (_isGameCleared)
+    {
+        return false;
+    }
+
+    std::vector<std::shared_ptr<Actor>> boxes;
+    for (const auto& actor : actors)
+    {
+        if (actor->IsA<Box>())
+        {
+            boxes.emplace_back(actor);
+        }
+    }
+
+    std::shared_ptr<Actor> boxActor = nullptr;
+    for (const auto& box : boxes)
+    {
+        if (box->GetPosition() == to)
+        {
+            boxActor = box;
+            break;
+        }
+    }
+
+    // 1. 이동하려는 위치에 박스가 있다면?
+    if (boxActor)
+    {
+        // 박스 다음 위치 구하기
+        // - 플레이어 방향 정보 필요: 다음 위치 - 현재 위치
+        Vector2 direction = to - from;
+        Vector2 posToBox = boxActor->GetPosition() + direction;
+
+        // 다음 위치가 박스라면 이동 불가
+        for (const auto& otherBox : boxes)
+        {
+            if (otherBox == boxActor)
+            {
+                continue;
+            }
+
+            if (otherBox->GetPosition() == posToBox)
+            {
+                return false;
+            }
+        }
+
+        // 다음 위치가 벽이면 이동 불가, 나머지는 가능
+        for (const auto& actor : actors)
+        {
+            if (actor->GetPosition() != posToBox)
+            {
+                continue;
+            }
+
+            if (actor->IsA<Wall>())
+            {
+                return false;
+            }
+
+            if (actor->IsA<Ground>() || actor->IsA<Target>())
+            {
+                boxActor->SetPosition(posToBox);
+
+                _isGameCleared = IsGameCleared();
+
+                return true;
+            }
+        }
+    }
+
+    // 2. 플레이어만 이동시키면 됨
+    for (const auto& actor : actors)
+    {
+        if (actor->GetPosition() != to)
+        {
+            continue;
+        }
+
+        if (actor->IsA<Wall>())
+        {
+            return false;
+        }
+
+        // 땅이거나 타겟인 케이스
+        return true;
+    }
+
+    return false;
 }
 
 void GameLevel::LoadMap(const std::string& filename)
@@ -111,4 +212,38 @@ void GameLevel::LoadMap(const std::string& filename)
     }
 
     file.close();
+}
+
+bool GameLevel::IsGameCleared()
+{
+    int32 currentScore = 0;
+
+    // 박스 위치 == 타겟 위치 개수
+    std::vector<std::shared_ptr<Actor>> boxes;
+    std::vector<std::shared_ptr<Actor>> targets;
+
+    for (const auto& actor : actors)
+    {
+        if (actor->IsA<Box>())
+        {
+            boxes.emplace_back(actor);
+        }
+        else if (actor->IsA<Target>())
+        {
+            targets.emplace_back(actor);
+        }
+    }
+
+    for (const auto& box : boxes)
+    {
+        for (const auto& target : targets)
+        {
+            if (box->GetPosition() == target->GetPosition())
+            {
+                ++currentScore;
+            }
+        }
+    }
+
+    return currentScore == _targetScore;
 }

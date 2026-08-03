@@ -3,24 +3,26 @@
 #include <Core/Core.h>
 #include <memory>
 
+using TypeId = std::uintptr_t;
+
 namespace Craft
 {
     // like UObject
     class CRAFT_API CObject
     {
     public:
-        virtual size_t GetClass() const = 0;
-        virtual bool IsA(size_t id) const { return false; }
+        virtual TypeId GetClass() const = 0;
+        virtual bool IsA(TypeId Id) const { return false; }
 
         template<typename T>
-        bool IsA() const { return IsA(T::GetTypeId()); }
+        bool IsA() const { return IsA(T::StaticClass()); }
 
         template<typename To, typename From>
-        std::shared_ptr<To> Cast(const std::shared_ptr<From>& src)
+        std::shared_ptr<To> Cast(const std::shared_ptr<From>& Src)
         {
-            if (src && src->IsA(To::TypeId()))
+            if (Src && Src->IsA(To::StaticClass()))
             {
-                return std::static_pointer_cast<To>(src);
+                return std::static_pointer_cast<To>(Src);
             }
 
             return nullptr;
@@ -29,23 +31,25 @@ namespace Craft
 }
 
 #define TYPE_DECLARATIONS(Type, ParentType) \
+    using ThisClass = Type;                 \
     using Super = ParentType;               \
 protected:                                  \
-    static size_t GetTypeId()               \
+    static TypeId GetTypeId()               \
     {                                       \
-        static int runtimeTypeId = 0;       \
-        return reinterpret_cast<size_t>(&runtimeTypeId);    \
+        static int RuntimeTypeId = 0;       \
+        return reinterpret_cast<TypeId>(&RuntimeTypeId);    \
     }                                       \
 public:                                     \
-    static size_t StaticClass()             \
+    using ParentType::IsA;                  \
+    static TypeId StaticClass()             \
     {                                       \
         return Type::GetTypeId();           \
     }                                       \
-    size_t GetClass() const override        \
+    TypeId GetClass() const override        \
     {                                       \
-        return Type::GetTypeId();           \
+        return Type::StaticClass();         \
     }                                       \
-    bool IsA(size_t id) const override      \
+    bool IsA(TypeId Id) const override      \
     {                                       \
-        return (id == GetTypeId()) ? true : ParentType::IsA(id);    \
+        return Id == StaticClass() || Super::IsA(Id);   \
     }
