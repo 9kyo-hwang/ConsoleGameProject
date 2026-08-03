@@ -1,6 +1,5 @@
 ﻿#pragma once
 
-#include <limits>
 #include <array>
 #include <Core/Core.h>
 
@@ -24,16 +23,16 @@ namespace Craft
         Input();
         ~Input() = default;
 
-        bool GetKeyDown(int32 keyCode) const;   // 안눌렸다가 눌림
-        bool GetKeyUp(int32 keyCode) const;     // 눌렸다가 떼짐
-        bool GetKey(int32 keyCode) const;       // 현재 눌렸는지
+        bool GetKeyDown(int keyCode) const;   // 안눌렸다가 눌림
+        bool GetKeyUp(int keyCode) const;     // 눌렸다가 떼짐
+        bool GetKey(int keyCode) const;       // 현재 눌렸는지
 
     private:
         void ProcessInput();  // 현재 프레임에 키가 입력됐는지(only system)
         void SaveKeyStates(); // 현재 프레임 입력 상태 기록
 
     private:
-        inline static constexpr uint16 KeyCount = std::numeric_limits<uint8>::max() + 1;
+        inline static constexpr unsigned short KeyCount = 256;
         std::array<KeyState, KeyCount> _keyStates{};
 
         static Input* _instance;

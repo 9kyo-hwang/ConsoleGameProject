@@ -1,5 +1,5 @@
-﻿#include <Engine/Engine.h>
-#include <Level/GameLevel.h>
+﻿#include <Game/Game.h>
+#include <Windows.h>
 
 using namespace Craft;
 
@@ -11,9 +11,10 @@ public:
 
 int main()
 {
-    Engine engine;
-    engine.AddNewLevel<GameLevel>();
-    engine.Run();
+    SetConsoleTitleA("Sokoban Game");
+
+    Game game;
+    game.Run();
 
     //A* a = nullptr;
 //a->Test();

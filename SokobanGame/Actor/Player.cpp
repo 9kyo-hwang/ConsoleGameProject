@@ -3,6 +3,7 @@
 #include <Core/Input.h>
 #include <Interface/ICanPlayerMove.h>
 #include <Level/Level.h>
+#include <Game/Game.h>
 
 using namespace Craft;
 
@@ -16,10 +17,12 @@ void Player::Tick(float deltaTime)
 {
     Super::Tick(deltaTime);
 
-    // ESC키 종료
     if(Input::Get().GetKeyDown(VK_ESCAPE))
     {
-        QuitGame();
+        //QuitGame();
+
+        Game& game = dynamic_cast<Game&>(Craft::Engine::Get());
+        game.ToggleMenu();
     }
 
     /*

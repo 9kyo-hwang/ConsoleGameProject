@@ -19,7 +19,7 @@ void GameLevel::OnInitialized()
     Level::OnInitialized();
 
     // 레베 로드 완료 시 Map 로드
-    LoadMap("Map.txt");
+    LoadMap("Stage1.txt");
 }
 
 void GameLevel::Draw()
