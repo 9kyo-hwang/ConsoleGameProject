@@ -3,10 +3,12 @@
 #include <vector>
 #include <memory>
 #include <Core/Core.h>
+#include <Actor/Actor.h>
 
 namespace Craft
 {
-	class Actor;
+    template<typename T>
+    concept ActorType = std::derived_from<T, Actor>;
 	
 	class CRAFT_API Level : public std::enable_shared_from_this<Level>
 	{
@@ -24,10 +26,10 @@ namespace Craft
 
         inline bool HasInitialized() const { return hasInitialized; }
 
-		template<typename ActorType, typename... Args>
-		std::shared_ptr<ActorType> SpawnActor(Args&&... args) requires std::derived_from<ActorType, Actor>
+		template<ActorType T, typename... Args>
+		std::shared_ptr<T> SpawnActor(Args&&... args)
 		{
-			auto actor = std::make_shared<ActorType>(std::forward<Args>(args)...);
+			auto actor = std::make_shared<T>(std::forward<Args>(args)...);
 			addRequestedActors.emplace_back(actor);
 
 			actor->SetOwner(weak_from_this());
@@ -35,13 +37,28 @@ namespace Craft
 			return actor;
 		}
 
-		template<typename ActorType>
-		std::shared_ptr<ActorType> FindActor() requires std::derived_from<ActorType, Actor>
+        template<ActorType T>
+        std::shared_ptr<T> SpawnActor(const TSubclassOf<T>& ActorClass)
+        {
+            auto ActorInstance = ActorClass.New();
+            if (!ActorInstance)
+            {
+                return nullptr;
+            }
+
+            addRequestedActors.emplace_back(ActorInstance);
+            ActorInstance->SetOwner(weak_from_this());
+
+            return ActorInstance;
+        }
+
+		template<ActorType T>
+		std::shared_ptr<T> FindActor()
 		{
 			// TypeCasting
 			for (const auto& actor : actors)
 			{
-				if (auto target = std::dynamic_pointer_cast<ActorType>(actor))
+				if (auto target = std::dynamic_pointer_cast<T>(actor))
 				{
 					return target;
 				}

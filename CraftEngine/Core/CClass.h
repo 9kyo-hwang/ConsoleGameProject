@@ -2,7 +2,6 @@
 
 #include <Core/Core.h>
 #include <memory>
-#include <stdexcept>
 #include <string_View>
 #include <type_traits>
 

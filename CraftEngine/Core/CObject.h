@@ -3,9 +3,13 @@
 #include <Core/Core.h>
 #include <Core/CClass.h>
 #include <memory>
+#include <stdexcept>
 
 namespace Craft
 {
+    template<typename T>
+    concept CObjectType = std::derived_from<T, class CObject>;
+
     // like UObject
     class CRAFT_API CObject
     {
@@ -38,12 +42,9 @@ namespace Craft
         }
     };
 
-    template<typename To, typename From>
+    template<CObjectType To, CObjectType From>
     std::shared_ptr<To> Cast(const std::shared_ptr<From>& Src)
     {
-        static_assert(std::is_base_of_v<CObject, To>);
-        static_assert(std::is_base_of_v<CObject, From>);
-
         if (Src && Src->IsA(To::StaticClass()))
         {
             return std::static_pointer_cast<To>(Src);
@@ -51,6 +52,51 @@ namespace Craft
 
         return nullptr;
     }
+
+    template<CObjectType T>
+    class TSubclassOf
+    {
+    public:
+        TSubclassOf() = default;
+
+        TSubclassOf(const CClass& InClass)
+        {
+            Set(InClass);
+        }
+
+        void Set(const CClass& InClass)
+        {
+            if (!InClass.IsChildOf(T::StaticClass()))
+            {
+                throw std::invalid_argument("TSubclassOf: incompatible class");
+            }
+
+            Class = &InClass;
+        }
+
+        explicit operator bool() const
+        {
+            return Class != nullptr;
+        }
+
+        const CClass& Get() const
+        {
+            if (!Class)
+            {
+                throw std::logic_error("TSubclassOf is empty");
+            }
+
+            return *Class;
+        }
+
+        std::shared_ptr<T> New() const
+        {
+            return Class ? Cast<T>(Class->NewObject()) : nullptr;
+        }
+
+    private:
+        const CClass* Class = nullptr;
+    };
 }
 
 
