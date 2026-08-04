@@ -1,4 +1,5 @@
-﻿#include "Box.h"
+﻿#include <pch.h>
+#include "Box.h"
 
 Box::Box(const Craft::Vector2& position)
     : Super("B", position, Craft::Color::Red)

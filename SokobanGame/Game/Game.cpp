@@ -1,4 +1,5 @@
-﻿#include "Game.h"
+﻿#include <pch.h>
+#include "Game.h"
 
 #include <Level/GameLevel.h>
 #include <Level/MenuLevel.h>

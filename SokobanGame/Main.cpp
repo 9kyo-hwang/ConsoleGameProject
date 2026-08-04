@@ -1,4 +1,5 @@
-﻿#include <Game/Game.h>
+﻿#include <pch.h>
+#include <Game/Game.h>
 #include <Windows.h>
 
 using namespace Craft;

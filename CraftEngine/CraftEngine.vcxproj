@@ -71,7 +71,9 @@
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
     <PreBuildEvent>
-      <Command>xcopy *.h ..\Includes\CraftEngine\ /e /y /i</Command>
+      <Command>robocopy "$(ProjectDir)." "$(SolutionDir)Includes\CraftEngine" *.h /E /XF pch.h
+if errorlevel 8 exit /B 1
+exit /B 0</Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>xcopy $(OutDir)CraftEngine.dll ..\Libraries\CraftEngine\$(Configuration)\ /e /y /i
@@ -101,7 +103,9 @@ xcopy ..\Config\Setting.txt $(OutDir)..\Config\ /e /y /i</Command>
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
     <PreBuildEvent>
-      <Command>xcopy *.h ..\Includes\CraftEngine\ /e /y /i</Command>
+      <Command>robocopy "$(ProjectDir)." "$(SolutionDir)Includes\CraftEngine" *.h /E /XF pch.h
+if errorlevel 8 exit /B 1
+exit /B 0</Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>xcopy $(OutDir)CraftEngine.dll ..\Libraries\CraftEngine\$(Configuration)\ /e /y /i

@@ -1,6 +1,7 @@
 ﻿#include <pch.h>
 #include "GameLevel.h"
 #include <fstream>
+#include <cassert>
 
 #include <Math/Vector2.h>
 
