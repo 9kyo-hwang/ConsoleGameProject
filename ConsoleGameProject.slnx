@@ -6,6 +6,9 @@
     <File Path=".editorconfig" />
   </Folder>
   <Project Path="CraftEngine/CraftEngine.vcxproj" Id="9eafa265-5871-4026-82c3-5c9f46e089d0" />
+  <Project Path="ShootingGame/ShootingGame.vcxproj" Id="4cd2787e-9f5e-4d39-93b3-df37a2ea0036">
+    <BuildDependency Project="CraftEngine/CraftEngine.vcxproj" />
+  </Project>
   <Project Path="SokobanGame/SokobanGame.vcxproj" Id="b3f0a50e-1435-43be-b165-f35124003f13">
     <BuildDependency Project="CraftEngine/CraftEngine.vcxproj" />
   </Project>
