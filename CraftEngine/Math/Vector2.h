@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <Core/Core.h>
+#include <Windows.h>
 
 namespace Craft
 {
@@ -11,6 +12,8 @@ namespace Craft
         ~Vector2();
 
     public:
+        operator COORD() const noexcept;
+
         Vector2 operator+(const Vector2& other) const;
         Vector2 operator-(const Vector2& other) const;
         Vector2 operator*(const Vector2& other) const;

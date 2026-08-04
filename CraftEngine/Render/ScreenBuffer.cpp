@@ -33,7 +33,7 @@ namespace Craft
         assert(result == TRUE);
 
         // 스크린 버퍼 크기 설정
-        _size = { (SHORT)screenSize.x, (SHORT)screenSize.y };
+        _size = screenSize;
         result = SetConsoleScreenBufferSize(_handle, _size);
         assert(result == TRUE);
 

@@ -17,6 +17,11 @@ namespace Craft
     {
     }
 
+    Vector2::operator COORD() const noexcept
+    {
+        return COORD{ (SHORT)x, (SHORT)y };
+    }
+
     Vector2 Vector2::operator+(const Vector2& other) const
     {
         return Vector2(x + other.x, y + other.y);
