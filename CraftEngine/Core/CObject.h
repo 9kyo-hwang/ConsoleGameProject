@@ -1,9 +1,8 @@
 ﻿#pragma once
 
 #include <Core/Core.h>
+#include <Core/CClass.h>
 #include <memory>
-
-using TypeId = std::uintptr_t;
 
 namespace Craft
 {
@@ -11,45 +10,73 @@ namespace Craft
     class CRAFT_API CObject
     {
     public:
-        virtual TypeId GetClass() const = 0;
-        virtual bool IsA(TypeId Id) const { return false; }
+        virtual ~CObject() = default;
+
+        virtual const CClass& GetClass() const 
+        { 
+            return StaticClass(); 
+        }
+
+        bool IsA(const CClass& SomeBase) const 
+        { 
+            return GetClass().IsChildOf(SomeBase);
+        }
 
         template<typename T>
-        bool IsA() const { return IsA(T::StaticClass()); }
+        bool IsA() const 
+        { 
+            return IsA(T::StaticClass()); 
+        }
 
-        template<typename To, typename From>
-        std::shared_ptr<To> Cast(const std::shared_ptr<From>& Src)
+        static const CClass& StaticClass()
         {
-            if (Src && Src->IsA(To::StaticClass()))
+            static const CClass Class
             {
-                return std::static_pointer_cast<To>(Src);
-            }
-
-            return nullptr;
+                "CObject", nullptr, [] {return std::make_shared<CObject>();}
+            };
+            return Class;
         }
     };
+
+    template<typename To, typename From>
+    std::shared_ptr<To> Cast(const std::shared_ptr<From>& Src)
+    {
+        static_assert(std::is_base_of_v<CObject, To>);
+        static_assert(std::is_base_of_v<CObject, From>);
+
+        if (Src && Src->IsA(To::StaticClass()))
+        {
+            return std::static_pointer_cast<To>(Src);
+        }
+
+        return nullptr;
+    }
 }
 
-#define TYPE_DECLARATIONS(Type, ParentType) \
-    using ThisClass = Type;                 \
-    using Super = ParentType;               \
-protected:                                  \
-    static TypeId GetTypeId()               \
-    {                                       \
-        static int RuntimeTypeId = 0;       \
-        return reinterpret_cast<TypeId>(&RuntimeTypeId);    \
-    }                                       \
-public:                                     \
-    using ParentType::IsA;                  \
-    static TypeId StaticClass()             \
-    {                                       \
-        return Type::GetTypeId();           \
-    }                                       \
-    TypeId GetClass() const override        \
-    {                                       \
-        return Type::StaticClass();         \
-    }                                       \
-    bool IsA(TypeId Id) const override      \
-    {                                       \
-        return Id == StaticClass() || Super::IsA(Id);   \
+
+#define TYPE_DECLARATIONS(Type, Parent)                     \
+public:                                                     \
+    using ThisClass = Type;                                 \
+    using Super = Parent;                                   \
+                                                            \
+    static const Craft::CClass& StaticClass()               \
+    {                                                       \
+        static const Craft::CClass Class                    \
+        {                                                   \
+            #Type, &Parent::StaticClass(),                  \
+            []() -> std::shared_ptr<Craft::CObject>         \
+            {                                               \
+                if constexpr (std::is_abstract_v<Type> ||   \
+                    !std::is_default_constructible_v<Type>) \
+                {                                           \
+                    return nullptr;                         \
+                }                                           \
+                else return std::make_shared<Type>();       \
+            }                                               \
+        };                                                  \
+        return Class;                                       \
+    }                                                       \
+    const Craft::CClass& GetClass() const override           \
+    {                                                       \
+        return StaticClass();                               \
     }
