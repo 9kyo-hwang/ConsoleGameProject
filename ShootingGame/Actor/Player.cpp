@@ -1,7 +1,9 @@
-﻿#include <pch.h>
+﻿#include "pch.h"
 #include "Player.h"
 #include <Engine/Engine.h>
 #include <Core/Input.h>
+#include <Level/Level.h>
+#include <Actor/PlayerBullet.h>
 
 using namespace Craft;
 
@@ -17,6 +19,8 @@ Player::Player()
     SetPosition(Vector2(x, y));
 
     _posX = (float)x;
+
+    _timer.SetTargetTime(_fireInterval);
 }
 
 void Player::Tick(float deltaTime)
@@ -40,6 +44,21 @@ void Player::Tick(float deltaTime)
     }
 
     Move(direction, deltaTime);
+
+    _timer.Tick(deltaTime);
+    if (_fireMode == FireMode::OneShot && Input::Get().GetKeyDown(VK_SPACE))
+    {
+        Fire();
+    }
+    else if (_fireMode == FireMode::Repeat && Input::Get().GetKey(VK_SPACE))
+    {
+        FireInterval();
+    }
+
+    if (Input::Get().GetKeyDown('R'))
+    {
+        _fireMode = (FireMode)(1 - (int32)_fireMode);
+    }
 }
 
 void Player::Move(float direction, float deltaTime)
@@ -56,7 +75,21 @@ void Player::Move(float direction, float deltaTime)
         _posX = (float)Engine::Get().GetWidth() - width;
     }
 
-    Vector2 newPosition = position;
-    newPosition.x = (int)_posX;
-    SetPosition(newPosition);
+    position.x = (int)_posX;
+}
+
+void Player::Fire()
+{
+    // Bullet 생성 -> Level도 필요
+    Vector2 bulletPosition = position;
+    bulletPosition.x += width / 2;  // 좌표 기준은 왼쪽 끝, 총알은 가운데로
+    GetOwner()->SpawnActor<PlayerBullet>(bulletPosition);
+}
+
+void Player::FireInterval()
+{
+    if (!CanFire()) return;
+
+    _timer.Reset();
+    Fire();
 }

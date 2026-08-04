@@ -5,10 +5,14 @@
     <ClCompile Include="Actor\Player.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="Level\GameLevel.cpp" />
+    <ClCompile Include="Util\Timer.cpp" />
+    <ClCompile Include="Actor\PlayerBullet.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Actor\Player.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Level\GameLevel.h" />
+    <ClInclude Include="Util\Timer.h" />
+    <ClInclude Include="Actor\PlayerBullet.h" />
   </ItemGroup>
 </Project>
