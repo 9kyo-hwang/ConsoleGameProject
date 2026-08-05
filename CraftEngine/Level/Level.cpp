@@ -73,4 +73,17 @@ namespace Craft
 
 		addRequestedActors.clear();
 	}
+
+	void Level::SavePreviousActorStates()
+	{
+        for (const auto& actor : actors)
+        {
+            if (!actor->IsActive())
+            {
+                continue;
+            }
+
+            actor->SavePreviousStates();
+        }
+	}
 }

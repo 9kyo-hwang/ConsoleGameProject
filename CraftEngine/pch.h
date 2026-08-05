@@ -20,3 +20,5 @@ using byte = unsigned char;
 #include <vector>
 #include <string>
 #include <array>
+#include <fstream>
+#include <sstream>

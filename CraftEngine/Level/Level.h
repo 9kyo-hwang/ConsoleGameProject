@@ -68,7 +68,8 @@ namespace Craft
 		}
 
 	protected:
-		void ProcessRequestedActors();
+		void ProcessRequestedActors();  // 추가/삭제 요청한 액터들 처리
+        void SavePreviousActorStates();  // 프레임 종료 시 액터들의 상태 캡처
 
 	protected:
 		bool hasInitialized = false;

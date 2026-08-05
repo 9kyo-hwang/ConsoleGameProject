@@ -3,9 +3,8 @@
 #include <Level/Level.h>
 #include <Core/Input.h>
 #include <Render/Renderer.h>
+#include <Physics/CollisionSystem.h>
 #include <Math/MathUtility.h>
-#include <fstream>
-#include <sstream>
 
 namespace Craft
 {
@@ -28,6 +27,7 @@ namespace Craft
 
         input = std::make_unique<Input>();
         renderer = std::make_unique<Renderer>(Vector2(setting.width, setting.height));
+        collision = std::make_unique<CollisionSystem>();
 	}
 
 	Engine::~Engine()
@@ -61,7 +61,8 @@ namespace Craft
 				OnInitialized();
 				BeginPlay();
 				Tick(deltaTime);
-				Draw();
+                ProcessCollision();  // Tick에서 계산한 액터 변화를 반영하고, 그리기 전에 충돌 판정
+                Draw();
 
                 // Level Handling
                 if (subLevel)
@@ -79,6 +80,7 @@ namespace Craft
                 if (mainLevel)
                 {
                     mainLevel->ProcessRequestedActors();
+                    mainLevel->SavePreviousActorStates();
                 }
 
 				SavePreviousInputStates();
@@ -143,6 +145,18 @@ namespace Craft
 
         renderer->Draw();  // 위에서 제출한 데이터를 기반으로 실제 드로우 시행
 	}
+
+    void Engine::ProcessCollision()
+    {
+        if (!mainLevel)
+        {
+            return;
+        }
+
+        // Engine은 Level 쪽에 friend 선언되어 접근 가능
+        // 즉 Level - Engine - Collision 구조로 Engine이 중재자
+        collision->ProcessCollision(mainLevel->actors);
+    }
 
 	void Engine::SavePreviousInputStates()
 	{

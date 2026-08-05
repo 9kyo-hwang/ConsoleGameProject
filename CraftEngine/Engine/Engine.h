@@ -8,6 +8,7 @@ namespace Craft
     class Level;
     class Input;
     class Renderer;
+    class CollisionSystem;
 
 	// 메인 엔진 클래스.
 	// 엔진 루프를 제공.
@@ -54,6 +55,7 @@ namespace Craft
 		void BeginPlay();   // 게임 플레이 초기화 함수.
 		void Tick(float deltaTime); // 게임 플레이 업데이트 함수.
 		void Draw();    // 레벨 그리기 함수.
+        void ProcessCollision();  // 충돌 처리 함수
 		void SavePreviousInputStates(); // 프레임 간 입력 값 저장을 위한 함수.
 		void Shutdown();    // 엔진 종료 시 정리가 필요할 때 사용할 함수.
         void LoadSettings();  // 엔진 설정 로드 함수
@@ -72,5 +74,6 @@ namespace Craft
 
         std::unique_ptr<Input> input;
         std::unique_ptr<Renderer> renderer;
+        std::unique_ptr<CollisionSystem> collision;
 	};
 }
