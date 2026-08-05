@@ -8,7 +8,7 @@ class Enemy : public Craft::Actor
 
     enum class MoveDirection
     {
-        Left = 0,
+        Left = -1,
         Right = 1
     };
 public:

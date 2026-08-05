@@ -2,6 +2,8 @@
 #include "Enemy.h"
 #include <Math/MathUtility.h>
 #include <Engine/Engine.h>
+#include <Actor/EnemyBullet.h>
+#include <Level/Level.h>
 
 using namespace Craft;
 
@@ -52,5 +54,8 @@ void Enemy::Tick(float deltaTime)
     }
 
     _timer.Reset();
-    // TODO: 탄알 스폰 & 발사 처리
+    
+    // 총알이 가운데서 발사되도록 폭 / 2 값만큼 shift
+    Vector2 bulletPos(position.x + (width / 2), position.y);
+    GetOwner()->SpawnActor<EnemyBullet>(bulletPos, FMath::RandRange(10.f, 20.f));
 }
