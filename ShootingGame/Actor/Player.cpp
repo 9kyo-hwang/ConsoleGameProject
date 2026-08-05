@@ -70,6 +70,8 @@ void Player::OnCollision(const std::shared_ptr<Actor>& other)
 
     if (other->IsA<EnemyBullet>())
     {
+        Engine::Get().PlayOneShot("Explosion.wav"); // 폭발 사운드
+        
         Destroy();
         other->Destroy();
 
@@ -111,6 +113,8 @@ void Player::Fire()
     bulletPosition.x += width / 2;  // 좌표 기준은 왼쪽 끝, 총알은 가운데로
     bulletPosition.y -= 1;  // 자기 자신 위치에 + 1
     GetOwner()->SpawnActor<PlayerBullet>(bulletPosition);
+
+    Engine::Get().PlayOneShot("Retro_Laser_Shoot.wav");
 }
 
 void Player::FireInterval()

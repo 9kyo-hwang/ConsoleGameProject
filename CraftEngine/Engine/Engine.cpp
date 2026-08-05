@@ -5,6 +5,7 @@
 #include <Render/Renderer.h>
 #include <Physics/CollisionSystem.h>
 #include <Math/MathUtility.h>
+#include <SoundSystem/Sound.h>
 
 namespace Craft
 {
@@ -27,6 +28,7 @@ namespace Craft
         input = std::make_unique<Input>();
         renderer = std::make_unique<Renderer>(Vector2(setting.width, setting.height));
         collision = std::make_unique<CollisionSystem>();
+        sound = std::make_unique<Sound>();
 	}
 
 	Engine::~Engine()
@@ -95,6 +97,37 @@ namespace Craft
 	{
 		isQuit = true;
 	}
+
+    void Engine::PlayOneShot(const std::string& filename)
+    {
+        if (!sound)
+        {
+            return;
+        }
+
+        // 사운드 에셋 경로 concat
+        sound->PlayOneShot("../Assets/Sound/" + filename);
+    }
+
+    void Engine::PlayBGM(const std::string& filename)
+    {
+        if (!sound)
+        {
+            return;
+        }
+
+        sound->PlayBackgroundMusic("../Assets/Sound/" + filename);
+    }
+
+    void Engine::StopBGM()
+    {
+        if (!sound)
+        {
+            return;
+        }
+
+        sound->StopBackgroundMusic();
+    }
 
 	void Engine::ProcessInput()
 	{

@@ -2,7 +2,9 @@
 
 #include <memory>
 #include <Core/Core.h>
+#include <string>
 
+class Sound;    // not in craft namespace
 namespace Craft
 {
     class Level;
@@ -43,6 +45,11 @@ namespace Craft
 		void Run(); // 엔진 실행 함수.
 		void Quit(); // 엔진 종료 함수.
 
+        // Wrapper of SoundSystem
+        void PlayOneShot(const std::string& filename);  
+        void PlayBGM(const std::string& filename);
+        void StopBGM();
+
         inline int GetWidth() const { return setting.width; }
         inline int GetHeight() const { return setting.height; }
 
@@ -75,5 +82,7 @@ namespace Craft
         std::unique_ptr<Input> input;
         std::unique_ptr<Renderer> renderer;
         std::unique_ptr<CollisionSystem> collision;
+
+        std::unique_ptr<Sound> sound;
 	};
 }

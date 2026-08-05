@@ -64,11 +64,13 @@ void Enemy::Tick(float deltaTime)
 }
 
 void Enemy::OnCollision(const std::shared_ptr<Actor>& other)
- {
+{
     Super::OnCollision(other);
 
     if (other->IsA<PlayerBullet>())
     {
+        Engine::Get().PlayOneShot("Explosion.wav");
+
         Destroy();
         other->Destroy();
 

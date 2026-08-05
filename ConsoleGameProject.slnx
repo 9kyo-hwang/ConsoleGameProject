@@ -12,4 +12,5 @@
   <Project Path="SokobanGame/SokobanGame.vcxproj" Id="b3f0a50e-1435-43be-b165-f35124003f13">
     <BuildDependency Project="CraftEngine/CraftEngine.vcxproj" />
   </Project>
+  <Project Path="SoundSystem/SoundSystem.vcxproj" Id="9e431464-5f5c-4f99-a83d-7c9490bdf913" />
 </Solution>
