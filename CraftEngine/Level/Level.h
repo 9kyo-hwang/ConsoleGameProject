@@ -55,13 +55,12 @@ namespace Craft
 		template<ActorType T>
 		std::shared_ptr<T> FindActor()
 		{
-			// TypeCasting
-			for (const auto& actor : actors)
+			for (const std::shared_ptr<Actor>& actor : actors)
 			{
-				if (auto target = std::dynamic_pointer_cast<T>(actor))
-				{
-					return target;
-				}
+                if (std::shared_ptr<T> target = Cast<T>(actor))
+                {
+                    return target;
+                }
 			}
 
 			return nullptr;

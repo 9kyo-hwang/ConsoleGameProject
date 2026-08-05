@@ -35,7 +35,7 @@ void EnemySpawner::Tick(float deltaTime)
 
 void EnemySpawner::Spawn()
 {
-    const uint64 count = enemyTypes.size();
+    const int32 count = (int32)enemyTypes.size();
     const int32 index = FMath::RandRange(0, count - 1);
     const int32 posY = FMath::RandRange(1, 10);
 

@@ -12,7 +12,6 @@ namespace Craft
 
 	Engine& Engine::Get()
 	{
-		// TODO: 여기에 return 문을 삽입합니다.
 		assert(instance != nullptr && "엔진 인스턴스가 Null이면 안됨");
 		return *instance;
 	}

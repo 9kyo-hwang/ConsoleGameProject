@@ -33,7 +33,7 @@ private:
     void Tick(float deltaTime) override;
 
 private:
-    int _currentIndex = 0;    // 현재 표시되는 이펙트 인덱스
+    int _nextIndex;    // 다음에 표시될 이펙트 인덱스(이미 0번 세팅이 진행돼서)
     Timer _timer;
 };
 

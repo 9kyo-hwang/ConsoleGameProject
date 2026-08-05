@@ -110,6 +110,7 @@
     <ClCompile Include="Actor\EnemySpawner.cpp" />
     <ClCompile Include="Actor\Player.cpp" />
     <ClCompile Include="Actor\PlayerBullet.cpp" />
+    <ClCompile Include="Actor\GameManager.cpp" />
     <ClCompile Include="Level\GameLevel.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="pch.cpp">
@@ -125,6 +126,7 @@
     <ClInclude Include="Actor\EnemySpawner.h" />
     <ClInclude Include="Actor\Player.h" />
     <ClInclude Include="Actor\PlayerBullet.h" />
+    <ClInclude Include="Actor\GameManager.h" />
     <ClInclude Include="Level\GameLevel.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Util\Timer.h" />

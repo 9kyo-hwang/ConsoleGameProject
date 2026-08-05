@@ -34,7 +34,7 @@ DestroyEffect::DestroyEffect(const Craft::Vector2& effectPosition)
 
     // 재생 시간 타이머 등 설정
     _timer.SetTargetTime(effects[0].playtime);
-    _currentIndex = 0;
+    _nextIndex = 1;
 }
 
 void DestroyEffect::Tick(float deltaTime)
@@ -47,16 +47,17 @@ void DestroyEffect::Tick(float deltaTime)
         return;
     }
 
-    if (_currentIndex + 1 >= effects.size())
+    if (_nextIndex >= effects.size())
     {
         Destroy();
         return;
     }
 
-    // 프레임 교체: 타이머 재설정, 이미지 및 컬러 교체
-    auto& effect = effects[++_currentIndex];
+    // 다음 프레임으로 교체: 타이머 재설정, 이미지 및 컬러 교체
     _timer.Reset();
-    _timer.SetTargetTime(effect.playtime);
-    ChangeImage(effect.frame);
-    color = effect.color;
+
+    auto& nextEffect = effects[_nextIndex++];
+    _timer.SetTargetTime(nextEffect.playtime);
+    ChangeImage(nextEffect.frame);
+    color = nextEffect.color;
 }

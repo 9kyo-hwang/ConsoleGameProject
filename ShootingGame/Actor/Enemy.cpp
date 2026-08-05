@@ -6,6 +6,7 @@
 #include <Level/Level.h>
 #include <Actor/PlayerBullet.h>
 #include <Actor/DestroyEffect.h>
+#include <Actor/GameManager.h>
 
 using namespace Craft;
 
@@ -72,9 +73,15 @@ void Enemy::OnCollision(const std::shared_ptr<Actor>& other)
         other->Destroy();
 
         // 적이 죽은 위치에서 이펙트 생성
-        GetOwner()->SpawnActor<DestroyEffect>(position);
+        if (auto level = GetOwner())
+        {
+            level->SpawnActor<DestroyEffect>(position);
+            if (auto gameManager = level->FindActor<GameManager>())
+            {
+                gameManager->SetScore(gameManager->GetScore() + 1);
+            }
+        }
 
-        // TODO: Get Score
         return;
     }
 }

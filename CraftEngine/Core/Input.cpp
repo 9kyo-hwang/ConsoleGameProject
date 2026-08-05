@@ -7,7 +7,6 @@ namespace Craft
 
     Input& Input::Get()
     {
-        // TODO: 여기에 return 문을 삽입합니다.
         assert(_instance != nullptr && "Input 클래스 인스턴스가 존재하지 않음");
         return *_instance;
     }

@@ -5,6 +5,8 @@
 #include <Level/Level.h>
 #include <Actor/PlayerBullet.h>
 #include <Actor/EnemyBullet.h>
+#include <Actor/DestroyEffect.h>
+#include <Actor/GameManager.h>
 
 using namespace Craft;
 
@@ -72,6 +74,15 @@ void Player::OnCollision(const std::shared_ptr<Actor>& other)
         other->Destroy();
 
         // TODO: GameManager에게 플레이어 죽음 알림(게임 종료 등)
+        if (auto level = GetOwner())
+        {
+            // 사망 이펙트 발생 X: 게임오버 시 레벨 단에서 [!DEAD!] 출력
+            if (auto gameManager = level->FindActor<GameManager>())
+            {
+                gameManager->SetPlayerDead(position);
+            }
+        }
+
         return;
     }
 }
