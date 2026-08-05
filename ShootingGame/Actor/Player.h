@@ -17,6 +17,7 @@ public:
 
 private:
     void Tick(float deltaTime) override;
+    void OnCollision(const std::shared_ptr<Actor>& other) override;
     void Move(float direction, float deltaTime);
     void Fire();            // 단사
     void FireInterval();    // 연사

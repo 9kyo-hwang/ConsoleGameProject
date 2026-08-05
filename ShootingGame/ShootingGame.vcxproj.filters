@@ -10,6 +10,7 @@
     <ClCompile Include="Actor\Enemy.cpp" />
     <ClCompile Include="Actor\EnemySpawner.cpp" />
     <ClCompile Include="Actor\EnemyBullet.cpp" />
+    <ClCompile Include="Actor\DestroyEffect.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Actor\Player.h" />
@@ -20,5 +21,6 @@
     <ClInclude Include="Actor\Enemy.h" />
     <ClInclude Include="Actor\EnemySpawner.h" />
     <ClInclude Include="Actor\EnemyBullet.h" />
+    <ClInclude Include="Actor\DestroyEffect.h" />
   </ItemGroup>
 </Project>

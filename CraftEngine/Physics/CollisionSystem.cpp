@@ -81,7 +81,7 @@ bool Craft::CollisionSystem::IsCollide(const std::shared_ptr<Actor>& lhs, const 
     const int32 lhsXMax = std::max<int32>(lhsPrev.x, lhsCur.x) + lhs->GetWidth() - 1;
 
     const int32 rhsXMin = std::min<int32>(rhsPrev.x, rhsCur.x);
-    const int32 rhsXMax = std::max<int32>(rhsPrev.x, rhsCur.x) + lhs->GetWidth() - 1;
+    const int32 rhsXMax = std::max<int32>(rhsPrev.x, rhsCur.x) + rhs->GetWidth() - 1;
 
     if (lhsXMax < rhsXMin || rhsXMax < lhsXMin)
     {

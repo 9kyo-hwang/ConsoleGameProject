@@ -43,7 +43,13 @@ namespace Craft
 	{
 	}
 
-	void Actor::Destroy()
+    void Actor::ChangeImage(const std::string& newImage)
+    {
+        width = (int)newImage.size();
+        image = newImage;
+    }
+
+    void Actor::Destroy()
 	{
 		hasExpired = true;
 	}

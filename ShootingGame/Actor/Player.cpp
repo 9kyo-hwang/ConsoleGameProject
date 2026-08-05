@@ -4,6 +4,7 @@
 #include <Core/Input.h>
 #include <Level/Level.h>
 #include <Actor/PlayerBullet.h>
+#include <Actor/EnemyBullet.h>
 
 using namespace Craft;
 
@@ -61,6 +62,20 @@ void Player::Tick(float deltaTime)
     }
 }
 
+void Player::OnCollision(const std::shared_ptr<Actor>& other)
+{
+    Super::OnCollision(other);
+
+    if (other->IsA<EnemyBullet>())
+    {
+        Destroy();
+        other->Destroy();
+
+        // TODO: GameManager에게 플레이어 죽음 알림(게임 종료 등)
+        return;
+    }
+}
+
 void Player::Move(float direction, float deltaTime)
 {
     _posX += direction * _moveSpeed * deltaTime;
@@ -83,6 +98,7 @@ void Player::Fire()
     // Bullet 생성 -> Level도 필요
     Vector2 bulletPosition = position;
     bulletPosition.x += width / 2;  // 좌표 기준은 왼쪽 끝, 총알은 가운데로
+    bulletPosition.y -= 1;  // 자기 자신 위치에 + 1
     GetOwner()->SpawnActor<PlayerBullet>(bulletPosition);
 }
 

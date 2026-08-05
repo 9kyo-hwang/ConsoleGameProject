@@ -17,7 +17,7 @@ void EnemyBullet::Tick(float deltaTime)
     Super::Tick(deltaTime);
 
     _posY += _moveSpeed * deltaTime;
-    if (_posY >= Engine::Get().GetHeight() - 2)  // 플레이어 생성 위치 기준에 맞추도록
+    if (_posY >= Engine::Get().GetHeight() - 1)  // 플레이어 생성 위치 기준에 맞추도록
     {
         Destroy();
         return;

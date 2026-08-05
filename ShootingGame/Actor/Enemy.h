@@ -18,6 +18,7 @@ public:
 
 private:
     void Tick(float deltaTime) override;
+    void OnCollision(const std::shared_ptr<Actor>& other) override;
 
 private:
     MoveDirection _dir = MoveDirection::Left;

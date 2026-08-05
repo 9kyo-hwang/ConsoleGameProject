@@ -28,7 +28,8 @@ namespace Craft
 		virtual void Tick(float deltaTime);
 		virtual void Draw();
         virtual void OnCollision(const std::shared_ptr<Actor>& other);
-		
+
+        void ChangeImage(const std::string& newImage);  // 폭발 이펙트 등을 발생시키기 위해
 		void Destroy();  // 액터 제거
 		void QuitGame();  // 게임(엔진) 종료
 

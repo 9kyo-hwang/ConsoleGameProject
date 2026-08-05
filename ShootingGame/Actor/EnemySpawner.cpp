@@ -3,7 +3,6 @@
 #include <Actor/Enemy.h>
 #include <Math/MathUtility.h>   // 랜덤
 #include <Level/Level.h>    // 액터 생성 요청을 위함
-#include <vector>
 
 using namespace Craft;
 

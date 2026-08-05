@@ -4,6 +4,8 @@
 #include <Engine/Engine.h>
 #include <Actor/EnemyBullet.h>
 #include <Level/Level.h>
+#include <Actor/PlayerBullet.h>
+#include <Actor/DestroyEffect.h>
 
 using namespace Craft;
 
@@ -55,7 +57,24 @@ void Enemy::Tick(float deltaTime)
 
     _timer.Reset();
     
-    // 총알이 가운데서 발사되도록 폭 / 2 값만큼 shift
-    Vector2 bulletPos(position.x + (width / 2), position.y);
+    // 총알이 가운데서 발사되도록 폭 / 2 값만큼 shift, 자신의 위치 한 칸 아래에 총알 생성
+    Vector2 bulletPos(position.x + (width / 2), position.y + 1);
     GetOwner()->SpawnActor<EnemyBullet>(bulletPos, FMath::RandRange(10.f, 20.f));
+}
+
+void Enemy::OnCollision(const std::shared_ptr<Actor>& other)
+ {
+    Super::OnCollision(other);
+
+    if (other->IsA<PlayerBullet>())
+    {
+        Destroy();
+        other->Destroy();
+
+        // 적이 죽은 위치에서 이펙트 생성
+        GetOwner()->SpawnActor<DestroyEffect>(position);
+
+        // TODO: Get Score
+        return;
+    }
 }

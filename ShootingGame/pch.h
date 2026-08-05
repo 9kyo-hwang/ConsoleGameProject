@@ -13,3 +13,4 @@ using uint64 = unsigned __int64;
 using byte = unsigned char;
 
 #include <algorithm>
+#include <vector>
