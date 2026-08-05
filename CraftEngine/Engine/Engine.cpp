@@ -3,6 +3,7 @@
 #include <Level/Level.h>
 #include <Core/Input.h>
 #include <Render/Renderer.h>
+#include <Math/MathUtility.h>
 #include <fstream>
 #include <sstream>
 
@@ -23,6 +24,7 @@ namespace Craft
         instance = this;
 
         LoadSettings();
+        FMath::SeedRandomDevice();
 
         input = std::make_unique<Input>();
         renderer = std::make_unique<Renderer>(Vector2(setting.width, setting.height));
