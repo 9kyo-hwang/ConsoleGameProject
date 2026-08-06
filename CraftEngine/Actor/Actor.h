@@ -48,9 +48,10 @@ namespace Craft
         void SavePreviousStates();  // 프레임 종료 시 상태(위치) 캡처
 
         inline std::shared_ptr<Level> GetOwner() const { return owner.lock(); }
-		void SetOwner(std::weak_ptr<Level> newOwner) { owner = newOwner; }
+        void SetOwner(std::weak_ptr<Level> newOwner);
 
-        inline Vector2 GetPosition() const { return position; }
+        Vector2 GetPosition() const;
+        Vector2 GetWorldPosition() const;
         void SetPosition(Vector2 newPosition);
 
         template<ActorComponentType T, typename ...Args>
@@ -96,7 +97,8 @@ namespace Craft
 
         inline std::shared_ptr<TransformComponent> GetTransform() const { return transform; }
 
-        inline Vector2 GetPreviousPosition() const { return previousPosition; }
+        // TODO: 제거 예정
+        Vector2 GetPreviousPosition() const;
         inline int GetWidth() const { return width; }
 
     protected:

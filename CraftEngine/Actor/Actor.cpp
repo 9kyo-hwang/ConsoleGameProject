@@ -28,10 +28,22 @@ namespace Craft
 	void Actor::BeginPlay()
 	{
 		hasBeganPlay = true;
+
+        for (const auto& component : components)
+        {
+            if (!component->HasBeganPlay())
+            {
+                component->BeginPlay();
+            }
+        }
 	}
 
 	void Actor::Tick(float deltaTime)
 	{
+        for (const auto& component : components)
+        {
+            component->Tick(deltaTime);
+        }
 	}
 
 	void Actor::Draw()
@@ -43,10 +55,24 @@ namespace Craft
 
         // Renderer에 이 액터의 정보 제출
         Renderer::Get().Submit(image, position, color, sortingOrder);
+
+        for (const auto& component : components)
+        {
+            component->Draw();
+        }
 	}
 
 	void Actor::OnCollision(const std::shared_ptr<Actor>& other)
 	{
+        if (!IsActive())
+        {
+            return;
+        }
+
+        for (const auto& component : components)
+        {
+            component->OnCollision(other);
+        }
 	}
 
     void Actor::ChangeImage(const std::string& newImage)
@@ -67,18 +93,66 @@ namespace Craft
 
     void Actor::SavePreviousStates()
     {
-        previousPosition = position;
+        //previousPosition = position;
+        if (transform)
+        {
+            // 위치 정보 관련 갱신은 transform의 책임
+            transform->SavePreviousWorldPosition();
+        }
+    }
+
+    void Actor::SetOwner(std::weak_ptr<Level> newOwner)
+    {
+        owner = newOwner;
+
+        // 액터의 오너 레벨이 바뀌는 건데, 컴포넌트 오너는 왜 바꾸지?
+        // level이 바뀌면서 영향을 주나?
+        SetComponentOwners();
+    }
+
+    Vector2 Actor::GetPosition() const
+    {
+        if (transform)
+        {
+            return transform->GetLocalPosition();
+        }
+
+        return Vector2::Zero;
+    }
+
+    Vector2 Actor::GetWorldPosition() const
+    {
+        if (transform)
+        {
+            return transform->GetWorldPosition();
+        }
+
+        return Vector2::Zero;
     }
 
 	void Actor::SetPosition(Vector2 newPosition)
 	{
-        if (position == newPosition)
+        if (GetPosition() == newPosition)
         {
             return;
         }
 
-        position = newPosition;
+        //position = newPosition;
+        if (transform)
+        {
+            transform->SetLocalPosition(newPosition);
+        }
 	}
+
+    Vector2 Actor::GetPreviousPosition() const
+    {
+        if (transform)
+        {
+            transform->GetPreviousWorldPosition();
+        }
+
+        return Vector2::Zero;
+    }
 
     void Actor::ProcessAddRequestedComponents()
     {
