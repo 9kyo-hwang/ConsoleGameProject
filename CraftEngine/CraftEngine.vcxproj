@@ -118,6 +118,7 @@ xcopy ..\Config\Setting.txt $(OutDir)..\Config\ /e /y /i</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Component\BoxComponent.cpp" />
     <ClCompile Include="Component\ActorComponent.cpp" />
     <ClCompile Include="Actor\Actor.cpp" />
     <ClCompile Include="Core\Input.cpp" />
@@ -135,6 +136,7 @@ xcopy ..\Config\Setting.txt $(OutDir)..\Config\ /e /y /i</Command>
     <ClCompile Include="Component\SpriteRendererComponent.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Component\BoxComponent.h" />
     <ClInclude Include="Component\ActorComponent.h" />
     <ClInclude Include="Actor\Actor.h" />
     <ClInclude Include="Core\CClass.h" />

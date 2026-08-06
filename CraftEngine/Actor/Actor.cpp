@@ -12,8 +12,14 @@ namespace Craft
         , color(color)
         , width((int32)image.length())
 	{
-
+        // 트랜스폼은 생성자에서 직접 생성
+        transform = std::make_shared<TransformComponent>(position);
 	}
+
+    Actor::Actor(const Vector2& position)
+        : Actor("", position, Color::White)
+    {
+    }
 
 	Actor::~Actor()
 	{
@@ -73,4 +79,61 @@ namespace Craft
 
         position = newPosition;
 	}
+
+    void Actor::ProcessAddRequestedComponents()
+    {
+        if (addRequestedComponents.empty())
+        {
+            return;
+        }
+
+        for (auto& component : addRequestedComponents)
+        {
+            if (!component)
+            {
+                continue;
+            }
+
+            components.emplace_back(component);
+
+            // Actor는 BeginPlay 했는데 Component가 아직이라면
+            if (HasBeganPlay() && !component->HasBeganPlay())
+            {
+                component->BeginPlay();
+            }
+        }
+
+        SetComponentOwners();
+        addRequestedComponents.clear();
+    }
+
+    void Actor::SetComponentOwners()
+    {
+        std::shared_ptr<Actor> thisActor = shared_from_this();
+        if (!thisActor)
+        {
+            return;
+        }
+
+        if (transform)
+        {
+            transform->SetOwner(thisActor);
+        }
+
+        for (const auto& component : components)
+        {
+            if (component)
+            {
+                component->SetOwner(thisActor);
+            }
+        }
+
+        for (const auto& component : addRequestedComponents)
+        {
+            if (component)
+            {
+                component->SetOwner(thisActor);
+            }
+        }
+    }
 }
