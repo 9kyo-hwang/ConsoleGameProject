@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "CollisionSystem.h"
 #include <Actor/Actor.h>
+#include <Component/BoxComponent.h>
 
 void Craft::CollisionSystem::ProcessCollision(const std::vector<std::shared_ptr<Actor>> actors)
 {
@@ -70,18 +71,27 @@ bool Craft::CollisionSystem::IsCollide(const std::shared_ptr<Actor>& lhs, const 
     * 이 박스와 충돌한 액터가 있는지 판정하는 식으로 보강
     */
 
+    auto lhsBox = lhs->GetComponent<BoxComponent>();
+    auto rhsBox = rhs->GetComponent<BoxComponent>();
+
+    if (!lhsBox || !rhsBox)
+    {
+        return false;
+    }
+
+    // 충돌 처리도 최종 월드 좌표 기준으로 검사
     const Vector2 lhsPrev = lhs->GetPreviousPosition();
-    const Vector2 lhsCur = lhs->GetPosition();
+    const Vector2 lhsCur = lhs->GetWorldPosition();
 
     const Vector2 rhsPrev = rhs->GetPreviousPosition();
-    const Vector2 rhsCur = rhs->GetPosition();
+    const Vector2 rhsCur = rhs->GetWorldPosition();
 
     // X축 판정
     const int32 lhsXMin = std::min<int32>(lhsPrev.x, lhsCur.x);
-    const int32 lhsXMax = std::max<int32>(lhsPrev.x, lhsCur.x) + lhs->GetWidth() - 1;
+    const int32 lhsXMax = std::max<int32>(lhsPrev.x, lhsCur.x) + lhsBox->GetWidth() - 1;
 
     const int32 rhsXMin = std::min<int32>(rhsPrev.x, rhsCur.x);
-    const int32 rhsXMax = std::max<int32>(rhsPrev.x, rhsCur.x) + rhs->GetWidth() - 1;
+    const int32 rhsXMax = std::max<int32>(rhsPrev.x, rhsCur.x) + rhsBox->GetWidth() - 1;
 
     if (lhsXMax < rhsXMin || rhsXMax < lhsXMin)
     {

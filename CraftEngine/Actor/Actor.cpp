@@ -53,9 +53,7 @@ namespace Craft
             return;
         }
 
-        // Renderer에 이 액터의 정보 제출
-        Renderer::Get().Submit(image, position, color, sortingOrder);
-
+        // Draw를 정의한(SpriteRenderer 등) 컴포넌트가 수행
         for (const auto& component : components)
         {
             component->Draw();
