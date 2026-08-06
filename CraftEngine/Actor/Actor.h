@@ -47,6 +47,9 @@ namespace Craft
 
         void SavePreviousStates();  // 프레임 종료 시 상태(위치) 캡처
 
+        void AttachTo(const std::shared_ptr<Actor>& newParent, bool keepWorldPosition = true);
+        void DetachFromParent();
+
         inline std::shared_ptr<Level> GetOwner() const { return owner.lock(); }
         void SetOwner(std::weak_ptr<Level> newOwner);
 
@@ -96,6 +99,8 @@ namespace Craft
 		inline bool HasExpired() const { return hasExpired; }
 
         inline std::shared_ptr<TransformComponent> GetTransform() const { return transform; }
+        inline std::shared_ptr<Actor> GetParent() const { return parent.lock(); }
+        inline const std::vector<std::weak_ptr<Actor>>& GetChildren() const { return children; }
 
         // TODO: 제거 예정
         Vector2 GetPreviousPosition() const;
@@ -114,6 +119,10 @@ namespace Craft
         std::shared_ptr<TransformComponent> transform;
         std::vector<std::shared_ptr<ActorComponent>> components;
         std::vector<std::shared_ptr<ActorComponent>> addRequestedComponents; // Tick에 Add 요청한 목록들
+
+        // Scene Graph 상 부모/자식
+        std::weak_ptr<Actor> parent;
+        std::vector<std::weak_ptr<Actor>> children;
 
         // Render에 필요한 데이터
         std::string image{};

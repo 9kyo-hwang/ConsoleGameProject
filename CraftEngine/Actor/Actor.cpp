@@ -84,6 +84,14 @@ namespace Craft
     void Actor::Destroy()
 	{
 		hasExpired = true;
+
+        for (const auto& child : children)
+        {
+            if (auto childActor = child.lock())
+            {
+                childActor->Destroy();
+            }
+        }
 	}
 
 	void Actor::QuitGame()
@@ -98,6 +106,58 @@ namespace Craft
         {
             // 위치 정보 관련 갱신은 transform의 책임
             transform->SavePreviousWorldPosition();
+        }
+    }
+
+    void Actor::AttachTo(const std::shared_ptr<Actor>& newParent, bool keepWorldPosition)
+    {
+        if (!newParent || newParent.get() == this)
+        {
+            return;
+        }
+
+        // 기존 부모 정보 제거
+        DetachFromParent();
+
+        // 새 부모 설정
+        parent = newParent;
+        newParent->children.emplace_back(weak_from_this());
+
+        // transform 부모 갱신
+        if (transform && newParent->GetTransform())
+        {
+            // 기존 월드 좌표 유지를 위해 복사
+            Vector2 prev = transform->GetWorldPosition();
+            transform->SetParent(newParent->GetTransform());
+            if (keepWorldPosition)
+            {
+                transform->SetWorldPosition(prev);
+            }
+        }
+    }
+
+    void Actor::DetachFromParent()
+    {
+        if (auto prevParent = GetParent())
+        {
+            auto& sibling = prevParent->children;
+            for (auto it = sibling.begin(); it != sibling.end(); ++it)
+            {
+                // 가정: 부모의 children에는 내 정보가 1개만 들어있음
+                if ((*it).lock().get() == this)
+                {
+                    it = sibling.erase(it);
+                    break;
+                }
+            }
+        }
+
+        parent.reset(); // 기존 부모 참조 reelase
+        if (transform)
+        {
+            Vector2 pos = transform->GetWorldPosition();
+            transform->SetParent(std::weak_ptr<TransformComponent>());  // Empty
+            transform->SetWorldPosition(pos);   // 이전 월드 포지션 유지
         }
     }
 
