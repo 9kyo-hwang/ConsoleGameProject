@@ -4,7 +4,7 @@
 
 namespace Craft
 {
-    class TransformComponent : public ActorComponent
+    class CRAFT_API TransformComponent : public ActorComponent
     {
         TYPE_DECLARATIONS(TransformComponent, ActorComponent)
 

@@ -1,10 +1,11 @@
 ﻿#pragma once
 #include <Core/CObject.h>
+#include <Core/Core.h>
 
 namespace Craft
 {
     class Actor;    // ActorComponent의 Owner
-    class ActorComponent : public CObject
+    class CRAFT_API ActorComponent : public CObject
     {
         TYPE_DECLARATIONS(ActorComponent, CObject)
 

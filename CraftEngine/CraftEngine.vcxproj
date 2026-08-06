@@ -132,6 +132,7 @@ xcopy ..\Config\Setting.txt $(OutDir)..\Config\ /e /y /i</Command>
     <ClCompile Include="Render\Renderer.cpp" />
     <ClCompile Include="Render\ScreenBuffer.cpp" />
     <ClCompile Include="Component\TransformComponent.cpp" />
+    <ClCompile Include="Component\SpriteRendererComponent.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Component\ActorComponent.h" />
@@ -150,6 +151,7 @@ xcopy ..\Config\Setting.txt $(OutDir)..\Config\ /e /y /i</Command>
     <ClInclude Include="Render\Renderer.h" />
     <ClInclude Include="Render\ScreenBuffer.h" />
     <ClInclude Include="Component\TransformComponent.h" />
+    <ClInclude Include="Component\SpriteRendererComponent.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
