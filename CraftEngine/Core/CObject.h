@@ -102,7 +102,6 @@ namespace Craft
 
 #define TYPE_DECLARATIONS(Type, Parent)                     \
 public:                                                     \
-    using ThisClass = Type;                                 \
     using Super = Parent;                                   \
                                                             \
     static const Craft::CClass& StaticClass()               \
