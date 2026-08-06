@@ -1,9 +1,14 @@
 ﻿#include <pch.h>
 #include "Box.h"
 
+#include <Component/SpriteRendererComponent.h>
+#include <Component/BoxComponent.h>
+
+using namespace Craft;
+
 Box::Box(const Craft::Vector2& position)
-    : Super("B", position, Craft::Color::Red)
+    : Super(position)
 {
-    // Ground나 Target랑 겹쳤을 때 위에 보이도록
-    sortingOrder = 3;
+    AddComponent<SpriteRendererComponent>("B", Color::Red, 3);
+    AddComponent<BoxComponent>(1);  // width = 1
 }

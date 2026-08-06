@@ -66,7 +66,7 @@ namespace Craft
                 "TransformComponent is created by an actor."
             );
 
-            auto component = make_shared<T>(std::forward<Args>(args)...);
+            auto component = std::make_shared<T>(std::forward<Args>(args)...);
             addRequestedComponents.emplace_back(component); // 추가 요청
             return component;
         }

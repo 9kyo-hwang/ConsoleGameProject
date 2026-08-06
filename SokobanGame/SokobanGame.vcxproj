@@ -73,7 +73,8 @@
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
     <PostBuildEvent>
-      <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir)\ /e /y /i</Command>
+      <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir)\ /e /y /i
+xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y /i</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>xcopy ..\Assets\* $(OutDir)..\Assets\ /e /y /i</Command>
@@ -103,7 +104,8 @@
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
     <PostBuildEvent>
-      <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir)\ /e /y /i</Command>
+      <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir)\ /e /y /i
+xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y /i</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>xcopy ..\Assets\* $(OutDir)..\Assets\ /e /y /i</Command>

@@ -4,13 +4,16 @@
 #include <Interface/ICanPlayerMove.h>
 #include <Level/Level.h>
 #include <Game/Game.h>
+#include <Component/SpriteRendererComponent.h>
+#include <Component/BoxComponent.h>
 
 using namespace Craft;
 
 Player::Player(const Craft::Vector2& position)
-    : Super("P", position, Color::Green)
+    : Super(position)
 {
-    sortingOrder = 5;
+    AddComponent<SpriteRendererComponent>("P", Color::Green, 5);
+    AddComponent<BoxComponent>(1);
 }
 
 void Player::Tick(float deltaTime)
@@ -38,30 +41,32 @@ void Player::Tick(float deltaTime)
         return;
     }
 
-    Vector2 newPosition = position;
+    // Actor의 position은 안쓰도록 수정
+    Vector2 from = GetPosition();   // 소코반에선 local/world 크게 의미 없음
+    Vector2 to = from;
 
     if (Input::Get().GetKeyDown(VK_LEFT))
     {
-        newPosition.x = position.x - 1;
+        to.x -= 1;
     }
 
     if (Input::Get().GetKeyDown(VK_RIGHT))
     {
-        newPosition.x = position.x + 1;
+        to.x += 1;
     }
 
     if (Input::Get().GetKeyDown(VK_UP))
     {
-        newPosition.y = position.y - 1;
+        to.y -= 1;
     }
 
     if (Input::Get().GetKeyDown(VK_DOWN))
     {
-        newPosition.y = position.y + 1;
+        to.y += 1;
     }
 
-    if (canPlayerMove->CanMoveTo(position, newPosition))
+    if (canPlayerMove->CanMoveTo(from, to))
     {
-        SetPosition(newPosition);
+        SetPosition(to);    // transform 기반 동작
     }
 }

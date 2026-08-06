@@ -26,7 +26,7 @@ namespace Craft
             return;
         }
 
-        auto transform = actor->GetComponent<TransformComponent>();
+        auto transform = actor->GetTransform();
         if (!transform)
         {
             return;
