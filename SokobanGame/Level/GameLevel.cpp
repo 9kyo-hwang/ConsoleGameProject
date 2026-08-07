@@ -67,6 +67,18 @@ bool GameLevel::CanMoveTo(const Vector2& from, const Vector2& to)
         Vector2 direction = to - from;
         Vector2 posToBox = boxActor->GetPosition() + direction;
 
+        /*
+        * 원래 덧셈은 위치 + 위치 / 벡터 + 벡터만 가능
+        * 하지만 게임 상 좌표 계산을 위해 위치(좌표) + 벡터(크기 + 방향)을 허용함
+        * 이를 동차좌표계라 부름 | 어파인 변환
+        * (x, y, w): w가 0이면 벡터, 1이면 위치 / (x, y, z, w)
+        * 박스 위치의 경우 
+        - to(x2, y2, 1) - from(x1, y1, 1) = direction(x2 - x1, y2 - y1, 0): 벡터
+        - actor(x3, y3, 1) + direction(x2 - x1, y2 - y1, 0) = posToBox(x3 + x2 - x1, y3 + y2 - 1, 1): 위치
+        - 그래서 벡터 + 벡터, 벡터 + 위치는 되지만 위치 + 위치는 w = 2가 되어 UB
+        */
+
+
         // 다음 위치가 박스라면 이동 불가
         for (const auto& otherBox : boxes)
         {
