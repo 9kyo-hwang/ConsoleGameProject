@@ -7,17 +7,32 @@
 #include <Actor/EnemyBullet.h>
 #include <Actor/DestroyEffect.h>
 #include <Actor/GameManager.h>
+#include <Component/SpriteRendererComponent.h>
+#include <Component/BoxComponent.h>
 
 using namespace Craft;
 
-Player::Player()
-    : Super("<=A=>", Vector2::Zero, Color::Green)
+// 너비 계산에 사용되는 편의 함수
+namespace
 {
+    int GetCollisionWidth(const Actor& actor)
+    {
+        auto collider = actor.GetComponent<BoxComponent>();
+        return collider ? collider->GetWidth() : 0;
+    }
+}
+
+Player::Player()
+    : Super(Vector2::Zero)
+{
+    AddComponent<SpriteRendererComponent>("<=A=>", Color::Green, 5);
+    AddComponent<BoxComponent>(5);
+
     // 콘솔 가운데에 위치 + 플레이어 가로 길이 보정
-    int x = (Engine::Get().GetWidth() / 2) - (width / 2);
+    int x = (Engine::Get().GetWidth() / 2) - (GetCollisionWidth(*this) / 2);
     
-    // 콘솔 최하단에서 + 2
-    int y = Engine::Get().GetHeight() - 2;
+    // 콘솔 최하단에서 + 3
+    int y = Engine::Get().GetHeight() - 3;
 
     SetPosition(Vector2(x, y));
 
@@ -93,23 +108,29 @@ void Player::Move(float direction, float deltaTime)
 {
     _posX += direction * _moveSpeed * deltaTime;
 
+    int collisionWidth = GetCollisionWidth(*this);
+
     // 플레이어가 화면 밖으로 안벗어나도록
     if (_posX < 0.f)
     {
         _posX = 0.f;
     }
-    else if (_posX + width >= Engine::Get().GetWidth())
+    else if (_posX + collisionWidth >= Engine::Get().GetWidth())
     {
-        _posX = (float)Engine::Get().GetWidth() - width;
+        _posX = (float)Engine::Get().GetWidth() - collisionWidth;
     }
 
-    position.x = (int)_posX;
+    Vector2 newPosition = GetPosition();
+    newPosition.x = (int)_posX;
+    SetPosition(newPosition);
 }
 
 void Player::Fire()
 {
+    // TODO: 발사 로직 수정하면서 width 함께 수정
+     
     // Bullet 생성 -> Level도 필요
-    Vector2 bulletPosition = position;
+    Vector2 bulletPosition = GetPosition();
     bulletPosition.x += width / 2;  // 좌표 기준은 왼쪽 끝, 총알은 가운데로
     bulletPosition.y -= 1;  // 자기 자신 위치에 + 1
     GetOwner()->SpawnActor<PlayerBullet>(bulletPosition);
