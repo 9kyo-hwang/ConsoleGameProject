@@ -12,6 +12,8 @@
     <ClCompile Include="Actor\EnemyBullet.cpp" />
     <ClCompile Include="Actor\DestroyEffect.cpp" />
     <ClCompile Include="Actor\GameManager.cpp" />
+    <ClCompile Include="Actor\PlayerGun.cpp" />
+    <ClCompile Include="Actor\PlayerEngineEffect.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Actor\Player.h" />
@@ -24,5 +26,7 @@
     <ClInclude Include="Actor\EnemyBullet.h" />
     <ClInclude Include="Actor\DestroyEffect.h" />
     <ClInclude Include="Actor\GameManager.h" />
+    <ClInclude Include="Actor\PlayerGun.h" />
+    <ClInclude Include="Actor\PlayerEngineEffect.h" />
   </ItemGroup>
 </Project>

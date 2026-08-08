@@ -9,6 +9,8 @@
 #include <Actor/GameManager.h>
 #include <Component/SpriteRendererComponent.h>
 #include <Component/BoxComponent.h>
+#include <Actor/PlayerGun.h>
+#include <Actor/PlayerEngineEffect.h>
 
 using namespace Craft;
 
@@ -39,6 +41,34 @@ Player::Player()
     _posX = (float)x;
 
     _timer.SetTargetTime(_fireInterval);
+}
+
+void Player::BeginPlay()
+{
+    Super::BeginPlay();
+
+    // 레벨 생성 이후에 액터를 생성해야 하므로
+    auto level = GetOwner();
+    if (!level)
+    {
+        return;
+    }
+
+    // 좌측이 (0, 0)이라 < = A = > 에서 좌우 = 위에 위치를 세팅
+    auto leftGun = level->SpawnActor<PlayerGun>(Vector2(1, -1));
+    auto rightGun = level->SpawnActor<PlayerGun>(Vector2(3, -1));
+    
+    // 계층 연결
+    leftGun->AttachTo(shared_from_this(), false);
+    rightGun->AttachTo(shared_from_this(), false);
+
+    // 추후 발사할 때 이 배열 활용
+    _guns.emplace_back(leftGun);
+    _guns.emplace_back(rightGun);
+
+    // 가로 5의 이펙트라, x축으로 시프트 X
+    _engineEffect = level->SpawnActor<PlayerEngineEffect>(Vector2(0, 1));
+    _engineEffect->AttachTo(shared_from_this(), false);
 }
 
 void Player::Tick(float deltaTime)
@@ -96,7 +126,7 @@ void Player::OnCollision(const std::shared_ptr<Actor>& other)
             // 사망 이펙트 발생 X: 게임오버 시 레벨 단에서 [!DEAD!] 출력
             if (auto gameManager = level->FindActor<GameManager>())
             {
-                gameManager->SetPlayerDead(position);
+                gameManager->SetPlayerDead(GetWorldPosition());
             }
         }
 
@@ -128,12 +158,23 @@ void Player::Move(float direction, float deltaTime)
 void Player::Fire()
 {
     // TODO: 발사 로직 수정하면서 width 함께 수정
-     
-    // Bullet 생성 -> Level도 필요
-    Vector2 bulletPosition = GetPosition();
-    bulletPosition.x += width / 2;  // 좌표 기준은 왼쪽 끝, 총알은 가운데로
-    bulletPosition.y -= 1;  // 자기 자신 위치에 + 1
-    GetOwner()->SpawnActor<PlayerBullet>(bulletPosition);
+
+    auto level = GetOwner();
+    if (!level)
+    {
+        return;
+    }
+
+    // 자식 계층에 있는 총구 액터 목록 순회
+    for (const auto& gun : _guns)
+    {
+        if (!gun || !gun->IsActive())
+        {
+            continue;
+        }
+
+        level->SpawnActor<PlayerBullet>(gun->GetFirePosition());
+    }
 
     Engine::Get().PlayOneShot("Retro_Laser_Shoot.wav");
 }
