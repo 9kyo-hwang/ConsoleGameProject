@@ -22,7 +22,7 @@ namespace Craft
 	{
 		for (const auto& actor : actors)
 		{
-			if (!actor->HasBeganPlay())
+			if (actor->IsActive() && !actor->HasBeganPlay())
 			{
 				actor->BeginPlay();
 			}
@@ -77,7 +77,10 @@ namespace Craft
 
 		for (auto& actor : addRequestedActors)
 		{
-			actors.push_back(std::move(actor));
+			if (actor && actor->IsActive())
+			{
+				actors.push_back(std::move(actor));
+			}
 		}
 
 		addRequestedActors.clear();
