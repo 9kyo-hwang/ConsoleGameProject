@@ -4,6 +4,7 @@
 class EnemyBullet : public Craft::Actor
 {
     TYPE_DECLARATIONS(EnemyBullet, Craft::Actor)
+
 public:
     EnemyBullet(const Craft::Vector2& startPosition, float moveSpeed = 15.f);
     ~EnemyBullet() override = default;

@@ -4,6 +4,7 @@
 class PlayerBullet : public Craft::Actor
 {
     TYPE_DECLARATIONS(PlayerBullet, Craft::Actor)
+
 public:
     PlayerBullet(const Craft::Vector2& start);  // 플레이어 위치에서 시작
     ~PlayerBullet() override;

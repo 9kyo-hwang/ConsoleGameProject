@@ -2,6 +2,11 @@
 #include <Actor/Actor.h>
 #include <Util/Timer.h>
 
+namespace Craft
+{
+    class SpriteRendererComponent;
+}
+
 class DestroyEffect : public Craft::Actor
 {
     TYPE_DECLARATIONS(DestroyEffect, Craft::Actor)
@@ -33,7 +38,9 @@ private:
     void Tick(float deltaTime) override;
 
 private:
+    std::shared_ptr<Craft::SpriteRendererComponent> _renderer;
     int _nextIndex;    // 다음에 표시될 이펙트 인덱스(이미 0번 세팅이 진행돼서)
     Timer _timer;
+
 };
 

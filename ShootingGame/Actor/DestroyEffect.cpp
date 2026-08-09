@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "DestroyEffect.h"
 #include <Engine/Engine.h>
+#include <Component/SpriteRendererComponent.h>
 
 using namespace Craft;
 using EffectFrame = DestroyEffect::EffectFrame;
@@ -15,8 +16,10 @@ static const std::vector<EffectFrame> effects =
 };
 
 DestroyEffect::DestroyEffect(const Craft::Vector2& effectPosition)
-    : Super(effects[0].frame, effectPosition, effects[0].color)
+    : Super(effectPosition)
 {
+    _renderer = AddComponent<SpriteRendererComponent>(effects[0].frame, effects[0].color, 7);
+
     // 이펙트 재생 위치(x) 보정
     const int frameLength = (int)effects[0].frame.size();
     
@@ -30,7 +33,7 @@ DestroyEffect::DestroyEffect(const Craft::Vector2& effectPosition)
         posX -= frameLength;
     }
 
-    position.x = posX;
+    SetPosition(Vector2(posX, GetPosition().y));
 
     // 재생 시간 타이머 등 설정
     _timer.SetTargetTime(effects[0].playtime);
@@ -58,6 +61,9 @@ void DestroyEffect::Tick(float deltaTime)
 
     auto& nextEffect = effects[_nextIndex++];
     _timer.SetTargetTime(nextEffect.playtime);
-    ChangeImage(nextEffect.frame);
-    color = nextEffect.color;
+    if (_renderer)
+    {
+        _renderer->SetImage(nextEffect.frame);
+        _renderer->SetColor(nextEffect.color);
+    }
 }

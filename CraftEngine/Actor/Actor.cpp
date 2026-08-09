@@ -6,19 +6,10 @@
 
 namespace Craft
 {
-	Actor::Actor(const std::string& image, const Vector2& position, Color color)
-        : image(image)
-        , position(position)
-        , color(color)
-        , width((int32)image.length())
-	{
+    Actor::Actor(const Vector2& position)
+    {
         // 트랜스폼은 생성자에서 직접 생성
         transform = std::make_shared<TransformComponent>(position);
-	}
-
-    Actor::Actor(const Vector2& position)
-        : Actor("", position, Color::White)
-    {
     }
 
 	Actor::~Actor()
@@ -40,6 +31,11 @@ namespace Craft
 
 	void Actor::Tick(float deltaTime)
 	{
+        if (!IsActive())
+        {
+            return;
+        }
+
         for (const auto& component : components)
         {
             component->Tick(deltaTime);
@@ -72,12 +68,6 @@ namespace Craft
             component->OnCollision(other);
         }
 	}
-
-    void Actor::ChangeImage(const std::string& newImage)
-    {
-        width = (int)newImage.size();
-        image = newImage;
-    }
 
     void Actor::Destroy()
 	{
@@ -195,7 +185,6 @@ namespace Craft
             return;
         }
 
-        //position = newPosition;
         if (transform)
         {
             transform->SetLocalPosition(newPosition);
@@ -206,7 +195,7 @@ namespace Craft
     {
         if (transform)
         {
-            transform->GetPreviousWorldPosition();
+            return transform->GetPreviousWorldPosition();
         }
 
         return Vector2::Zero;
@@ -219,7 +208,8 @@ namespace Craft
             return;
         }
 
-        for (auto& component : addRequestedComponents)
+        SetComponentOwners();
+        for (const auto& component : addRequestedComponents)
         {
             if (!component)
             {
@@ -235,7 +225,6 @@ namespace Craft
             }
         }
 
-        SetComponentOwners();
         addRequestedComponents.clear();
     }
 

@@ -27,12 +27,7 @@ namespace Craft
         TYPE_DECLARATIONS(Actor, CObject)
 
 	public:
-		Actor(
-            const std::string& image = "", 
-            const Vector2& position = Vector2::Zero,
-            Color color = Color::White
-        );
-        Actor(const Vector2& position);
+        Actor(const Vector2& position = Vector2::Zero);
 
 		virtual ~Actor();
 
@@ -41,7 +36,6 @@ namespace Craft
 		virtual void Draw();
         virtual void OnCollision(const std::shared_ptr<Actor>& other);
 
-        void ChangeImage(const std::string& newImage);  // 폭발 이펙트 등을 발생시키기 위해
 		void Destroy();  // 액터 제거
 		void QuitGame();  // 게임(엔진) 종료
 
@@ -102,9 +96,7 @@ namespace Craft
         inline std::shared_ptr<Actor> GetParent() const { return parent.lock(); }
         inline const std::vector<std::weak_ptr<Actor>>& GetChildren() const { return children; }
 
-        // TODO: 제거 예정
         Vector2 GetPreviousPosition() const;
-        inline int GetWidth() const { return width; }
 
     protected:
         void ProcessAddRequestedComponents();  // 추가 요청한 컴포넌트 처리
@@ -123,13 +115,5 @@ namespace Craft
         // Scene Graph 상 부모/자식
         std::weak_ptr<Actor> parent;
         std::vector<std::weak_ptr<Actor>> children;
-
-        // Render에 필요한 데이터
-        std::string image{};
-        Color color = Color::White;
-        int width = 0;  // 구현의 단순함을 위해 N x 1 크기 그림(문자열)만 갖도록 제한
-        int sortingOrder = 0;
-        Vector2 position{};
-        Vector2 previousPosition{}; // 충돌 처리를 위해 이전 프레임 위치값 저장
 	};
 }

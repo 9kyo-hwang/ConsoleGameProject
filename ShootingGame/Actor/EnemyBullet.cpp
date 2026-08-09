@@ -1,15 +1,18 @@
 ﻿#include "pch.h"
 #include "EnemyBullet.h"
 #include <Engine/Engine.h>
+#include <Component/SpriteRendererComponent.h>
+#include <Component/BoxComponent.h>
 
 using namespace Craft;
 
 EnemyBullet::EnemyBullet(const Craft::Vector2& startPosition, float moveSpeed)
-    : Super("#", startPosition, Color::Red)
+    : Super(startPosition)
     , _moveSpeed(moveSpeed)
     , _posY((float)startPosition.y)
 {
-
+    AddComponent<SpriteRendererComponent>("#", Color::Red, 4);
+    AddComponent<BoxComponent>(1);
 }
 
 void EnemyBullet::Tick(float deltaTime)
@@ -23,5 +26,7 @@ void EnemyBullet::Tick(float deltaTime)
         return;
     }
 
-    position.y = (int32)_posY;
+    Vector2 newPosition = GetPosition();
+    newPosition.y = (int32)_posY;
+    SetPosition(newPosition);
 }
