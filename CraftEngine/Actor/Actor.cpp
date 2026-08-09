@@ -73,9 +73,10 @@ namespace Craft
 	{
 		hasExpired = true;
 
-        for (const auto& child : children)
+        // 자식 Actor의 파괴 결정은 여전히 Actor의 책임
+        for (const auto& childTransform : transform->GetChildren())
         {
-            if (auto childActor = child.lock())
+            if (auto childActor = childTransform->GetOwner())
             {
                 childActor->Destroy();
             }
@@ -99,54 +100,22 @@ namespace Craft
 
     void Actor::AttachTo(const std::shared_ptr<Actor>& newParent, bool keepWorldPosition)
     {
-        if (!newParent || newParent.get() == this)
+        if (!newParent || !transform || !newParent->transform)
         {
             return;
         }
 
-        // 기존 부모 정보 제거
-        DetachFromParent();
-
-        // 새 부모 설정
-        parent = newParent;
-        newParent->children.emplace_back(weak_from_this());
-
-        // transform 부모 갱신
-        if (transform && newParent->GetTransform())
-        {
-            // 기존 월드 좌표 유지를 위해 복사
-            Vector2 prev = transform->GetWorldPosition();
-            transform->SetParent(newParent->GetTransform());
-            if (keepWorldPosition)
-            {
-                transform->SetWorldPosition(prev);
-            }
-        }
+        transform->AttachTo(newParent->transform, keepWorldPosition);
     }
 
     void Actor::DetachFromParent()
     {
-        if (auto prevParent = GetParent())
+        if (!transform)
         {
-            auto& sibling = prevParent->children;
-            for (auto it = sibling.begin(); it != sibling.end(); ++it)
-            {
-                // 가정: 부모의 children에는 내 정보가 1개만 들어있음
-                if ((*it).lock().get() == this)
-                {
-                    it = sibling.erase(it);
-                    break;
-                }
-            }
+            return;
         }
 
-        parent.reset(); // 기존 부모 참조 reelase
-        if (transform)
-        {
-            Vector2 pos = transform->GetWorldPosition();
-            transform->SetParent(std::weak_ptr<TransformComponent>());  // Empty
-            transform->SetWorldPosition(pos);   // 이전 월드 포지션 유지
-        }
+        transform->DetachFromParent();
     }
 
     void Actor::SetOwner(std::weak_ptr<Level> newOwner)

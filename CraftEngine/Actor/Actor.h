@@ -93,8 +93,6 @@ namespace Craft
 		inline bool HasExpired() const { return hasExpired; }
 
         inline std::shared_ptr<TransformComponent> GetTransform() const { return transform; }
-        inline std::shared_ptr<Actor> GetParent() const { return parent.lock(); }
-        inline const std::vector<std::weak_ptr<Actor>>& GetChildren() const { return children; }
 
         Vector2 GetPreviousPosition() const;
 
@@ -111,9 +109,5 @@ namespace Craft
         std::shared_ptr<TransformComponent> transform;
         std::vector<std::shared_ptr<ActorComponent>> components;
         std::vector<std::shared_ptr<ActorComponent>> addRequestedComponents; // Tick에 Add 요청한 목록들
-
-        // Scene Graph 상 부모/자식
-        std::weak_ptr<Actor> parent;
-        std::vector<std::weak_ptr<Actor>> children;
 	};
 }
