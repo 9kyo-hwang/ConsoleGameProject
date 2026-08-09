@@ -120,7 +120,6 @@ void Player::OnCollision(const std::shared_ptr<Actor>& other)
         Destroy();
         other->Destroy();
 
-        // TODO: GameManager에게 플레이어 죽음 알림(게임 종료 등)
         if (auto level = GetOwner())
         {
             // 사망 이펙트 발생 X: 게임오버 시 레벨 단에서 [!DEAD!] 출력
@@ -157,8 +156,6 @@ void Player::Move(float direction, float deltaTime)
 
 void Player::Fire()
 {
-    // TODO: 발사 로직 수정하면서 width 함께 수정
-
     auto level = GetOwner();
     if (!level)
     {

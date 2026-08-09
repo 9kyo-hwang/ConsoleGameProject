@@ -12,7 +12,6 @@ namespace Craft
         TransformComponent(const Vector2& localPosition = Vector2::Zero);
         ~TransformComponent() override = default;
 
-        // TODO: 부모 계층 붙으면 위치 Getter/Setter 로직 수정
         inline Vector2 GetLocalPosition() const { return localPosition; }
         inline void SetLocalPosition(const Vector2& position) { localPosition = position; } 
         Vector2 GetWorldPosition() const;   
