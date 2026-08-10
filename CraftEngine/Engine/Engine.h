@@ -12,6 +12,9 @@ namespace Craft
     class Renderer;
     class CollisionSystem;
 
+    template<typename T>
+    concept LevelType = std::derived_from<T, Level>;
+
 	// 메인 엔진 클래스.
 	// 엔진 루프를 제공.
 	// 게임 엔진의 핵심 기능 제공.
@@ -30,12 +33,18 @@ namespace Craft
 	public:
 		static Engine& Get();
 
-        template<typename LevelType>
-        void AddNewLevel() requires std::derived_from<LevelType, Level>
+        template<LevelType T>
+        void AddNewLevel()
         {
-            subLevel = std::make_shared<LevelType>();
+            subLevel = std::make_shared<T>();
 
             // main level(levels[0]) 처리 끝나면 sub level(levels[1])을 main으로 승격
+        }
+
+        template<LevelType T>
+        void SetSubLevel(std::shared_ptr<T> level)
+        {
+            subLevel = level;
         }
 
 	public:

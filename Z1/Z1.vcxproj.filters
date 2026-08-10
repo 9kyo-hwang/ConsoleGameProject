@@ -3,8 +3,16 @@
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="Game\Game.cpp" />
+    <ClCompile Include="Level\TitleLevel.cpp" />
+    <ClCompile Include="Level\GameplayLevel.cpp" />
+    <ClCompile Include="Level\ClearLevel.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="Game\Game.h" />
+    <ClInclude Include="Level\TitleLevel.h" />
+    <ClInclude Include="Level\GameplayLevel.h" />
+    <ClInclude Include="Level\ClearLevel.h" />
   </ItemGroup>
 </Project>

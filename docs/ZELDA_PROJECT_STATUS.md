@@ -4,11 +4,11 @@
 
 ## 현재 진행
 
-- 현재 단계: 단계 0 - 프로젝트 골격
-- 현재 작업: Z1 프로젝트 골격 빌드·실행 검증
-- 상태: 감사 통과 - 직접 실행 확인 대기
-- 다음 작업: `Binaries\x64\Debug\Z1\Z1.exe`를 직접 실행하고 시작 결과 확인
-- 마지막 검증: Z1 audit -Build FAIL=0/WARN=0; 실행 파일·CraftEngine.dll·SoundSystem.dll 생성 확인
+- 현재 단계: 단계 1 - 2D 렌더링
+- 현재 작업: CraftEngine N×M Sprite 렌더링 기반 설계·최소 구현
+- 상태: 단계 0 완료, 단계 1 시작 대기
+- 다음 작업: Sprite/셀 데이터와 기존 문자열 API를 함께 지원하는 최소 렌더링 경로 구현
+- 마지막 검증: Z1 audit -Build FAIL=0/WARN=0; 사용자가 Title/Gameplay/Clear 전환을 직접 확인
 
 ## 완료 및 검증
 
@@ -22,8 +22,8 @@
 - [x] Z1 소스가 vcxproj와 vcxproj.filters에 등록됨
 - [x] Z1에 Binaries/Intermediate, CraftEngine, SoundSystem, Content 복사 설정이 있음
 - [x] Z1 Debug|x64 빌드에서 실행 파일 생성 성공
-- [ ] 빌드 출력 디렉터리에서 실행 성공
-- [ ] Title/Gameplay/Clear 최소 전환 동작 확인
+- [x] 빌드 출력 디렉터리에서 실행 성공
+- [x] Title/Gameplay/Clear 최소 전환 동작 확인
 
 ## 상태 기록 규칙
 
@@ -33,7 +33,7 @@
 - 자동 감사는 규칙 위반과 누락 가능성을 찾는 보조 수단이며, 수동 실행 결과를 대체하지 않는다.
 - 다음 작업은 한 번에 하나만 기록하고, 완료 기준을 함께 적는다.
 
-## 다음 작업 완료 기준
+## 단계 0 완료 기록
 
 Z1 프로젝트 골격 작업은 다음을 모두 만족하면 완료로 본다.
 
@@ -43,3 +43,12 @@ Z1 프로젝트 골격 작업은 다음을 모두 만족하면 완료로 본다.
 - 기존 SokobanGame과 같은 x64/C++20/v145 및 DLL·Content 복사 설정을 갖는다.
 - SoundSystem → CraftEngine → Z1 순서로 빌드할 수 있다.
 - 실행 파일이 DLL 또는 Config/Content 경로 오류 없이 시작된다.
+
+## 다음 작업 완료 기준
+
+단계 1 2D 렌더링 작업은 다음을 모두 만족하면 완료로 본다.
+
+- N×M Sprite/셀 데이터를 한 프레임에 합성할 수 있다.
+- 투명 셀과 양축 클리핑을 처리한다.
+- 기존 문자열 렌더링 API와 ShootingGame/SokobanGame 출력이 유지된다.
+- Z1에서 최소 Sprite 출력 장면을 직접 확인한다.
