@@ -13,11 +13,17 @@ namespace Craft
     {
     }
 
+    SpriteRendererComponent::SpriteRendererComponent(std::shared_ptr<const Sprite> sprite, int sortingOrder)
+        : sprite(std::move(sprite))
+        , sortingOrder(sortingOrder)
+    {
+    }
+
     void SpriteRendererComponent::Draw()
     {
         Super::Draw();  // 실제로는 하는 거 없음
 
-        std::shared_ptr<Actor> actor = GetOwner();
+        auto actor = GetOwner();
         if (!actor || !actor->IsActive())
         {
             return;
@@ -29,7 +35,43 @@ namespace Craft
             return;
         }
 
-        // Renderer는 콘솔 창에 그리는 역할이므로, WorldPosition이 필요
-        Renderer::Get().Submit(image, transform->GetWorldPosition(), color, sortingOrder);
+        const Vector2 worldPosition = transform->GetWorldPosition();
+        if (sprite)
+        {
+            Renderer::Get().Submit(
+                sprite,
+                worldPosition,
+                sortingOrder
+            );
+        }
+        else
+        {
+            Renderer::Get().Submit(
+                image, 
+                worldPosition,
+                color,
+                sortingOrder
+            );
+        }
+    }
+
+    int SpriteRendererComponent::GetWidth() const
+    {
+        if (sprite)
+        {
+            return sprite->GetSize().x;
+        }
+
+        return static_cast<int>(image.size());
+    }
+
+    Vector2 SpriteRendererComponent::GetSpriteSize() const
+    {
+        if (sprite)
+        {
+            return sprite->GetSize();
+        }
+
+        return Vector2(static_cast<int>(image.size()), 1);
     }
 }

@@ -7,7 +7,7 @@
 namespace Craft
 {
     // Pixel 한 칸
-    struct SpriteCell
+    struct CRAFT_API SpriteCell
     {
         char glyph = ' ';
         WORD attributes = static_cast<WORD>(Color::White);
