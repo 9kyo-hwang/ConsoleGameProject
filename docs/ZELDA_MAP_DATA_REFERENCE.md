@@ -4,7 +4,7 @@
 
 이 문서는 [8-bit NES Legend of Zelda Map Data](https://inventwithpython.com/blog/8-bit-nes-legend-of-zelda-map-data.html)와 연결된 공개 자료를 CraftEngine 기반 모작에 어떻게 사용할지 정리한다.
 
-페이지의 데이터를 그대로 게임에 넣는 것이 목적이 아니다. 원작의 Room 크기와 타일 단위를 참고하되, 지형 렌더링·충돌·출구·스폰 데이터는 `ZeldaLikeGame`의 콘텐츠 데이터로 관리한다.
+페이지의 데이터를 그대로 게임에 넣는 것이 목적이 아니다. 원작의 Room 크기와 타일 단위를 참고하되, 지형 렌더링·충돌·출구·스폰 데이터는 `Z1`의 콘텐츠 데이터로 관리한다.
 
 ## 참고 자료의 범위
 

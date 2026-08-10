@@ -5,10 +5,10 @@
 ## 현재 진행
 
 - 현재 단계: 단계 0 - 프로젝트 골격
-- 현재 작업: ZeldaLikeGame 프로젝트 추가
-- 상태: 대기
-- 다음 작업: x64 C++20 콘텐츠 프로젝트를 솔루션에 추가하고 Debug 빌드·실행 확인
-- 마지막 검증: status/audit 실행 PASS; review는 Codex 응답 120초 타임아웃
+- 현재 작업: Z1 프로젝트 골격 빌드·실행 검증
+- 상태: 감사 통과 - 직접 실행 확인 대기
+- 다음 작업: `Binaries\x64\Debug\Z1\Z1.exe`를 직접 실행하고 시작 결과 확인
+- 마지막 검증: Z1 audit -Build FAIL=0/WARN=0; 실행 파일·CraftEngine.dll·SoundSystem.dll 생성 확인
 
 ## 완료 및 검증
 
@@ -16,9 +16,12 @@
 - [x] Git 상태와 기본 저장소 구조를 조회하는 status 명령 추가
 - [x] 문서·솔루션·프로젝트 등록을 검사하는 audit 명령 추가
 - [x] 읽기 전용 Codex CLI 검토를 호출하는 review 명령 추가
+- [x] 실제 프로젝트명 Z1 기준으로 솔루션·소스·빌드 설정 감사 보강
 - [ ] review가 Codex 보고서를 제한 시간 안에 반환하는지 확인
-- [ ] ZeldaLikeGame 프로젝트가 솔루션에 등록됨
-- [ ] ZeldaLikeGame Debug|x64 빌드 성공
+- [x] Z1 프로젝트가 솔루션에 등록되고 CraftEngine 의존성이 연결됨
+- [x] Z1 소스가 vcxproj와 vcxproj.filters에 등록됨
+- [x] Z1에 Binaries/Intermediate, CraftEngine, SoundSystem, Content 복사 설정이 있음
+- [x] Z1 Debug|x64 빌드에서 실행 파일 생성 성공
 - [ ] 빌드 출력 디렉터리에서 실행 성공
 - [ ] Title/Gameplay/Clear 최소 전환 동작 확인
 
@@ -32,10 +35,11 @@
 
 ## 다음 작업 완료 기준
 
-ZeldaLikeGame 프로젝트 추가 작업은 다음을 모두 만족하면 완료로 본다.
+Z1 프로젝트 골격 작업은 다음을 모두 만족하면 완료로 본다.
 
 - ConsoleGameProject.slnx에 프로젝트가 등록된다.
-- CraftEngine 빌드 의존성이 연결된다.
+- Z1의 CraftEngine 빌드 의존성이 연결된다.
+- Main.cpp, pch.cpp, pch.h 및 이후 추가되는 소스가 `.vcxproj`와 `.vcxproj.filters`에 등록된다.
 - 기존 SokobanGame과 같은 x64/C++20/v145 및 DLL·Content 복사 설정을 갖는다.
-- SoundSystem → CraftEngine → ZeldaLikeGame 순서로 빌드할 수 있다.
+- SoundSystem → CraftEngine → Z1 순서로 빌드할 수 있다.
 - 실행 파일이 DLL 또는 Config/Content 경로 오류 없이 시작된다.

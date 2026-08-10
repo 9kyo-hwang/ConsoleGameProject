@@ -147,12 +147,12 @@ Title, Gameplay, Clear는 현재 API로 구현 가능하므로 Level 개편은 �
 
 ## 콘텐츠 구조
 
-새 프로젝트는 아래 책임 구분을 따른다. 프로젝트 이름은 구현 시작 시 확정하되 문서에서는 `ZeldaLikeGame`으로 부른다.
+새 프로젝트는 아래 책임 구분을 따른다. 실제 프로젝트 이름은 `Z1`으로 확정했다.
 
 ```text
-ZeldaLikeGame/
+Z1/
 ├─ Actor/       Player, SwordAttack, EnemyBase, 적, 투사체, Boss
-├─ Game/        ZeldaLikeGame, GameSession
+├─ Game/        Z1Game, GameSession
 ├─ Level/       TitleLevel, OverworldLevel, ClearLevel
 ├─ World/       RoomDefinition, RoomManager
 ├─ UI/          Hud
@@ -265,7 +265,7 @@ RoomManager는 Room 전용 Actor를 추적하되 Level의 소유권을 대체하
 
 ## 빌드 및 수동 검증
 
-엔진 공개 API 변경 후 `Debug|x64` 빌드 순서는 SoundSystem, CraftEngine, ShootingGame, SokobanGame, ZeldaLikeGame이다. 새 소스는 해당 `.vcxproj`와 `.vcxproj.filters`에 등록하고 공개 헤더 복사도 확인한다.
+엔진 공개 API 변경 후 `Debug|x64` 빌드 순서는 SoundSystem, CraftEngine, ShootingGame, SokobanGame, Z1이다. 새 소스는 해당 `.vcxproj`와 `.vcxproj.filters`에 등록하고 공개 헤더 복사도 확인한다.
 
 수동 점검:
 
@@ -291,7 +291,7 @@ RoomManager는 Room 전용 Actor를 추적하되 Level의 소유권을 대체하
 
 ## 작업자 체크리스트
 
-- 공용 엔진 책임과 ZeldaLikeGame 콘텐츠 책임을 구분했는가?
+- 공용 엔진 책임과 Z1 콘텐츠 책임을 구분했는가?
 - 기존 문자열 렌더링과 width 기반 Box API를 보존했는가?
 - 렌더링과 충돌에 월드 좌표를 사용했는가?
 - Actor를 SpawnActor로 만들고 지연 추가를 고려했는가?

@@ -13,4 +13,7 @@
     <BuildDependency Project="CraftEngine/CraftEngine.vcxproj" />
   </Project>
   <Project Path="SoundSystem/SoundSystem.vcxproj" Id="9e431464-5f5c-4f99-a83d-7c9490bdf913" />
+  <Project Path="Z1/Z1.vcxproj" Id="4daba84c-3c8e-4d97-927b-cc126d772c57">
+    <BuildDependency Project="CraftEngine/CraftEngine.vcxproj" />
+  </Project>
 </Solution>

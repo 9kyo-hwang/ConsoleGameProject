@@ -13,6 +13,8 @@ $ErrorActionPreference = "Stop"
 
 $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $script:StatusPath = Join-Path $script:RepoRoot "docs\ZELDA_PROJECT_STATUS.md"
+$script:ZeldaProjectName = "Z1"
+$script:ZeldaProjectDirectory = Join-Path $script:RepoRoot $script:ZeldaProjectName
 $script:Failures = 0
 $script:Warnings = 0
 $script:ExitCode = 0
@@ -96,7 +98,7 @@ function Get-StatusField
 
 function Show-Status
 {
-    Write-Output "=== ZeldaLikeGame Harness: status ==="
+    Write-Output ("=== {0} Harness: status ===" -f $script:ZeldaProjectName)
     Write-Output ("저장소: {0}" -f $script:RepoRoot)
     Write-Output ("단계: {0}" -f (Get-StatusField "현재 단계"))
     Write-Output ("작업: {0}" -f (Get-StatusField "현재 작업"))
@@ -177,6 +179,44 @@ function Test-Solution
     }
 }
 
+function Test-ZeldaSolutionIntegration
+{
+    $path = Join-Path $script:RepoRoot "ConsoleGameProject.slnx"
+    if (-not (Test-Path -LiteralPath $path)) { return }
+
+    try
+    {
+        [xml]$solution = Get-Content -LiteralPath $path -Raw -Encoding utf8
+    }
+    catch
+    {
+        Write-Check "FAIL" "솔루션 XML을 읽을 수 없음"
+        return
+    }
+
+    $expectedPath = ("{0}/{0}.vcxproj" -f $script:ZeldaProjectName)
+    $project = @($solution.Solution.Project |
+        Where-Object { $_.Path -eq $expectedPath -or $_.Path -eq $expectedPath.Replace([char]47, [char]92) }) |
+        Select-Object -First 1
+    if ($null -eq $project)
+    {
+        Write-Check "FAIL" ("솔루션에 {0} 프로젝트가 등록되지 않음" -f $script:ZeldaProjectName)
+        return
+    }
+    Write-Check "PASS" ("솔루션에 {0} 프로젝트 등록" -f $script:ZeldaProjectName)
+
+    $engineDependency = @($project.BuildDependency |
+        Where-Object { $_.Project -match "CraftEngine[\\/]CraftEngine\.vcxproj$" })
+    if ($engineDependency.Count -gt 0)
+    {
+        Write-Check "PASS" ("{0} → CraftEngine 빌드 의존성" -f $script:ZeldaProjectName)
+    }
+    else
+    {
+        Write-Check "FAIL" ("{0} → CraftEngine 빌드 의존성이 없음" -f $script:ZeldaProjectName)
+    }
+}
+
 function Test-Assets
 {
     $rg = Find-Command "rg"
@@ -209,23 +249,23 @@ function Test-Assets
 
 function Test-ZeldaProject
 {
-    $directory = Join-Path $script:RepoRoot "ZeldaLikeGame"
+    $directory = $script:ZeldaProjectDirectory
     if (-not (Test-Path -LiteralPath $directory))
     {
-        Write-Check "INFO" "ZeldaLikeGame 프로젝트가 아직 없어 소스 등록 검사를 보류"
+        Write-Check "FAIL" ("{0} 프로젝트 디렉터리가 없음" -f $script:ZeldaProjectName)
         return
     }
 
-    $projectPath = Join-Path $directory "ZeldaLikeGame.vcxproj"
-    $filtersPath = Join-Path $directory "ZeldaLikeGame.vcxproj.filters"
+    $projectPath = Join-Path $directory ("{0}.vcxproj" -f $script:ZeldaProjectName)
+    $filtersPath = Join-Path $directory ("{0}.vcxproj.filters" -f $script:ZeldaProjectName)
     if (-not (Test-Path -LiteralPath $projectPath))
     {
-        Write-Check "FAIL" "ZeldaLikeGame.vcxproj가 없음"
+        Write-Check "FAIL" ("{0}.vcxproj가 없음" -f $script:ZeldaProjectName)
         return
     }
     if (-not (Test-Path -LiteralPath $filtersPath))
     {
-        Write-Check "FAIL" "ZeldaLikeGame.vcxproj.filters가 없음"
+        Write-Check "FAIL" ("{0}.vcxproj.filters가 없음" -f $script:ZeldaProjectName)
         return
     }
 
@@ -244,21 +284,52 @@ function Test-ZeldaProject
             $include, [StringComparison]::OrdinalIgnoreCase) -ge 0
         if (-not $projectHasFile)
         {
-            Write-Check "WARN" ("vcxproj 소스 미등록: {0}" -f $relativePath)
+            Write-Check "FAIL" ("vcxproj 소스 미등록: {0}" -f $relativePath)
         }
         if (-not $filtersHaveFile)
         {
-            Write-Check "WARN" ("filters 소스 미등록: {0}" -f $relativePath)
+            Write-Check "FAIL" ("filters 소스 미등록: {0}" -f $relativePath)
         }
     }
 
     if ($sourceFiles.Count -eq 0)
     {
-        Write-Check "WARN" "ZeldaLikeGame에 C++ 소스가 없음"
+        Write-Check "FAIL" ("{0}에 C++ 소스가 없음" -f $script:ZeldaProjectName)
     }
     else
     {
-        Write-Check "PASS" ("ZeldaLikeGame 소스 등록 대상: {0}개" -f $sourceFiles.Count)
+        Write-Check "PASS" ("{0} 소스 등록 대상: {1}개" -f $script:ZeldaProjectName, $sourceFiles.Count)
+    }
+}
+
+function Test-ZeldaProjectSettings
+{
+    $projectPath = Join-Path $script:ZeldaProjectDirectory ("{0}.vcxproj" -f $script:ZeldaProjectName)
+    if (-not (Test-Path -LiteralPath $projectPath)) { return }
+    $text = Get-Content -LiteralPath $projectPath -Raw -Encoding utf8
+    $requirements = [ordered]@{
+        "x64 구성" = "Debug\|x64"
+        "v145 도구 집합" = "<PlatformToolset>v145</PlatformToolset>"
+        "C++20" = "<LanguageStandard>stdcpp20</LanguageStandard>"
+        "Binaries 출력 경로" = "<OutDir>\$\(SolutionDir\)Binaries\\\$\(Platform\)\\\$\(Configuration\)\\\$\(ProjectName\)\\"
+        "Intermediate 중간 경로" = "<IntDir>\$\(SolutionDir\)Intermediate\\\$\(Platform\)\\\$\(Configuration\)\\\$\(ProjectName\)\\"
+        "CraftEngine 헤더 경로" = "<AdditionalIncludeDirectories>[^<]*Includes\\CraftEngine"
+        "CraftEngine 링크" = "<AdditionalDependencies>[^<]*CraftEngine\.lib"
+        "CraftEngine 라이브러리 경로" = "<AdditionalLibraryDirectories>[^<]*Libraries\\CraftEngine"
+        "엔진 DLL 복사" = "CraftEngine\.dll"
+        "사운드 DLL 복사" = "SoundSystem\.dll"
+        "Content 복사" = "xcopy \.\.\\Content\\\*"
+    }
+    foreach ($requirement in $requirements.GetEnumerator())
+    {
+        if ($text -match $requirement.Value)
+        {
+            Write-Check "PASS" ("{0} 설정: {1}" -f $script:ZeldaProjectName, $requirement.Key)
+        }
+        else
+        {
+            Write-Check "FAIL" ("{0} 설정 누락: {1}" -f $script:ZeldaProjectName, $requirement.Key)
+        }
     }
 }
 
@@ -330,12 +401,14 @@ function Invoke-BuildCheck
 
 function Invoke-Audit
 {
-    Write-Output "=== ZeldaLikeGame Harness: audit ==="
+    Write-Output ("=== {0} Harness: audit ===" -f $script:ZeldaProjectName)
     Test-RequiredFiles
     Test-Solution
+    Test-ZeldaSolutionIntegration
     Test-Assets
     Test-ProjectSettings
     Test-ZeldaProject
+    Test-ZeldaProjectSettings
     Test-GitDiff
     if ($Build) { Invoke-BuildCheck }
     else
@@ -360,7 +433,7 @@ function Invoke-Review
     $status = (& $PSCommandPath "status" 2>&1 | Out-String).Trim()
     $audit = (& $PSCommandPath "audit" 2>&1 | Out-String).Trim()
     $promptLines = @(
-        "이 저장소의 ZeldaLikeGame 개발 진행을 읽기 전용으로 감사하라.",
+        ("이 저장소의 {0} 개발 진행을 읽기 전용으로 감사하라." -f $script:ZeldaProjectName),
         "AGENTS.md와 docs/ZELDA_LIKE_DEVELOPMENT_PLAN.md를 반드시 읽어라.",
         "docs/ZELDA_MAP_DATA_REFERENCE.md, docs/ZELDA_PROJECT_STATUS.md,",
         "docs/ARCHITECTURE.md, docs/DEVELOPMENT.md도 읽어라.",
@@ -377,7 +450,7 @@ function Invoke-Review
         "다음 작업 하나와 완료 기준을 보고하라."
     )
     $prompt = $promptLines -join [Environment]::NewLine
-    Write-Output "=== ZeldaLikeGame Harness: review ==="
+    Write-Output ("=== {0} Harness: review ===" -f $script:ZeldaProjectName)
     $result = Run-External (Get-CommandPath $codex) @(
         "exec", "--sandbox", "read-only", "--ephemeral", $prompt
     )
