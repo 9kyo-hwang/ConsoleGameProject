@@ -17,7 +17,7 @@
 
 1. `SoundSystem`
 2. `CraftEngine`
-3. `ShootingGame` 및/또는 `SokobanGame`
+3. `ShootingGame`, `SokobanGame`, `Z1` 중 작업 대상 콘텐츠 프로젝트
 
 Visual Studio에서 위 프로젝트를 차례로 빌드하면 된다. 이후 산출물이 존재하는 상태에서는 솔루션 전체 빌드도 가능하다. 현재 `ConsoleGameProject.slnx`에는 게임에서 CraftEngine으로 가는 의존성만 있고 CraftEngine에서 SoundSystem으로 가는 빌드 의존성은 명시되어 있지 않으므로, 완전한 클린 병렬 빌드는 순서 경쟁이 날 수 있다.
 
@@ -47,7 +47,7 @@ Visual Studio의 프로젝트 디렉터리에서 실행하면 저장소 루트�
 - Actor 보유 및 지연 생성/삭제: `CraftEngine/Level/Level.*`
 - Actor 이벤트와 Component 전달: `CraftEngine/Actor/Actor.*`
 - 부모/자식, 로컬/월드 좌표: `CraftEngine/Component/TransformComponent.*`
-- 화면 합성: `CraftEngine/Render/Renderer.*`
+- 화면 합성: `CraftEngine/Render/Renderer.*`, `Sprite.*`
 - 충돌 판정: `CraftEngine/Physics/CollisionSystem.*`, `BoxComponent.*`
 - 타입 시스템: `CraftEngine/Core/CObject.h`, `CClass.h`
 - 사운드 로드와 voice 수명: `SoundSystem/SoundSystem/Sound.*`
@@ -77,8 +77,9 @@ Visual Studio의 프로젝트 디렉터리에서 실행하면 저장소 루트�
 - 엔진 또는 공개 헤더 변경: SoundSystem, CraftEngine, 두 게임을 순서대로 x64 빌드
 - Transform 변경: 부모 이동 시 총구/엔진 이펙트가 함께 이동하는지, 발사 위치가 월드 좌표인지 확인
 - 생명주기 변경: 프레임 중 spawn/destroy에서 순회 무효화나 파괴 Actor의 추가 이벤트가 없는지 확인
-- 렌더링 변경: 화면 경계 clipping, sorting order, buffer swap 확인
-- 충돌 변경: 빠른 탄환, 파괴된 Actor, Component 없는 Actor 확인
+- 렌더링 변경: Sprite 투명 셀, X/Y 화면 경계 clipping, sorting order, buffer swap 확인
+- 충돌 변경: 2D Box 크기/offset, 빠른 탄환, 파괴된 Actor, Component 없는 Actor 확인
+- Z1 충돌 변경: 1x1/2x2 겹침, Y축 분리, offset, 이전/현재 위치 사이 swept 이동을 직접 확인
 - 런타임 데이터 변경: 프로젝트 디렉터리와 출력 디렉터리 양쪽 실행 경로 확인
 
 자동 테스트 프로젝트는 아직 없다. 문서만 바꾼 경우에는 Markdown 링크와 코드 식별자가 현재 트리와 맞는지 확인하고, 코드나 프로젝트 설정을 바꾼 경우에는 관련 실행 파일을 직접 구동해 확인한다.

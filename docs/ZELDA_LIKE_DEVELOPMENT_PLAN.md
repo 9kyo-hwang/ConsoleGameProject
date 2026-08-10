@@ -51,13 +51,15 @@
 
 ### 렌더링
 
-현재 `Renderer::RenderCommand`는 한 줄 문자열, 정수 위치, 이미지 전체의 단일 색상과 sorting order만 가진다. `DrawRenderQueue`는 한 Y행에서만 X축 클리핑하며 투명 셀을 지원하지 않는다. `SpriteRendererComponent`도 문자열 하나만 보유한다.
+`Renderer::RenderCommand`는 문자열 payload와 `Sprite` payload를 함께 지원한다. `Sprite`는 크기와 `SpriteCell` 배열을 가지며, 각 셀은 glyph, Win32 attribute와 투명 여부를 가진다. `DrawRenderQueue`는 공통 셀 순회·클리핑 경로로 X/Y 양축을 처리하고, 투명 셀은 기존 백버퍼 셀을 보존한다. `SpriteRendererComponent`는 기존 문자열 API와 Sprite를 모두 제출할 수 있다.
 
-프레임은 이미 `CHAR_INFO[]`와 셀별 sorting order 배열로 구성되므로 백엔드를 교체하지 않고 2차원 셀 합성을 추가할 수 있다. 높은 sorting order가 이기며 값이 같으면 나중 명령이 덮어쓴다.
+프레임은 `CHAR_INFO[]`와 셀별 sorting order 배열로 구성되므로 백엔드를 교체하지 않고 2차원 셀 합성을 수행한다. 높은 sorting order가 이기며 값이 같으면 나중 명령이 덮어쓴다. `ScreenBuffer`의 Right/Bottom은 inclusive 좌표 규칙에 맞게 `size - 1`을 사용한다.
+
+구현 상태: 완료. Z1에서 다중 셀 Sprite, 투명 셀, 음수 위치와 화면 경계 클리핑을 직접 확인했고, 기존 ShootingGame/SokobanGame 출력과 플레이를 회귀 확인했다.
 
 ### 충돌
 
-`BoxComponent`는 폭만 저장하고 높이를 한 셀로 간주한다. `CollisionSystem`은 BoxComponent가 있는 활성 Actor의 모든 쌍을 검사하며 이전/현재 월드 위치를 감싸는 swept AABB를 사용한다.
+`BoxComponent`는 `Vector2 size`와 `Vector2 offset`을 저장한다. 기존 `BoxComponent(int width)`, `GetWidth`와 `SetWidth`는 `size.x` 기반 호환 API로 유지되며, width 생성자는 `(width, 1)` 크기와 `(0, 0)` offset으로 동작한다. `CollisionSystem`은 Box가 있는 활성 Actor의 모든 쌍에 대해 이전/현재 월드 위치를 감싸는 내부 `SweptBounds`를 계산하고 X/Y 포함 범위를 비교한다. 유효하지 않은 크기(한 변이 0 이하)는 충돌하지 않는 것으로 처리한다.
 
 충돌은 겹침 이벤트만 보내고 물리 반응은 제공하지 않는다. 이 성질을 유지해 책임을 다음처럼 나눈다.
 
@@ -120,6 +122,8 @@
 - 같은 sorting order의 기존 제출 순서
 - ShootingGame과 SokobanGame의 한 줄 이미지 회귀 없음
 
+구현 상태: 완료. 기존 문자열 제출 경로를 유지하면서 Sprite payload, 투명 셀 합성, 셀별 attribute, 양축 클리핑을 구현했다.
+
 ### 2. 2D BoxComponent
 
 `BoxComponent(int width)`와 `GetWidth`는 호환을 위해 유지하고 내부 표현은 `Vector2 size`와 `Vector2 offset`으로 확장한다.
@@ -129,7 +133,7 @@
 - width 생성자는 `size = { width, 1 }`, `offset = { 0, 0 }`으로 동작한다.
 - 크기 생성자와 size/offset getter 및 setter를 제공한다.
 - 충돌 기준점은 `Actor::GetWorldPosition() + offset`이다.
-- 크기는 양수여야 한다.
+- 유효한 충돌 크기는 양수여야 한다. 기존 기본/width 생성자의 0은 호환을 위해 허용하되 충돌하지 않는 영역으로 처리한다.
 - swept 범위는 X와 Y에서 각각 이전/현재 위치를 포함한다.
 - 충돌 쌍을 먼저 모은 후 콜백을 보내는 현재 순서를 유지한다.
 
@@ -140,6 +144,8 @@
 - 양수/음수 collider offset
 - Destroy된 Actor의 추가 콜백 방지
 - 기존 높이 1 Actor의 회귀 없음
+
+구현 상태: 엔진 구현 완료. Z1의 2D 충돌 케이스 수동 확인이 남아 있다.
 
 ### 3. Level 전환 API
 
@@ -229,12 +235,16 @@ RoomManager는 Room 전용 Actor를 추적하되 Level의 소유권을 대체하
 
 완료: 다색 Sprite가 올바르게 겹치고 기존 두 게임 출력이 유지된다.
 
+현재 상태: 완료. Z1 Sprite 출력과 경계 클리핑, 기존 두 게임의 빌드 및 플레이 회귀를 확인했다.
+
 ### 단계 2: 2D 충돌
 
 - BoxComponent 크기/오프셋
 - CollisionSystem X/Y swept AABB
 
 완료: 플레이어, 검과 적의 Y축 포함 충돌이 예상대로 동작한다.
+
+현재 상태: BoxComponent와 CollisionSystem 구현 완료. 다음으로 Z1 개발 장면에서 1x1/2x2 겹침, Y축 분리, offset, 이전/현재 위치 사이의 swept 이동을 확인한다.
 
 ### 단계 3: 한 방 전투 버티컬 슬라이스
 

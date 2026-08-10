@@ -13,9 +13,11 @@ flowchart LR
     Sound[SoundSystem DLL<br/>XAudio2/WAV] --> Engine[CraftEngine DLL<br/>코어와 시스템]
     Engine --> Shooting[ShootingGame EXE<br/>실시간 슈팅 콘텐츠]
     Engine --> Sokoban[SokobanGame EXE<br/>소코반 콘텐츠]
+    Engine --> Z1[Z1 EXE<br/>Zelda형 콘텐츠]
     Config[Config/Setting.txt] --> Engine
     Content[Content/Stages, Content/Sound] --> Shooting
     Content --> Sokoban
+    Content --> Z1
 ```
 
 | 프로젝트 | 산출물 | 책임 |
@@ -24,6 +26,7 @@ flowchart LR
 | `CraftEngine` | DLL/import library | 루프, Level/Actor/Component, 입력, 렌더링, 충돌, 수학, RTTI, SoundSystem 파사드 |
 | `ShootingGame` | EXE | 플레이어·총구·엔진 이펙트 계층, 적 스폰, 탄환, 점수와 게임 오버 |
 | `SokobanGame` | EXE | 맵 로드, 이동·박스 밀기, 클리어 판정, 게임/메뉴 Level 전환 |
+| `Z1` | EXE | Zelda형 Title/Gameplay/Clear Level과 향후 Room·전투 콘텐츠 |
 
 콘텐츠는 `CraftEngine.lib`에 링크하고 CraftEngine이 다시 `SoundSystem.lib`에 링크한다. 실행 시에는 두 DLL이 각 게임 EXE 옆에 있어야 한다.
 
@@ -41,7 +44,7 @@ flowchart LR
 
 ## 엔진 시작과 프레임 흐름
 
-`Engine` 생성자는 설정을 읽고 난수, `Input`, `Renderer`, `CollisionSystem`, `Sound`를 초기화한다. `ShootingGame`은 `AddNewLevel<GameLevel>()`로 다음 Level을 예약하고, `SokobanGame`의 파생 `Game`은 gameplay/menu Level을 만들어 `mainLevel`을 직접 선택한다.
+`Engine` 생성자는 설정을 읽고 난수, `Input`, `Renderer`, `CollisionSystem`, `Sound`를 초기화한다. `ShootingGame`과 Z1은 `AddNewLevel<T>()`로 다음 Level을 예약하고, `SokobanGame`의 파생 `Game`은 gameplay/menu Level을 만들어 `mainLevel`을 직접 선택한다.
 
 한 번의 갱신 프레임 순서는 다음과 같다.
 
@@ -87,8 +90,8 @@ flowchart TD
 | Component | 데이터와 책임 |
 | --- | --- |
 | `TransformComponent` | 로컬 좌표, 이전 월드 좌표, 부모/자식 Transform 링크, 월드 좌표 계산, attach/detach |
-| `SpriteRendererComponent` | 문자열 이미지, 색상, sorting order를 보관하고 월드 좌표로 RenderCommand 제출 |
-| `BoxComponent` | AABB 충돌에 사용할 가로 폭 제공. 세로 높이는 현재 한 칸으로 간주 |
+| `SpriteRendererComponent` | 문자열 또는 N×M Sprite, sorting order를 보관하고 월드 좌표로 RenderCommand 제출 |
+| `BoxComponent` | `size`와 `offset`을 가진 셀 단위 2D AABB. 기존 width API는 `size.x` 호환 경로로 제공 |
 
 `Actor::GetPosition()`과 `SetPosition()`은 기존 콘텐츠 API를 유지하는 Transform 로컬 좌표 파사드다. 부모가 없는 Actor에서는 로컬과 월드가 같지만 계층에 들어간 Actor에서는 다르다.
 
@@ -110,11 +113,11 @@ Attach 동작은 다음 계약을 가진다.
 
 ### 렌더링
 
-Actor의 `Draw`는 Component까지 전달되고 SpriteRenderer가 문자열 단위 명령을 제출한다. Renderer는 화면 크기의 `CHAR_INFO`와 sorting order 배열에 명령을 합성한다. 같은 셀에서는 높은 sorting order가 우선하며, Win32 콘솔 screen buffer 두 개를 번갈아 활성화해 깜박임을 줄인다.
+Actor의 `Draw`는 Component까지 전달되고 SpriteRenderer가 문자열 또는 Sprite 단위 명령을 제출한다. `RenderCommand`는 payload 종류에 따라 텍스트와 셀 배열을 보관하며, Renderer는 화면 크기의 `CHAR_INFO`와 sorting order 배열에 이를 합성한다. Sprite의 투명 셀은 기존 백버퍼 셀을 보존하고, X/Y 양축 부분 클리핑을 적용한다. 같은 셀에서는 높은 sorting order가 우선하며, Win32 콘솔 screen buffer 두 개를 번갈아 활성화해 깜박임을 줄인다.
 
 ### 충돌
 
-CollisionSystem은 활성 Actor의 모든 조합을 검사하는 `O(n²)` 방식이다. 양쪽에 `BoxComponent`가 있을 때만 검사하며, 이전 월드 위치와 현재 월드 위치를 함께 감싸는 swept AABB로 빠른 이동 중 통과를 완화한다. 현재 충돌 크기는 문자열 폭에 대응하는 X축 너비와 한 칸의 Y축 높이만 지원한다. 모든 충돌 쌍을 먼저 모은 뒤 콜백을 보내 컬렉션과 활성 상태 변화의 영향을 줄인다.
+CollisionSystem은 활성 Actor의 모든 조합을 검사하는 `O(n²)` 방식이다. 양쪽에 `BoxComponent`가 있을 때만 검사하며, 각 Box의 `size`와 `offset`, 이전/현재 월드 위치로 내부 `SweptBounds`를 계산해 X/Y 포함 범위를 비교한다. 한 변이 0 이하인 Box는 충돌하지 않는다. 모든 충돌 쌍을 먼저 모은 뒤 콜백을 보내 컬렉션과 활성 상태 변화의 영향을 줄인다.
 
 ### 사운드
 
@@ -129,6 +132,10 @@ SoundSystem의 전역 `Sound` 클래스는 WAV를 경로별로 캐시한다. 원
 ### SokobanGame
 
 `Game`은 gameplay와 menu Level을 보존한 채 현재 Level 포인터를 전환한다. GameLevel은 `Content/Stages/Stage1.txt`의 문자(`#`, `.`, `p`, `b`, `t`)를 Actor로 변환한다. 이동 가능 여부와 박스 밀기, 목표 일치 판정은 Level이 담당하며 Player는 `ICanPlayerMove` 인터페이스를 통해 묻는다. 이 게임의 Actor는 계층을 사용하지 않아 로컬 좌표와 월드 좌표가 사실상 같다.
+
+### Z1
+
+Z1은 `Game` 객체가 Title, Gameplay, Clear Level을 예약 전환하는 최소 골격을 가진다. 현재는 Sprite 출력과 2D Box 충돌 기반을 확인하는 단계이며, Room 데이터·플레이어 전투·적 콘텐츠는 이후 Z1 전용 코드로 확장한다. 충돌 검증용 개발 Level을 추가할 때도 Actor는 `Level::SpawnActor`로 생성하고, 실제 게임 Level과 테스트 Actor의 책임을 분리한다.
 
 ## 현재 경계와 확장 시점
 

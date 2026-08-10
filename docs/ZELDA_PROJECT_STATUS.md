@@ -4,11 +4,11 @@
 
 ## 현재 진행
 
-- 현재 단계: 단계 1 - 2D 렌더링
-- 현재 작업: CraftEngine N×M Sprite 렌더링 기반 설계·최소 구현
-- 상태: 단계 0 완료, 단계 1 시작 대기
-- 다음 작업: Sprite/셀 데이터와 기존 문자열 API를 함께 지원하는 최소 렌더링 경로 구현
-- 마지막 검증: Z1 audit -Build FAIL=0/WARN=0; 사용자가 Title/Gameplay/Clear 전환을 직접 확인
+- 현재 단계: 단계 2 - 2D 충돌 검증
+- 현재 작업: Z1에서 `SweptBounds` 기반 2D 충돌 케이스 확인
+- 상태: 단계 0 완료, 단계 1 완료, 단계 2 엔진 구현 완료·Z1 수동 검증 대기
+- 다음 작업: 1x1/2x2 겹침, Y축 분리, offset, 이동 중 swept 충돌을 Z1에서 확인
+- 마지막 검증: 사용자가 SoundSystem → CraftEngine → ShootingGame/SokobanGame/Z1 빌드 성공 및 기존 두 게임 플레이 정상 동작을 직접 확인
 
 ## 완료 및 검증
 
@@ -24,6 +24,13 @@
 - [x] Z1 Debug|x64 빌드에서 실행 파일 생성 성공
 - [x] 빌드 출력 디렉터리에서 실행 성공
 - [x] Title/Gameplay/Clear 최소 전환 동작 확인
+- [x] CraftEngine N×M Sprite와 기존 문자열 렌더링 경로 구현
+- [x] Sprite 투명 셀, 셀별 속성, X/Y 클리핑 및 sorting order 처리
+- [x] Z1에서 Sprite 출력과 화면 경계 클리핑을 직접 확인
+- [x] BoxComponent를 `size`/`offset` 기반 2D Box로 확장하고 width API 호환 유지
+- [x] CollisionSystem에 이전/현재 월드 위치 기반 `SweptBounds` X/Y 판정 적용
+- [x] 엔진 변경 후 ShootingGame/SokobanGame/Z1 빌드 및 기존 두 게임 회귀 확인
+- [ ] Z1 개발 장면에서 2D 충돌 케이스 수동 확인
 
 ## 상태 기록 규칙
 
@@ -44,11 +51,23 @@ Z1 프로젝트 골격 작업은 다음을 모두 만족하면 완료로 본다.
 - SoundSystem → CraftEngine → Z1 순서로 빌드할 수 있다.
 - 실행 파일이 DLL 또는 Config/Content 경로 오류 없이 시작된다.
 
+## 단계 1 완료 기록
+
+단계 1 2D 렌더링 작업은 다음을 만족해 완료했다.
+
+- [x] N×M Sprite/셀 데이터를 한 프레임에 합성
+- [x] 투명 셀과 양축 클리핑 처리
+- [x] 기존 문자열 렌더링 API와 ShootingGame/SokobanGame 출력 유지
+- [x] Z1에서 최소 Sprite 출력 장면 직접 확인
+
 ## 다음 작업 완료 기준
 
-단계 1 2D 렌더링 작업은 다음을 모두 만족하면 완료로 본다.
+단계 2 2D 충돌 검증은 다음을 모두 만족하면 완료로 본다.
 
-- N×M Sprite/셀 데이터를 한 프레임에 합성할 수 있다.
-- 투명 셀과 양축 클리핑을 처리한다.
-- 기존 문자열 렌더링 API와 ShootingGame/SokobanGame 출력이 유지된다.
-- Z1에서 최소 Sprite 출력 장면을 직접 확인한다.
+- [x] BoxComponent의 `size`/`offset`과 width 호환 API 구현
+- [x] CollisionSystem의 X/Y swept AABB 구현
+- [ ] 1x1 및 2x2 겹침을 Z1에서 확인
+- [ ] Y축으로 분리된 Box가 충돌하지 않음을 확인
+- [ ] 양수/음수 offset이 충돌 영역에 반영됨을 확인
+- [ ] 이전 위치와 현재 위치 사이를 통과하는 이동 충돌을 확인
+- [ ] Z1 테스트 후 기존 두 게임의 플레이 회귀를 재확인
