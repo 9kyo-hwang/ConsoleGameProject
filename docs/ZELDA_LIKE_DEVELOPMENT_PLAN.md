@@ -1,0 +1,307 @@
+# Zelda형 콘솔 게임 개발 계획
+
+## 문서 목적
+
+이 문서는 CraftEngine을 이용해 초대 `The Legend of Zelda`에서 영감을 받은 소규모 콘솔 게임을 만들기 위한 구현 브리프다. 다음 작업자가 저장소 구조를 다시 조사하지 않고도 엔진 변경 범위, 콘텐츠 책임, 작업 순서와 검증 기준을 파악하는 것을 목표로 한다.
+
+원작 지상 맵 자료의 Room 크기와 타일 포맷을 채택한 근거 및 세부 결정은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)에 정리한다.
+
+목표 콘텐츠는 다음으로 한정한다.
+
+- 화면 가장자리로 이동해 왕복할 수 있는 고정 화면 필드 몇 개
+- 체력과 무기 소지 상태를 가진 4방향 플레이어
+- 플레이어의 근접 공격과 피격 후 짧은 무적 시간
+- 서로 다른 행동을 가진 일반 적 몇 종
+- 마지막 필드의 보스
+- 타이틀, 게임플레이, 클리어 화면
+
+원작의 전체 월드, 던전, 아이템 경제, 세이브, 연속 스크롤을 재현하는 프로젝트가 아니다. 원작 이미지와 사운드를 복사하지 않고 자체 제작 문자 아트와 허용된 에셋을 사용한다.
+
+## 핵심 결론
+
+첫 완성본을 위해 CraftEngine에 반드시 필요한 공용 변경은 두 가지다.
+
+1. 한 줄 문자열 렌더링을 투명도와 셀별 색상을 가진 `N x M` 콘솔 스프라이트로 확장한다.
+2. 가로 폭만 있는 충돌 박스를 크기와 오프셋을 가진 2차원 AABB로 확장한다.
+
+필드 데이터, 지형 통행 판정, 체력, 무기, 공격, 적 AI, 보스와 화면 상태는 새 콘텐츠 프로젝트에 둔다. 카메라, 물리 반응, 범용 타일맵 엔진, ECS, 범용 애니메이션 시스템은 현재 범위에 넣지 않는다.
+
+## 현재 엔진에서 확인한 계약
+
+### 프레임과 생명주기
+
+`CraftEngine/Engine/Engine.cpp`의 한 갱신 프레임은 입력, Level 초기화, BeginPlay, Tick, 충돌, Draw, Level 교체, 요청 반영, 이전 상태 저장 순서로 동작한다.
+
+- Actor는 반드시 `Level::SpawnActor`로 생성한다.
+- 프레임 중 생성한 Actor는 즉시 반환되지만 같은 프레임의 Tick, 충돌, Draw에는 참여하지 않는다.
+- `Destroy`는 즉시 비활성화하고 실제 Level 목록 제거는 프레임 끝에 수행한다.
+- 방 교체 중 기존 Actor를 파괴하고 새 Actor를 생성하면 한 프레임 동안 새 Actor가 보이지 않을 수 있다. 짧은 암전이나 전환 상태로 이를 감춘다.
+- 파생 `BeginPlay`, `Tick`, `Draw`, `OnCollision`은 의도적인 완전 대체가 아니라면 `Super`를 호출한다.
+
+### Transform과 Scene Graph
+
+- 모든 Actor는 생성자에서 Transform 하나를 자동으로 가진다.
+- `GetPosition`과 `SetPosition`은 로컬 좌표다.
+- 렌더링, 충돌, 독립 Actor 생성 위치는 월드 좌표를 사용한다.
+- Transform은 정수 이동만 지원하며 이번 범위에는 충분하다.
+- `AttachTo(parent, false)`는 로컬 위치를 부모 기준 오프셋으로 보존한다.
+- Transform 계층은 수명을 소유하지 않으며 부모 Destroy는 자식 파괴를 전파한다.
+
+검 공격처럼 플레이어를 따라야 하는 객체는 Level에서 Spawn한 뒤 플레이어에 attach한다. 플레이어에서 분리되어 계속 이동하는 투사체는 월드 위치에서 독립 Actor로 Spawn한다.
+
+### 렌더링
+
+현재 `Renderer::RenderCommand`는 한 줄 문자열, 정수 위치, 이미지 전체의 단일 색상과 sorting order만 가진다. `DrawRenderQueue`는 한 Y행에서만 X축 클리핑하며 투명 셀을 지원하지 않는다. `SpriteRendererComponent`도 문자열 하나만 보유한다.
+
+프레임은 이미 `CHAR_INFO[]`와 셀별 sorting order 배열로 구성되므로 백엔드를 교체하지 않고 2차원 셀 합성을 추가할 수 있다. 높은 sorting order가 이기며 값이 같으면 나중 명령이 덮어쓴다.
+
+### 충돌
+
+`BoxComponent`는 폭만 저장하고 높이를 한 셀로 간주한다. `CollisionSystem`은 BoxComponent가 있는 활성 Actor의 모든 쌍을 검사하며 이전/현재 월드 위치를 감싸는 swept AABB를 사용한다.
+
+충돌은 겹침 이벤트만 보내고 물리 반응은 제공하지 않는다. 이 성질을 유지해 책임을 다음처럼 나눈다.
+
+- 정적 지형 통행: Room 타일 데이터에 질의
+- 플레이어, 적, 검, 투사체의 피해: BoxComponent와 OnCollision
+
+바닥과 장식 타일을 각각 Actor로 만들지 않는다. 하나의 방 배경 Sprite와 별도 통행 데이터로 표현해 Actor 수와 충돌 쌍을 작게 유지한다.
+
+### 입력, 사운드와 Level
+
+- Input의 가상 키 Down, Up, Hold API는 첫 버전에 충분하다.
+- 원샷과 단일 반복 BGM 파사드도 첫 버전에 충분하다.
+- `Engine::AddNewLevel<T>`는 현재 프레임 Draw 후 다음 Level로 교체한다.
+- 새 콘텐츠는 SokobanGame의 직접 `mainLevel` 교체보다 예약 전환을 우선한다.
+
+## 기본 화면과 좌표 정책
+
+- 카메라가 없는 고정 화면 Room 방식을 사용한다.
+- 상단 일부 행은 HUD, 나머지는 하나의 Room이 들어가는 플레이 영역이다.
+- 원작 자료의 `16 x 16`은 NES 픽셀 단위이며 CraftEngine 콘솔 셀 크기가 아니다.
+- Room의 논리 격자는 기본 `16 x 11` 타일로 고정한다.
+- 논리 타일 하나의 초기 콘솔 footprint는 `2 x 1` 셀이다. 이는 콘솔 글자 비율 보정값이며, Renderer의 모든 Sprite 크기를 제한하는 규칙이 아니다.
+- Transform, Sprite, collider의 위치와 크기는 최종 콘솔 셀 단위를 사용한다.
+- 부드러운 속도가 필요하면 ShootingGame처럼 Actor 내부에 float 위치를 누적하고 Transform에는 정수 결과만 기록한다.
+
+연속 스크롤이나 화면보다 큰 월드가 실제 요구가 되기 전에는 Camera 또는 Viewport를 추가하지 않는다.
+
+### 논리 타일과 렌더 셀
+
+- Room txt의 토큰 하나는 콘솔 셀 하나나 Actor 하나가 아니라 논리 타일 ID다. 기본 파일은 `16`개 토큰씩 `11`행을 갖고, 토큰은 공백으로 구분된 16진수 ID다.
+- 타일 ID는 `TileDefinition`으로 해석하며, TileDefinition은 Sprite와 통행/충돌 속성을 가진다.
+- 논리 타일은 `TileMetrics`에 따라 콘솔 셀로 확장한다. 첫 구현은 `2 x 1`이며, 원작의 `16 x 16` 픽셀을 직접 의미하지 않는다.
+- 정적 지형은 타일 Sprite를 하나의 방 배경 Sprite로 합성하고, 통행 판정은 별도 CollisionMap에서 수행한다.
+- 플레이어, 적, 아이템과 보스처럼 동작이 필요한 대상만 Spawn Actor로 만든다.
+- 출구, 진입 위치와 스폰은 지형 타일 파일과 분리된 Room 메타데이터로 관리한다. 지형과 엔티티 토큰을 한 파일에 섞지 않는다.
+
+## 엔진 변경 사양
+
+### 1. 2D 셀 Sprite
+
+정확한 타입명은 구현 시 조정할 수 있지만 Sprite는 크기와 셀 배열을, 각 셀은 문자, 전경/배경 속성과 투명 여부를 가져야 한다.
+
+필수 계약:
+
+- 셀 개수는 `size.x * size.y`와 일치한다.
+- 투명 셀은 프레임 문자, 색상과 sorting order를 바꾸지 않는다.
+- Renderer는 X와 Y 양쪽의 부분 클리핑을 지원한다.
+- 기존 sorting order 계약을 유지한다.
+- 기존 `Submit(string, ...)`과 문자열 기반 SpriteRendererComponent 생성자를 호환 API로 유지한다.
+- SpriteRendererComponent에서 Sprite 교체와 전체 크기 조회가 가능해야 한다.
+- Windows 콘솔 백엔드와 이중 버퍼 구조를 유지한다.
+
+배경색 표현은 구현 전에 `Color`를 확장할지 셀에 Win32 attribute를 저장할지 결정한다. 어느 쪽이든 기존 게임 호출부가 깨지지 않아야 한다. 같은 작업에서 `ScreenBuffer::Draw`의 `SMALL_RECT` Right/Bottom이 inclusive 좌표라는 점도 검증한다.
+
+검증 항목:
+
+- 3행 이상 Sprite와 셀별 색상
+- 투명 셀 뒤에 낮은 sorting order의 배경이 보임
+- 상하좌우 부분 클리핑과 완전한 화면 밖 명령 무시
+- 같은 sorting order의 기존 제출 순서
+- ShootingGame과 SokobanGame의 한 줄 이미지 회귀 없음
+
+### 2. 2D BoxComponent
+
+`BoxComponent(int width)`와 `GetWidth`는 호환을 위해 유지하고 내부 표현은 `Vector2 size`와 `Vector2 offset`으로 확장한다.
+
+필수 계약:
+
+- width 생성자는 `size = { width, 1 }`, `offset = { 0, 0 }`으로 동작한다.
+- 크기 생성자와 size/offset getter 및 setter를 제공한다.
+- 충돌 기준점은 `Actor::GetWorldPosition() + offset`이다.
+- 크기는 양수여야 한다.
+- swept 범위는 X와 Y에서 각각 이전/현재 위치를 포함한다.
+- 충돌 쌍을 먼저 모은 후 콜백을 보내는 현재 순서를 유지한다.
+
+검증 항목:
+
+- 높이 2 이상인 Actor의 겹침과 비겹침
+- Y축 고속 이동
+- 양수/음수 collider offset
+- Destroy된 Actor의 추가 콜백 방지
+- 기존 높이 1 Actor의 회귀 없음
+
+### 3. Level 전환 API
+
+Title, Gameplay, Clear는 현재 API로 구현 가능하므로 Level 개편은 선행 조건이 아니다. Level 생성자에 세션 전달이 필요해지면 `AddNewLevel<T, Args...>` 형태의 인자 전달만 우선 추가한다. Level 스택, 범용 GameInstance와 Sokoban 메뉴 전환 통합은 별도 요구가 생길 때 진행한다.
+
+## 콘텐츠 구조
+
+새 프로젝트는 아래 책임 구분을 따른다. 프로젝트 이름은 구현 시작 시 확정하되 문서에서는 `ZeldaLikeGame`으로 부른다.
+
+```text
+ZeldaLikeGame/
+├─ Actor/       Player, SwordAttack, EnemyBase, 적, 투사체, Boss
+├─ Game/        ZeldaLikeGame, GameSession
+├─ Level/       TitleLevel, OverworldLevel, ClearLevel
+├─ World/       RoomDefinition, RoomManager
+├─ UI/          Hud
+└─ Main.cpp
+```
+
+### GameSession 또는 RunState
+
+화면 전환에도 유지할 최소 진행 상태가 필요할 때만 사용한다. Room 이동 자체를 위해 필수인 객체는 아니다.
+
+- 현재/최대 체력
+- 무기 보유 여부
+- 보스 처치와 클리어 여부
+
+현재 Area와 Room, Room 전용 Actor 목록은 `OverworldLevel`과 `AreaManager`가 소유한다. Level, Actor 또는 Renderer 포인터는 GameSession에 저장하지 않는다. 저장 기능이 없고 GameplayLevel을 유지하는 첫 버전에서는 GameSession을 생략하고 파생 Game이 작은 `RunState`만 소유해도 된다.
+
+### Level과 Room
+
+- TitleLevel: 시작 입력과 타이틀
+- OverworldLevel: 플레이어, 현재 Room, 전투와 방 전환
+- ClearLevel: 클리어 메시지와 종료 또는 재시작
+- Area: 여러 Room을 묶는 지상, 동굴 또는 던전 단위의 콘텐츠 그룹
+- Room: 화면에 표시되는 고정 크기 필드 하나
+- RoomDefinition: 타일, 출구, 적 스폰, 진입 위치를 가진 순수 데이터
+
+필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. RoomDefinition에는 ID/격자 좌표, `16 x 11` 고정 크기 타일 맵, 이웃 Room과 출구, 방향별 진입 위치, 적 스폰 목록과 보스 여부를 둔다. `Content/ZeldaLike/Rooms`의 각 토큰은 논리 타일 ID로 읽어 TileDefinition을 조회한다. Room 배경은 타일 Sprite를 하나로 합성하고 통행은 별도 CollisionMap 또는 타일 속성으로 판정한다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
+
+### 플레이어와 공격
+
+플레이어는 facing, float 누적 위치, 이동/공격 상태, 체력, 무기 보유, 공격 쿨다운과 피격 무적 타이머를 가진다.
+
+검은 짧은 수명의 별도 SwordAttack Actor로 구현한다.
+
+1. 방향에 맞는 로컬 오프셋으로 Spawn한다.
+2. `AttachTo(player, false)`로 연결한다.
+3. 방향별 Sprite와 2D BoxComponent를 사용한다.
+4. 피해 가능한 대상과 충돌하면 콘텐츠 피해 API를 호출한다.
+5. 공격 시간이 끝나면 Destroy한다.
+
+같은 공격이 한 적에게 매 프레임 피해를 주지 않도록 공격별 적중 기록 또는 피해 무적 정책을 명시한다.
+
+### 적과 보스
+
+EnemyBase에는 체력, 피해, 피격/사망처럼 실제 공유되는 최소 행동만 둔다. 이동과 공격 패턴은 구체 타입에 둔다. 첫 버전은 추적형, 배회형, 원거리형 정도면 충분하며 행동 트리 대신 작은 상태 enum과 타이머를 사용한다.
+
+보스도 이동, 투사체 또는 접촉 공격, 높은 체력과 사망 처리부터 시작한다. 보스가 죽으면 Session의 클리어 상태를 설정하고 ClearLevel을 예약한다.
+
+## Room 전환 절차
+
+1. OverworldLevel을 전환 상태로 바꾸고 입력을 잠근다.
+2. 현재 Room 전용 Actor에 Destroy를 요청한다. 플레이어는 유지한다.
+3. 현재 Room ID를 변경한다.
+4. 새 배경을 적용하고 적을 Spawn한다.
+5. 플레이어를 반대쪽 진입 위치로 옮긴다.
+6. 새 Actor가 반영될 때까지 암전 또는 전환 화면을 그린다.
+7. 전환 상태를 해제한다.
+
+RoomManager는 Room 전용 Actor를 추적하되 Level의 소유권을 대체하거나 Actor 컨테이너를 직접 수정하지 않는다.
+
+## 구현 순서와 완료 기준
+
+### 단계 0: 프로젝트 골격
+
+- 새 x64 C++20 Application 프로젝트와 솔루션 의존성 추가
+- CraftEngine 헤더/library/DLL 및 Content 복사 설정 연결
+- Title, 빈 Gameplay, Clear 전환
+
+완료: 새 프로젝트가 Debug|x64로 빌드되고 세 화면을 키 입력으로 오간다.
+
+### 단계 1: 2D 렌더링
+
+- Sprite/셀 데이터, 2D 합성, 투명도, 양축 클리핑
+- SpriteRendererComponent 확장과 문자열 API 호환
+
+완료: 다색 Sprite가 올바르게 겹치고 기존 두 게임 출력이 유지된다.
+
+### 단계 2: 2D 충돌
+
+- BoxComponent 크기/오프셋
+- CollisionSystem X/Y swept AABB
+
+완료: 플레이어, 검과 적의 Y축 포함 충돌이 예상대로 동작한다.
+
+### 단계 3: 한 방 전투 버티컬 슬라이스
+
+- `TileMetrics(2, 1)`, 논리 타일 좌표와 콘솔 셀 좌표 변환
+- `16 x 11` 16진수 타일 파일을 읽는 Room 하나, 4방향 플레이어, 검, 적 하나, 체력 HUD와 사망
+
+완료: 이동, 공격, 피격, 적 사망과 플레이어 사망의 전체 루프가 동작한다.
+
+### 단계 4: Room 전환
+
+- `RoomDefinition`/`RoomManager`, `11행 x 16토큰` 포맷 검증과 최소 세 필드
+- 출구 왕복, Room Actor 재생성, 플레이어 상태 유지
+
+완료: 반복 이동해도 Actor 중복, 플레이어 소실, 잘못된 충돌이나 상태 초기화가 없다.
+
+### 단계 5: 적과 보스
+
+- 일반 적 2~3종, 필요한 투사체, 마지막 Room 보스
+
+완료: 동일한 피해 계약을 사용하고 보스 처치가 ClearLevel로 이어진다.
+
+### 단계 6: 화면과 회귀 검증
+
+- 타이틀, HUD, 게임 오버/재시작, 클리어와 사운드
+- Content 및 Config 경로, 문서와 실제 구조 동기화
+
+완료: 프로젝트 디렉터리와 출력 디렉터리 양쪽에서 실행되고 기존 콘텐츠 회귀가 없다.
+
+## 빌드 및 수동 검증
+
+엔진 공개 API 변경 후 `Debug|x64` 빌드 순서는 SoundSystem, CraftEngine, ShootingGame, SokobanGame, ZeldaLikeGame이다. 새 소스는 해당 `.vcxproj`와 `.vcxproj.filters`에 등록하고 공개 헤더 복사도 확인한다.
+
+수동 점검:
+
+- 기존 게임의 클리핑, 색상, sorting order와 높이 1 충돌
+- 2D Sprite 투명도와 네 방향 클리핑
+- 2D collider 크기와 오프셋
+- 한 공격의 중복 피해 정책
+- Room 왕복 시 Actor 수명과 플레이어 상태
+- 보스 사망 후 클리어 화면
+
+## 보류 항목과 확장 조건
+
+| 보류 기능 | 추가를 검토할 조건 |
+| --- | --- |
+| Camera/Viewport | 화면보다 큰 월드 또는 연속 스크롤이 실제 요구가 됨 |
+| float Transform | 정수 셀 이동이 게임플레이 결함을 만듦 |
+| 충돌 레이어/마스크 | 불필요한 콜백이나 검사 비용이 관측됨 |
+| 공간 분할 | 프로파일링에서 O(n²) 충돌이 병목임 |
+| 범용 애니메이션 | 여러 콘텐츠가 같은 프레임 재생 계약을 공유함 |
+| 입력 매핑 | 키 변경 또는 여러 입력 장치가 요구됨 |
+| Level 스택/GameInstance | 여러 콘텐츠가 공통 상태 전달을 요구함 |
+| 저장/불러오기 | 세션 간 진행 보존이 범위에 포함됨 |
+
+## 작업자 체크리스트
+
+- 공용 엔진 책임과 ZeldaLikeGame 콘텐츠 책임을 구분했는가?
+- 기존 문자열 렌더링과 width 기반 Box API를 보존했는가?
+- 렌더링과 충돌에 월드 좌표를 사용했는가?
+- Actor를 SpawnActor로 만들고 지연 추가를 고려했는가?
+- Actor 컨테이너를 프레임 중 직접 수정하지 않는가?
+- 필요한 Super 호출을 보존했는가?
+- 논리 타일, 콘솔 렌더 셀과 동적 Actor를 구분했는가?
+- `TileMetrics`를 Renderer에 하드코딩하지 않고 논리 좌표 변환을 한 곳에서 공유하는가?
+- Room 파일이 `16 x 11` 16진수 타일 포맷을 검증하고, 출구/스폰 메타데이터와 분리되어 있는가?
+- Room 배경 타일을 개별 Actor로 만들지 않았는가?
+- vcxproj, filters와 구조 문서를 함께 갱신했는가?
+- 엔진 변경 뒤 기존 두 게임을 빌드하고 직접 확인했는가?
+
+기본 결정과 다른 선택이 필요하면 코드만 우회하지 말고 변경 이유, 새 계약과 검증 방법을 이 문서 또는 `docs/ARCHITECTURE.md`에 함께 기록한다.

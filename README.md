@@ -54,3 +54,23 @@ Transform·렌더링·충돌 책임을 Component로 분리, Scene Graph를 구�
 9. Actor 구조 복습 및 Component 기반 구조로 확장
 10. Transform Scene Graph와 DOD/ECS 확장 방향 학습
 
+## 프로젝트 문서
+
+- [엔진 및 콘텐츠 구조](docs/ARCHITECTURE.md)
+- [빌드와 개발 메모](docs/DEVELOPMENT.md)
+- [Zelda형 콘솔 게임 개발 계획](docs/ZELDA_LIKE_DEVELOPMENT_PLAN.md)
+- [Zelda 맵 데이터 참고 및 적용 결정](docs/ZELDA_MAP_DATA_REFERENCE.md)
+- [Zelda 프로젝트 현재 상태](docs/ZELDA_PROJECT_STATUS.md)
+- [저장소 작업 지침](AGENTS.md)
+
+## Zelda 작업 하네스
+
+프로젝트 루트에서 다음 명령으로 진행 상태와 규칙·구조 감사를 확인할 수 있다.
+
+~~~powershell
+.\tools\zelda-harness.ps1 status
+.\tools\zelda-harness.ps1 audit
+.\tools\zelda-harness.ps1 review
+~~~
+
+review는 읽기 전용 codex exec를 호출하며 파일을 수정하지 않는다.
