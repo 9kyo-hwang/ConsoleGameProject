@@ -41,6 +41,7 @@ namespace Craft
 
         void SavePreviousStates();  // 프레임 종료 시 상태(위치) 캡처
 
+        // UE: AttachToActor(), DetachFromActor()
         void AttachTo(const std::shared_ptr<Actor>& newParent, bool keepWorldPosition = true);
         void DetachFromParent();
 

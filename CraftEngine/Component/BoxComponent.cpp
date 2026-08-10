@@ -3,8 +3,15 @@
 
 namespace Craft
 {
+    BoxComponent::BoxComponent(const Vector2& size, const Vector2& offset)
+        : size(size)
+        , offset(offset)
+    {
+    }
+
     BoxComponent::BoxComponent(int width)
-        : width(width)
+        : size(width, 1)
+        , offset(Vector2::Zero)
     {
     }
 }

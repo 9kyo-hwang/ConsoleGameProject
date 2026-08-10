@@ -5,7 +5,6 @@
 
 namespace Craft
 {
-    // AttachTo에서 자기자신을 부모의 children에 넣게 하도록(weak_from_this())
     class CRAFT_API TransformComponent : public ActorComponent, public std::enable_shared_from_this<TransformComponent>
     {
         TYPE_DECLARATIONS(TransformComponent, ActorComponent)
@@ -24,6 +23,7 @@ namespace Craft
         void SavePreviousWorldPosition();
 
         // 기존 Actor가 담당하던 책임을 Transform으로 이관
+        // UE: AttachToComponent(), DeatchFromComponent()
         void AttachTo(const std::shared_ptr<TransformComponent>& newParent, bool keepWorldPosition = true);
         void DetachFromParent(bool keepWorldPosition = true);
 
