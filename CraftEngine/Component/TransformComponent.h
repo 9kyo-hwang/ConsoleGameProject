@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <Component/ActorComponent.h>
 #include <Math/Vector2.h>
+#include <vector>
 
 namespace Craft
 {

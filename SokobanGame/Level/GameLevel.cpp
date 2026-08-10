@@ -139,7 +139,7 @@ bool GameLevel::CanMoveTo(const Vector2& from, const Vector2& to)
 
 void GameLevel::LoadMap(const std::string& filename)
 {
-    std::string path = "../Assets/Stages/" + filename;
+    std::string path = "../Content/Stages/" + filename;
 
     // 파일에 아무런 작업을 하지 않고 binary로 오픈
     std::ifstream file(path, std::ios_base::binary);

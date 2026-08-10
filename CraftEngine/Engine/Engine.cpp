@@ -106,7 +106,7 @@ namespace Craft
         }
 
         // 사운드 에셋 경로 concat
-        sound->PlayOneShot("../Assets/Sound/" + filename);
+        sound->PlayOneShot("../Content/Sound/" + filename);
     }
 
     void Engine::PlayBGM(const std::string& filename)
@@ -116,7 +116,7 @@ namespace Craft
             return;
         }
 
-        sound->PlayBackgroundMusic("../Assets/Sound/" + filename);
+        sound->PlayBackgroundMusic("../Content/Sound/" + filename);
     }
 
     void Engine::StopBGM()
