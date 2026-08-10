@@ -1,4 +1,4 @@
-﻿#include <pch.h>
+﻿#include "pch.h"
 #include "Renderer.h"
 #include <Render/ScreenBuffer.h>
 
@@ -80,11 +80,33 @@ namespace Craft
     void Renderer::Submit(const std::string& image, const Vector2& position, Color color, int sortingOrder)
     {
         // 액터가 렌더러에게 그릴 데이터를 전달해줌
+        TextPayload payload
+        {
+            .text = image,
+            .color = color,
+        };
+
         RenderCommand command
         {
-            .image = image, 
+            .payload = payload,
             .position = position, 
-            .color = color, 
+            .sortingOrder = sortingOrder
+        };
+
+        _renderQueue.emplace_back(command);
+    }
+
+    void Renderer::Submit(std::shared_ptr<const Sprite> sprite, const Vector2& position, int sortingOrder)
+    {
+        SpritePayload payload
+        {
+            .sprite = sprite
+        };
+
+        RenderCommand command
+        {
+            .payload = payload,
+            .position = position,
             .sortingOrder = sortingOrder
         };
 
@@ -114,49 +136,18 @@ namespace Craft
 
     void Renderer::DrawRenderQueue()
     {
+        // command가 들고 있는 Payload를 보고
+        // DrawPayload -> DrawCellGrid -> CompositeCell -> 
         for (const RenderCommand& command : _renderQueue)
         {
-            if (command.image.empty())
-            {
-                continue;
-            }
-            
-            // OutOfBound - y
-            const Vector2& pos = command.position;
-            if (pos.y < 0 || pos.y >= _screenSize.y)
-            {
-                continue;
-            }
-
-            const int32 length = (int32)command.image.length();
-            const int32 imageStartX = pos.x;
-            const int32 imageEndX = imageStartX + length - 1;
-
-            // OutOfBound - x
-            if (imageEndX < 0 || imageStartX >= _screenSize.x)
-            {
-                continue;
-            }
-
-            // 글자가 잘리는 경우를 대비해 실제로 보여질 index 계산
-            const int32 visibleStartX = std::max<int32>(0, imageStartX);
-            const int32 visibleEndX = std::min<int32>(_screenSize.x - 1, imageEndX);
-
-            for (int32 x = visibleStartX; x <= visibleEndX; ++x)
-            {
-                const int32 sourceIndex = x - imageStartX;          // 문자 인덱스
-                const int32 index = (pos.y * _screenSize.x) + x;    // 문자 기록용 2차원 배열 인덱스
-
-                // [pos.y][x] 위치의 글자를 변경할지 확인
-                if (_frame->sortingOrders[index] > command.sortingOrder)
+            // variant 내부의 현재 활성화된 타입을 안전하게 판별하고
+            // 그에 맞는 Callable을 실행
+            std::visit([&](const auto& payload)
                 {
-                    continue;
-                }
-
-                _frame->charInfos[index].Char.AsciiChar = command.image[sourceIndex];
-                _frame->charInfos[index].Attributes = (WORD)command.color;
-                _frame->sortingOrders[index] = command.sortingOrder;
-            }
+                    DrawPayload(command, payload);
+                },
+                command.payload
+            );
         }
 
         // 백버퍼에 그리기
@@ -170,6 +161,69 @@ namespace Craft
             GetCurrentScreenBuffer()->GetHandle(),
             (WORD)Color::White
         );
+    }
+
+    void Renderer::DrawPayload(const RenderCommand& command, const TextPayload& payload)
+    {
+        if (payload.text.empty())
+        {
+            return;
+        }
+
+        // N x 1 문자열 이미지를 SpriteCell로 치환
+        DrawCellGrid(
+            command.position,
+            Vector2((int)payload.text.size(), 1),
+            command.sortingOrder,
+            [&](int x, int)
+            {
+                return SpriteCell
+                {
+                    .glyph = payload.text[x],
+                    .attributes = (WORD)(payload.color),
+                    .transparent = false
+                };
+            }
+        );
+    }
+
+    void Renderer::DrawPayload(const RenderCommand& command, const SpritePayload& payload)
+    {
+        if (!payload.sprite)
+        {
+            return;
+        }
+
+        const Sprite& sprite = *payload.sprite;
+        DrawCellGrid(
+            command.position,
+            sprite.GetSize(),
+            command.sortingOrder,
+            [&](int x, int y)
+            {
+                return sprite.GetCell(x, y);
+            }
+        );
+    }
+
+    void Renderer::CompositeCell(int x, int y, const SpriteCell& cell, int sortingOrder)
+    {
+        if (cell.transparent)
+        {
+            return;
+        }
+
+        const int32 index = y * _screenSize.x + x;
+
+        // [pos.y][x] 위치의 글자를 변경할지 확인
+        if (_frame->sortingOrders[index] > sortingOrder)
+        {
+            return;
+        }
+
+        _frame->charInfos[index].Char.AsciiChar = cell.glyph;
+        _frame->charInfos[index].Attributes = cell.attributes;
+        _frame->sortingOrders[index] = sortingOrder;
     }
 
     void Renderer::Present()

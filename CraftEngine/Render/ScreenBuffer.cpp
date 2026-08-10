@@ -80,8 +80,8 @@ namespace Craft
         {
             .Left = 0,
             .Top = 0,
-            .Right = _size.X,  
-            .Bottom = _size.Y
+            .Right = _size.X - 1,  // -1이 포함되는 게 맞나?  
+            .Bottom = _size.Y - 1
         };
 
         BOOL result = WriteConsoleOutputA(

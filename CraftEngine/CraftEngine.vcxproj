@@ -134,6 +134,7 @@ xcopy ..\Config\Setting.txt $(OutDir)..\Config\ /e /y /i</Command>
     <ClCompile Include="Render\ScreenBuffer.cpp" />
     <ClCompile Include="Component\TransformComponent.cpp" />
     <ClCompile Include="Component\SpriteRendererComponent.cpp" />
+    <ClCompile Include="Render\Sprite.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Component\BoxComponent.h" />
@@ -154,6 +155,7 @@ xcopy ..\Config\Setting.txt $(OutDir)..\Config\ /e /y /i</Command>
     <ClInclude Include="Render\ScreenBuffer.h" />
     <ClInclude Include="Component\TransformComponent.h" />
     <ClInclude Include="Component\SpriteRendererComponent.h" />
+    <ClInclude Include="Render\Sprite.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
