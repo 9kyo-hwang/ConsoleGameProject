@@ -14,13 +14,14 @@ namespace Craft
         bool transparent = true;
     };
 
+    // Pixel 뭉치(size.x x size.y)
     class CRAFT_API Sprite
     {
     public:
         Sprite(Vector2 size, std::vector<SpriteCell> cells);
 
         Vector2 GetSize() const;
-        const SpriteCell& GetCell(int x, int y) const;
+        const SpriteCell& GetCell(int x, int y) const;  // 스프라이트 내부 좌표에 해당하는 셀 반환
 
     private:
         Vector2 _size;

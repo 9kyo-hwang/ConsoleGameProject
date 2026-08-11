@@ -16,6 +16,7 @@ public:
 
 private:
     void InitializeMapTest();
+    void BuildRoomSprite();
 
 private:
     std::shared_ptr<CollisionTestActor> _testA;
@@ -26,5 +27,8 @@ private:
 
     std::string _mapStatus = "NOT TESTED";
     bool _attempted = false;
+
+    TileCatalog _tileCatalog;
+    std::shared_ptr<const Craft::Sprite> _roomSprite;
 };
 

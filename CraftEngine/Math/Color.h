@@ -14,6 +14,9 @@ namespace Craft
         Magenta = Red | Blue,
         Yellow = Red | Green,
         White = Blue | Green | Red,
+        BrightRed = Red | FOREGROUND_INTENSITY,
+        BrightYellow = Yellow | FOREGROUND_INTENSITY,
+        BrightGreen = Green | FOREGROUND_INTENSITY,
         BrightWhite = White | FOREGROUND_INTENSITY
     };
 }
