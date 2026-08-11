@@ -17,6 +17,7 @@ public:
 private:
     void InitializeMapTest();
     void BuildRoomSprite();
+    bool CanMove(const Craft::Vector2& candidate) const;
 
 private:
     std::shared_ptr<CollisionTestActor> _testA;

@@ -21,4 +21,7 @@ struct RoomDefinition
     bool OutOfBound(int x, int y) const;
     TileId GetTileId(int x, int y) const;
     bool IsWalkable(int x, int y) const;
+
+    // BoxComponent 크기를 고려한 영역 검사
+    bool CanOccupyTiles(int minTileX, int minTileY, int maxTileX, int maxTileY) const;
 };

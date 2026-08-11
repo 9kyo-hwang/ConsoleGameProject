@@ -3,6 +3,8 @@
 #include <Actor/CollisionTestActor.h>
 #include <Render/Renderer.h>
 #include <Core/Input.h>
+#include <Component/BoxComponent.h>
+#include <Component/SpriteRendererComponent.h>
 
 using namespace Craft;
 
@@ -235,31 +237,38 @@ void DevelopmentLevel::BeginPlay()
         InitializeMapTest();
     }
 
-    if (_testA && _testB)
+    if (_testA)
     {
         return;
     }
 
     _testA = SpawnActor<CollisionTestActor>(
-        Vector2(10, 10),
-        Vector2::One,
+        Vector2(14, 5),
+        Vector2(2, 1),
         Vector2::Zero
     );
 
-    _testB = SpawnActor<CollisionTestActor>(
-        Vector2(15, 10),
-        Vector2::One,
-        Vector2::Zero
-    );
+    _testA->AddComponent<SpriteRendererComponent>("PP");
 }
 
 void DevelopmentLevel::Tick(float deltaTime)
 {
     Level::Tick(deltaTime);
 
-    if (Input::Get().GetKeyDown('M'))
+    if (!_testA) return;
+
+    Vector2 delta = Vector2::Zero;
+    if (Input::Get().GetKeyDown('A')) delta.x = -1;
+    if (Input::Get().GetKeyDown('D')) delta.x = 1;
+    if (Input::Get().GetKeyDown('W')) delta.y = -1;
+    if (Input::Get().GetKeyDown('S')) delta.y = 1;
+
+    if (delta == Vector2::Zero) return;
+
+    const Vector2 candidate = _testA->GetPosition() + delta;
+    if (CanMove(candidate))
     {
-        _testA->SetPosition(Vector2(20, 10));
+        _testA->SetPosition(candidate);
     }
 }
 
@@ -276,8 +285,8 @@ void DevelopmentLevel::Draw()
 
     Renderer::Get().Submit("[Development Level]", Vector2::Zero);
     Renderer::Get().Submit("Map: " + _mapStatus, Vector2(35, 1));
-    Renderer::Get().Submit("CollisionCount A: " + std::to_string(_testA->GetCollisionCount()), Vector2(35, 2));
-    Renderer::Get().Submit("CollisionCount B: " + std::to_string(_testB->GetCollisionCount()), Vector2(35, 3));
+    //Renderer::Get().Submit("CollisionCount A: " + std::to_string(_testA->GetCollisionCount()), Vector2(35, 2));
+    //Renderer::Get().Submit("CollisionCount B: " + std::to_string(_testB->GetCollisionCount()), Vector2(35, 3));
 }
 
 void DevelopmentLevel::InitializeMapTest()
@@ -375,4 +384,30 @@ void DevelopmentLevel::BuildRoomSprite()
     }
 
     _roomSprite = std::make_shared<const Sprite>(Vector2(RoomPixelWidth, RoomPixelHeight), std::move(cells));
+}
+
+bool DevelopmentLevel::CanMove(const Craft::Vector2& candidate) const
+{
+    if (!_room || !_testA)
+    {
+        return false;
+    }
+
+    auto box = _testA->GetComponent<BoxComponent>();
+    const Vector2 size = box->GetSize();
+    const Vector2 offset = box->GetOffset();
+
+    const Vector2 origin(0, 3);
+
+    const int localLeft = candidate.x + offset.x - origin.x;
+    const int localTop = candidate.y + offset.y - origin.y;
+    const int localRight = localLeft + size.x - 1;
+    const int localBottom = localTop + size.y - 1;
+
+    if (localLeft < 0 || localTop < 0 || localRight >= RoomDefinition::Width * 2 || localBottom >= RoomDefinition::Height)
+    {
+        return false;
+    }
+
+    return _room->CanOccupyTiles(localLeft / 2, localTop, localRight / 2, localBottom);
 }

@@ -17,3 +17,24 @@ bool RoomDefinition::IsWalkable(int x, int y) const
     if (OutOfBound(x, y)) return false;
     return walkable[Index(x, y)];
 }
+
+bool RoomDefinition::CanOccupyTiles(int minTileX, int minTileY, int maxTileX, int maxTileY) const
+{
+    if (minTileX < 0 || minTileY < 0 || maxTileX >= Width || maxTileY >= Height)
+    {
+        return false;
+    }
+
+    for (int y = minTileY; y <= maxTileY; ++y)
+    {
+        for (int x = minTileX; x <= maxTileX; ++x)
+        {
+            if (!IsWalkable(x, y))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
