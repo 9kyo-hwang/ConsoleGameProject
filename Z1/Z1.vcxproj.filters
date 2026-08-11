@@ -9,6 +9,9 @@
     <ClCompile Include="Level\ClearLevel.cpp" />
     <ClCompile Include="Level\DevelopmentLevel.cpp" />
     <ClCompile Include="Actor\CollisionTestActor.cpp" />
+    <ClCompile Include="World\Tile.cpp" />
+    <ClCompile Include="World\Room.cpp" />
+    <ClCompile Include="World\OverworldMapLoader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -18,5 +21,8 @@
     <ClInclude Include="Level\ClearLevel.h" />
     <ClInclude Include="Level\DevelopmentLevel.h" />
     <ClInclude Include="Actor\CollisionTestActor.h" />
+    <ClInclude Include="World\Tile.h" />
+    <ClInclude Include="World\Room.h" />
+    <ClInclude Include="World\OverworldMapLoader.h" />
   </ItemGroup>
 </Project>

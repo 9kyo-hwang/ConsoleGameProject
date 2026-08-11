@@ -5,10 +5,10 @@
 ## 현재 진행
 
 - 현재 단계: 단계 3 - 한 방 전투 버티컬 슬라이스
-- 현재 작업: 첫 Room의 지형 데이터 포맷과 로더 확정
-- 상태: 단계 0, 단계 1, 단계 2 완료. 단계 3 설계·구현 대기
-- 다음 작업: 논리 타일과 콘솔 셀 좌표 정책을 반영한 최소 Room 지형 데이터 로드
-- 마지막 검증: Z1에서 1x1/2x2 겹침, X/Y 분리, 음수 offset, 이전 위치와 현재 위치 사이의 swept 충돌을 직접 확인
+- 현재 작업: TileId를 TileDefinition과 지형 Sprite로 연결
+- 상태: 단계 0, 단계 1, 단계 2 완료. 단계 3의 Overworld 원본 데이터·맵 로더·Room 추출 완료
+- 다음 작업: TileCatalog을 구성하고 첫 Room 배경 Sprite와 통행 판정을 연결
+- 마지막 검증: Z1에서 `Map: PASS`를 확인하고 Room `(7,7)` 및 `(0,0)`의 TileId 출력이 원본 txt와 일치함을 직접 확인
 
 ## 완료 및 검증
 
@@ -33,6 +33,9 @@
 - [x] Z1 개발 장면에서 1x1/2x2 겹침과 X/Y 분리 수동 확인
 - [x] Z1 개발 장면에서 offset이 충돌 영역에 반영되는지 확인
 - [x] Z1 개발 장면에서 이전 위치와 현재 위치 사이의 swept 충돌 확인
+- [x] `Content/Z1/Maps/Overworld`의 원본 TileId/Blocking 맵 추가
+- [x] `OverworldMapLoader`로 256x88 맵 파싱 및 형식 검증
+- [x] Room `(7,7)` 및 `(0,0)`의 16x11 추출과 TileId 일치 확인
 
 ## 상태 기록 규칙
 
@@ -79,7 +82,8 @@ SweptBounds 수정 후 Z1 실행 검증까지 완료했다. 기존 두 게임의
 
 단계 3 한 방 전투 버티컬 슬라이스는 다음을 만족하면 완료로 본다.
 
-- [ ] `TileMetrics`와 논리 타일/콘솔 셀 좌표 변환을 확정
-- [ ] 최소 Room 하나의 지형 데이터를 `Content`에서 읽음
+- [x] 고정 `TileMetrics(2, 1)`과 논리 타일/콘솔 셀 좌표 변환을 확정
+- [x] Overworld 원본 맵을 `Content`에서 읽고 최소 Room 하나를 추출
+- [ ] TileId를 TileDefinition/Sprite로 매핑
 - [ ] 지형 Sprite를 화면에 합성
 - [ ] 지형 통행 가능 여부를 충돌 판정에 연결

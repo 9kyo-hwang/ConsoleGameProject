@@ -14,3 +14,4 @@ using byte = unsigned char;
 
 #include <algorithm>
 #include <vector>
+#include <cassert>

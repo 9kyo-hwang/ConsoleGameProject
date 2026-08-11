@@ -184,7 +184,7 @@ Z1/
 - Room: 화면에 표시되는 고정 크기 필드 하나
 - RoomDefinition: 타일, 출구, 적 스폰, 진입 위치를 가진 순수 데이터
 
-필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. RoomDefinition에는 ID/격자 좌표, `16 x 11` 고정 크기 타일 맵, 이웃 Room과 출구, 방향별 진입 위치, 적 스폰 목록과 보스 여부를 둔다. `Content/ZeldaLike/Rooms`의 각 토큰은 논리 타일 ID로 읽어 TileDefinition을 조회한다. Room 배경은 타일 Sprite를 하나로 합성하고 통행은 별도 CollisionMap 또는 타일 속성으로 판정한다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
+필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. RoomDefinition에는 Room 격자 좌표, `16 x 11` 고정 크기 타일 맵, 통행 정보와 이후 추가될 이웃 Room/출구 메타데이터를 둔다. Overworld는 `Content/Z1/Maps/Overworld`의 `256 x 88` 원본 TileId/Blocking 맵을 `OverworldMapLoader`가 읽고 `16 x 11` Room으로 추출한다. 추출된 TileId는 TileDefinition을 조회하고, Room 배경은 타일 Sprite를 하나로 합성한다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
 
 ### 플레이어와 공격
 
@@ -244,12 +244,13 @@ RoomManager는 Room 전용 Actor를 추적하되 Level의 소유권을 대체하
 
 완료: 플레이어, 검과 적의 Y축 포함 충돌이 예상대로 동작한다.
 
-현재 상태: BoxComponent와 CollisionSystem 구현 및 Z1 개발 장면의 1x1/2x2 겹침, X/Y 분리, offset, 이전/현재 위치 사이의 swept 이동 검증을 완료했다. 다음은 첫 Room의 지형 데이터 로드다.
+현재 상태: BoxComponent와 CollisionSystem 구현 및 Z1 개발 장면의 1x1/2x2 겹침, X/Y 분리, offset, 이전/현재 위치 사이의 swept 이동 검증을 완료했다.
 
 ### 단계 3: 한 방 전투 버티컬 슬라이스
 
-- `TileMetrics(2, 1)`, 논리 타일 좌표와 콘솔 셀 좌표 변환
-- `16 x 11` 16진수 타일 파일을 읽는 Room 하나, 4방향 플레이어, 검, 적 하나, 체력 HUD와 사망
+- 고정 `TileMetrics(2, 1)`, 논리 타일 좌표와 콘솔 셀 좌표 변환
+- `256 x 88` Overworld TileId/Blocking 파일을 읽고 `16 x 11` Room 하나를 추출
+- TileDefinition/Sprite 연결, 4방향 플레이어, 검, 적 하나, 체력 HUD와 사망
 
 완료: 이동, 공격, 피격, 적 사망과 플레이어 사망의 전체 루프가 동작한다.
 

@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <Level/Level.h>
+#include <World/OverworldMapLoader.h>
 
 class CollisionTestActor;
 
@@ -14,7 +15,16 @@ public:
     void Draw() override;
 
 private:
+    void InitializeMapTest();
+
+private:
     std::shared_ptr<CollisionTestActor> _testA;
     std::shared_ptr<CollisionTestActor> _testB;
+
+    OverworldMapLoader _loader;
+    std::optional<RoomDefinition> _room;
+
+    std::string _mapStatus = "NOT TESTED";
+    bool _attempted = false;
 };
 

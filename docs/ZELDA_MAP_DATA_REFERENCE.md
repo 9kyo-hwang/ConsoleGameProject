@@ -53,7 +53,7 @@ CraftEngine의 현재 백엔드는 `CHAR_INFO` 하나를 콘솔 셀 하나로 �
 
 플레이어, 검, 보스처럼 한 타일보다 큰 대상은 `2 × 1`로 제한되지 않고 여러 콘솔 셀을 사용하는 `N × M Sprite`가 된다. Renderer는 Zelda의 타일 크기를 알지 않고 콘솔 셀 단위만 처리한다. `2 × 1`은 Zelda 콘텐츠의 `TileMetrics`에서 관리한다.
 
-첫 구현의 결정은 다음과 같다.
+Z1의 고정 표시 정책은 다음과 같다.
 
 ```cpp
 struct TileMetrics
@@ -63,28 +63,28 @@ struct TileMetrics
 };
 ```
 
-이 값은 원작 픽셀 데이터를 따르는 고정 규격이 아니라 현재 `60 × 25` 콘솔 화면과 문자 아트의 가독성을 고려한 초기 정책이다. 화면 크기나 시각 테스트 결과가 바뀌면 Room 파일을 바꾸지 않고 `TileMetrics`와 좌표 변환만 조정한다.
+이 값은 원작의 16×16 NES 픽셀을 콘솔 픽셀로 직접 변환한 값이 아니라, 콘솔 셀의 가로세로 비율을 고려해 `16 × 11` 논리 Room을 표시하기 위한 프로젝트 공통 계약이다. `Config/Setting.txt`의 `width`/`height`는 콘솔 셀 버퍼와 viewport 크기를 정할 뿐이며 NES의 `256 × 240` 픽셀 해상도를 직접 지정하는 값이 아니다. 이후 Room 파일, 플레이어 이동, 지형 충돌, Sprite 배치는 모두 이 변환을 사용한다. 렌더러 백엔드를 바꾸지 않는 한 이 정책을 변경하지 않는다.
 
 ## Room 파일 포맷 결정
 
-### 기본 포맷
-
-MVP에서는 Room 하나를 파일 하나로 관리한다.
+### Overworld 원본 포맷
 
 ```text
-Content/ZeldaLike/Rooms/Overworld_00_00.txt
+Content/Z1/Maps/Overworld/TileMap.txt
+Content/Z1/Maps/Overworld/BlockingMap.txt
 ```
 
-파일에는 **지형 타일 ID만** 공백으로 구분해 저장한다.
+Overworld는 원본 전체 맵을 그대로 보관한다.
 
-- 행 수: `11`
-- 행마다 토큰 수: `16`
-- 토큰: 16진수 `TileId` (`00`~`ff` 범위)
-- 주석, 스폰, 출구 지시는 기본 포맷에 넣지 않는다.
+- TileId 맵: `88`행 × `256`토큰
+- Blocking 맵: `88`행 × `256`문자
+- TileId 맵 토큰: 16진수 `TileId` (`00`~`ff` 범위)
+- Blocking 맵 문자: `.`은 이동 가능, `X`는 이동 불가
+- 주석, 스폰, 출구 지시는 원본 맵 파일에 넣지 않는다.
 
-이렇게 하면 한 토큰이 콘솔 문자 하나나 Actor 하나라는 오해가 생기지 않는다. 토큰은 논리 타일 하나이며, 렌더링 시 `TileDefinition`을 거쳐 `2 × 1` 이상의 콘솔 셀로 확장된다.
+토큰 하나는 논리 타일 하나이며, 렌더링 시 `TileDefinition`을 거쳐 `2 × 1` 이상의 콘솔 셀로 확장된다.
 
-페이지의 `256 × 88` 전역 맵 파일을 직접 활용하고 싶을 때는 별도의 변환 도구 또는 선택적 로더가 `(roomX * 16, roomY * 11)` 위치에서 `16 × 11` 영역을 추출하도록 한다. MVP의 런타임 `RoomLoader`는 전역 맵을 알 필요 없이 Room 파일만 읽는다.
+`OverworldMapLoader`는 전체 맵을 한 번 읽고 `(roomX * 16, roomY * 11)` 위치에서 `16 × 11` 영역을 `RoomDefinition`으로 추출한다. 동굴·던전처럼 별도 제작 데이터가 필요한 경우에는 추후 `Content/Z1/Rooms` 아래에 Room 전용 파일을 추가할 수 있다.
 
 ### Room 외부 메타데이터
 
@@ -92,9 +92,10 @@ Content/ZeldaLike/Rooms/Overworld_00_00.txt
 
 ```text
 RoomDefinition
-  - areaId / roomId
+  - roomX / roomY
   - width = 16, height = 11
   - tileIds[11][16]
+  - walkable[11][16]
   - exits[4]
   - entryPositions[4]
   - actorSpawns
@@ -106,8 +107,9 @@ RoomDefinition
 ## 타일 로드와 렌더링 파이프라인
 
 ```text
-RoomLoader
-  → 16 × 11 TileId 검증
+OverworldMapLoader
+  → 256 × 88 TileId/Blocking 맵 검증
+  → 16 × 11 Room 추출
   → RoomDefinition 생성
   → TileDefinition 조회
   → 타일 Sprite를 Room 배경으로 합성
