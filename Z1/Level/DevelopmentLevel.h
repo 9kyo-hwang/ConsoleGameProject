@@ -15,20 +15,7 @@ public:
     void Draw() override;
 
 private:
-    void InitializeMapTest();
-    void BuildRoomSprite();
-    bool CanMove(const Craft::Vector2& candidate) const;
-
-private:
-    std::shared_ptr<Player> _player;
-
-    OverworldMapLoader _loader;
-    std::optional<RoomDefinition> _room;
-
     std::string _mapStatus = "NOT TESTED";
     bool _attempted = false;
-
-    TileCatalog _tileCatalog;
-    std::shared_ptr<const Craft::Sprite> _roomSprite;
 };
 

@@ -11,6 +11,7 @@ namespace Craft
 enum class State
 {
     Title,
+    Overworld,
     Gameplay,
     Clear,
     Development,

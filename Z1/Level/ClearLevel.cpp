@@ -23,7 +23,7 @@ void ClearLevel::Tick(float deltaTime)
     if (Input::Get().GetKeyDown('2'))
     {
         Game& game = dynamic_cast<Game&>(Engine::Get());
-        game.ChangeLevel(State::Gameplay);
+        game.ChangeLevel(State::Overworld);
     }
 
     if (Input::Get().GetKeyDown('3'))
