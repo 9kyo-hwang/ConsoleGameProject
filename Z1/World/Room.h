@@ -22,6 +22,6 @@ struct RoomDefinition
     TileId GetTileId(int x, int y) const;
     bool IsWalkable(int x, int y) const;
 
-    // BoxComponent 크기를 고려한 영역 검사
+    bool CanOccupyWorldRect(const Craft::Vector2& localWorldPosition, const Craft::Vector2& worldSize, const Craft::Vector2& tileWorldSize) const;
     bool CanOccupyTiles(int minTileX, int minTileY, int maxTileX, int maxTileY) const;
 };

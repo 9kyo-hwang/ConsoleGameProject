@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <Actor/Actor.h>
+#include <functional>
 
 namespace Craft
 {
@@ -23,6 +24,8 @@ class Player : public Craft::Actor
 public:
     Player(Craft::Vector2 position, Craft::Vector2 renderScale);
 
+    int ConsumeMoveSteps(float deltaTime);
+    void ClearMoveRemainder();
     void MoveBy(const Craft::Vector2& delta);
 
     inline Facing GetFacing() const { return _facing; }
@@ -36,4 +39,6 @@ private:
     std::shared_ptr<Craft::SpriteRendererComponent> _renderer;
 
     Facing _facing = Facing::Down;
+    float _moveSpeed = 10.f;    // 초당 셀 20칸
+    float _moveRemainder = 0.f;
 };

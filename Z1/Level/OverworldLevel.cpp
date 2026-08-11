@@ -7,9 +7,20 @@
 
 using namespace Craft;
 
+/*
+* Room의 타일 좌표: 16 x 11
+* Actor 위치 및 Box 크기: 월드 Cell 단위
+* Room 하나의 실제 월드 크기: (16 x 11) x WorldRenderScale = (80 x 33)
+* RoomOrigin: 월드 Cell 단위
+* 렌더러에 전달하는 Actor 위치: 콘솔 Cell과 1:1인 월드 좌표
+* 
+* 예: 타일 (7, 4)
+* - LTRB: 35, 12, 39, 14
+*/
+
 namespace
 {
-    const Vector2 WorldRenderScale(5, 3);
+    const Vector2 WorldCellScale(5, 3);
     const Vector2 RoomOrigin(0, 3);
 
     std::shared_ptr<const Sprite> MakeTileSprite(char glyph, Color color)
@@ -172,6 +183,11 @@ catalog.Register(TileDefinition
 
 return catalog;
     }
+
+    Vector2 ToWorldPosition(const Vector2& tilePosition)
+    {
+        return RoomOrigin + tilePosition * WorldCellScale;
+    }
 }
 
 OverworldLevel::OverworldLevel()
@@ -189,7 +205,8 @@ void OverworldLevel::BeginPlay()
 
     if (!_player)
     {
-        _player = SpawnActor<Player>(RoomOrigin + Vector2(7, 2), WorldRenderScale);
+        // 생성 위치도 스케일만큼 곱한 위치로 세팅
+        _player = SpawnActor<Player>(ToWorldPosition(Vector2(7, 2)), WorldCellScale);
     }
 }
 
@@ -199,24 +216,36 @@ void OverworldLevel::Tick(float deltaTime)
 
     if (!_player) return;
 
-    Vector2 delta = Vector2::Zero;
-    if (Input::Get().GetKeyDown(VK_LEFT)) delta.x = -1;
-    if (Input::Get().GetKeyDown(VK_RIGHT)) delta.x = 1;
-    if (Input::Get().GetKeyDown(VK_UP)) delta.y = -1;
-    if (Input::Get().GetKeyDown(VK_DOWN)) delta.y = 1;
+    Vector2 direction = Vector2::Zero;
 
-    if (delta != Vector2::Zero)
+    if (Input::Get().GetKey(VK_UP))
     {
-        if (delta.x == -1) _player->SetFacing(Facing::Left);
-        else if (delta.x == 1) _player->SetFacing(Facing::Right);
-        else if (delta.y == -1) _player->SetFacing(Facing::Up);
-        else if (delta.y == 1) _player->SetFacing(Facing::Down);
+        direction = Vector2::Up;
+    }
+    else if (Input::Get().GetKey(VK_DOWN))
+    {
+        direction = Vector2::Up * -1;
+    }
+    else if (Input::Get().GetKey(VK_LEFT))
+    {
+        direction = Vector2::Right * -1;
+    }
+    else if (Input::Get().GetKey(VK_RIGHT))
+    {
+        direction = Vector2::Right;
+    }
 
-        const Vector2 candidate = _player->GetPosition() + delta;
-        if (CanMove(candidate))
+    const int moveSteps = _player->ConsumeMoveSteps(deltaTime);
+    for (int i = 0; i < moveSteps; ++i)
+    {
+        const Vector2 candidate = _player->GetPosition() + direction;
+        if (!CanMove(candidate))
         {
-            _player->MoveBy(delta);
+            _player->ClearMoveRemainder();
+            break;
         }
+
+        _player->MoveBy(direction);
     }
 }
 
@@ -224,7 +253,7 @@ void OverworldLevel::Draw()
 {
     if (_roomSprite)
     {
-        Renderer::Get().Submit(_roomSprite, RoomOrigin, WorldRenderScale, 0);
+        Renderer::Get().Submit(_roomSprite, RoomOrigin, WorldCellScale, 0);
     }
 
     Level::Draw();
@@ -312,19 +341,9 @@ bool OverworldLevel::CanMove(const Craft::Vector2& candidate) const
         return false;
     }
 
-    auto box = _player->GetComponent<BoxComponent>();
-    const Vector2 size = box->GetSize();
-    const Vector2 offset = box->GetOffset();
+    const auto& box = _player->GetComponent<BoxComponent>();
+    const Vector2 worldTopLeft = candidate + box->GetOffset();
+    const Vector2 roomLocalTopLeft = worldTopLeft - RoomOrigin;
 
-    const int left = candidate.x + offset.x - RoomOrigin.x;
-    const int top = candidate.y + offset.y - RoomOrigin.y;
-    const int right = left + size.x - 1;
-    const int bottom = top + size.y - 1;
-
-    if (left < 0 || top < 0 || right >= RoomDefinition::Width || bottom >= RoomDefinition::Height)
-    {
-        return false;
-    }
-
-    return _room->CanOccupyTiles(left, top, right, bottom);
+    return _room->CanOccupyWorldRect(roomLocalTopLeft, box->GetSize(), WorldCellScale);
 }

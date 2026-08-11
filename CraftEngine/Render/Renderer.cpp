@@ -109,7 +109,7 @@ namespace Craft
         RenderCommand command
         {
             .payload = payload,
-            .position = Vector2(position.x * cellScale.x, position.y * cellScale.y),
+            .position = position,   // 위치값엔 scale 적용 X
             .sortingOrder = sortingOrder
         };
 
