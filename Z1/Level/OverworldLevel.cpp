@@ -200,17 +200,23 @@ void OverworldLevel::Tick(float deltaTime)
     if (!_player) return;
 
     Vector2 delta = Vector2::Zero;
-    if (Input::Get().GetKeyDown('A')) delta.x = -1;
-    if (Input::Get().GetKeyDown('D')) delta.x = 1;
-    if (Input::Get().GetKeyDown('W')) delta.y = -1;
-    if (Input::Get().GetKeyDown('S')) delta.y = 1;
+    if (Input::Get().GetKeyDown(VK_LEFT)) delta.x = -1;
+    if (Input::Get().GetKeyDown(VK_RIGHT)) delta.x = 1;
+    if (Input::Get().GetKeyDown(VK_UP)) delta.y = -1;
+    if (Input::Get().GetKeyDown(VK_DOWN)) delta.y = 1;
 
-    if (delta == Vector2::Zero) return;
-
-    const Vector2 candidate = _player->GetPosition() + delta;
-    if (CanMove(candidate))
+    if (delta != Vector2::Zero)
     {
-        _player->MoveBy(delta);
+        if (delta.x == -1) _player->SetFacing(Facing::Left);
+        else if (delta.x == 1) _player->SetFacing(Facing::Right);
+        else if (delta.y == -1) _player->SetFacing(Facing::Up);
+        else if (delta.y == 1) _player->SetFacing(Facing::Down);
+
+        const Vector2 candidate = _player->GetPosition() + delta;
+        if (CanMove(candidate))
+        {
+            _player->MoveBy(delta);
+        }
     }
 }
 

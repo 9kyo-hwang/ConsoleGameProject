@@ -120,6 +120,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Actor\Player.cpp" />
     <ClCompile Include="Level\OverworldLevel.cpp" />
+    <ClCompile Include="Actor\SwordAttack.cpp" />
     <ClCompile Include="World\OverworldMapLoader.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -137,6 +138,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClInclude Include="Game\Game.h" />
     <ClInclude Include="Actor\Player.h" />
     <ClInclude Include="Level\OverworldLevel.h" />
+    <ClInclude Include="Actor\SwordAttack.h" />
     <ClInclude Include="World\OverworldMapLoader.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Level\TitleLevel.h" />

@@ -24,7 +24,7 @@ std::shared_ptr<const Craft::Sprite> Player::CreateSprite()
 {
     std::vector<SpriteCell> cells
     {
-        SpriteCell('P', (WORD)Color::White, false),
+        SpriteCell('v', (WORD)Color::White, false),
     };
 
     return std::make_shared<const Sprite>(Vector2::One, std::move(cells));

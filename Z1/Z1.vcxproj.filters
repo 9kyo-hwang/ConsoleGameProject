@@ -14,6 +14,7 @@
     <ClCompile Include="World\OverworldMapLoader.cpp" />
     <ClCompile Include="Actor\Player.cpp" />
     <ClCompile Include="Level\OverworldLevel.cpp" />
+    <ClCompile Include="Actor\SwordAttack.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -28,5 +29,6 @@
     <ClInclude Include="World\OverworldMapLoader.h" />
     <ClInclude Include="Actor\Player.h" />
     <ClInclude Include="Level\OverworldLevel.h" />
+    <ClInclude Include="Actor\SwordAttack.h" />
   </ItemGroup>
 </Project>
