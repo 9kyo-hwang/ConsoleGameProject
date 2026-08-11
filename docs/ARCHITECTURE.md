@@ -32,7 +32,7 @@ flowchart LR
 
 ## 소스와 빌드 산출물
 
-- 원본: `CraftEngine/`, `SoundSystem/`, `ShootingGame/`, `SokobanGame/`, `Content/`, `Config/`
+- 원본: `CraftEngine/`, `SoundSystem/`, `ShootingGame/`, `SokobanGame/`, `Z1/`, `Content/`, `Config/`
 - 생성·복사본: `Includes/`, `Libraries/`, `Binaries/`, `Intermediate/`
 - `SoundSystem` 빌드 전 이벤트가 공개 헤더를 `Includes/SoundSystem`으로 복사한다.
 - `CraftEngine` 빌드 전 이벤트가 `pch.h`를 제외한 헤더 트리를 `Includes/CraftEngine`으로 복사한다.
@@ -135,7 +135,11 @@ SoundSystem의 전역 `Sound` 클래스는 WAV를 경로별로 캐시한다. 원
 
 ### Z1
 
-Z1은 `Game` 객체가 Title, Gameplay, Clear Level을 예약 전환하는 최소 골격을 가진다. 현재는 Sprite 출력과 2D Box 충돌 기반을 확인하는 단계이며, Room 데이터·플레이어 전투·적 콘텐츠는 이후 Z1 전용 코드로 확장한다. 충돌 검증용 개발 Level을 추가할 때도 Actor는 `Level::SpawnActor`로 생성하고, 실제 게임 Level과 테스트 Actor의 책임을 분리한다.
+Z1의 `Game`은 Title, Overworld, Gameplay, Clear, Development Level을 예약 전환한다. 실제 지상 필드는 `OverworldLevel`이 담당한다. `OverworldMapLoader`는 `Content/Z1/Maps/Overworld`의 256×88 TileId·Blocking 맵을 검증해 읽고, 요청한 16×11 Room을 `RoomDefinition`으로 추출한다.
+
+현재 Overworld는 Room `(7, 7)` 하나를 사용한다. `TileCatalog`이 일부 TileId를 문자 Sprite와 연결하고, Room 전체를 하나의 16×11 Sprite로 합성한다. 렌더러의 `cellScale (5, 3)`이 논리 타일 하나를 콘솔 셀 5×3으로 확대하며, 플레이어 Sprite와 Box도 같은 월드 크기를 사용한다. Room의 BlockingMap은 `RoomDefinition::CanOccupyWorldRect`를 통해 플레이어의 Box가 걸치는 모든 타일에 적용된다. 따라서 배경 타일은 Actor로 생성하지 않고, 플레이어만 동적 Actor로 유지한다.
+
+`DevelopmentLevel`과 `CollisionTestActor`는 Sprite·2D Box 충돌을 수동으로 확인하는 별도 장면이다. `SwordAttack` 타입은 등록되어 있지만 아직 Overworld 전투 흐름에 연결되지 않았다.
 
 ## 현재 경계와 확장 시점
 

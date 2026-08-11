@@ -131,7 +131,7 @@ struct TileDefinition
 };
 ```
 
-필요해지면 `CollisionMap`을 별도로 두어 시각 타일 하나가 여러 충돌 셀을 차지하거나, 같은 Sprite가 Room에 따라 다른 통행 속성을 갖는 경우를 처리한다. 첫 버전은 `TileDefinition::walkable`로 시작한다.
+현재 구현은 원본 `BlockingMap`을 Room별 `walkable` 데이터로 추출해 통행을 판정한다. 시각 타일 하나가 여러 충돌 셀을 차지하거나 같은 Sprite가 Room에 따라 다른 통행 속성을 가져야 하면 별도 `CollisionMap`을 도입한다.
 
 플레이어와 적의 위치·충돌은 최종 콘솔 셀 단위를 사용한다. 논리 Room 좌표를 화면에 배치할 때는 다음 변환을 한 곳에서 수행한다.
 

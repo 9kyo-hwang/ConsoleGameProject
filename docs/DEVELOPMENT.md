@@ -79,7 +79,8 @@ Visual Studio의 프로젝트 디렉터리에서 실행하면 저장소 루트�
 - 생명주기 변경: 프레임 중 spawn/destroy에서 순회 무효화나 파괴 Actor의 추가 이벤트가 없는지 확인
 - 렌더링 변경: Sprite 투명 셀, X/Y 화면 경계 clipping, sorting order, buffer swap 확인
 - 충돌 변경: 2D Box 크기/offset, 빠른 탄환, 파괴된 Actor, Component 없는 Actor 확인
-- Z1 충돌 변경: 1x1/2x2 겹침, Y축 분리, offset, 이전/현재 위치 사이 swept 이동을 직접 확인
+- Z1 Overworld 변경: `Content/Z1/Maps/Overworld`를 출력 Content 경로에서도 읽는지, Room `(7, 7)` 배경과 플레이어가 보이는지 확인
+- Z1 Overworld 변경: BlockingMap의 막힌 타일·Room 바깥으로 이동할 수 없고, 이동 가능한 타일에서는 플레이어 Box 크기만큼 정상 이동하는지 확인
 - 런타임 데이터 변경: 프로젝트 디렉터리와 출력 디렉터리 양쪽 실행 경로 확인
 
 자동 테스트 프로젝트는 아직 없다. 문서만 바꾼 경우에는 Markdown 링크와 코드 식별자가 현재 트리와 맞는지 확인하고, 코드나 프로젝트 설정을 바꾼 경우에는 관련 실행 파일을 직접 구동해 확인한다.

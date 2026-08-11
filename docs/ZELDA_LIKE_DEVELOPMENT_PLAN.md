@@ -81,7 +81,7 @@
 - 상단 일부 행은 HUD, 나머지는 하나의 Room이 들어가는 플레이 영역이다.
 - 원작 자료의 `16 x 16`은 NES 픽셀 단위이며 CraftEngine 콘솔 셀 크기가 아니다.
 - Room의 논리 격자는 기본 `16 x 11` 타일로 고정한다.
-- 논리 타일 하나의 초기 콘솔 footprint는 `2 x 1` 셀이다. 이는 콘솔 글자 비율 보정값이며, Renderer의 모든 Sprite 크기를 제한하는 규칙이 아니다.
+- 현재 Overworld 구현에서 논리 타일 하나의 콘솔 footprint는 `5 x 3` 셀이다. 이는 콘솔 글자 비율 보정값이며, Renderer의 모든 Sprite 크기를 제한하는 규칙이 아니다.
 - Transform, Sprite, collider의 위치와 크기는 최종 콘솔 셀 단위를 사용한다.
 - 부드러운 속도가 필요하면 ShootingGame처럼 Actor 내부에 float 위치를 누적하고 Transform에는 정수 결과만 기록한다.
 
@@ -91,8 +91,8 @@
 
 - Room txt의 토큰 하나는 콘솔 셀 하나나 Actor 하나가 아니라 논리 타일 ID다. 기본 파일은 `16`개 토큰씩 `11`행을 갖고, 토큰은 공백으로 구분된 16진수 ID다.
 - 타일 ID는 `TileDefinition`으로 해석하며, TileDefinition은 Sprite와 통행/충돌 속성을 가진다.
-- 논리 타일은 `TileMetrics`에 따라 콘솔 셀로 확장한다. 첫 구현은 `2 x 1`이며, 원작의 `16 x 16` 픽셀을 직접 의미하지 않는다.
-- 정적 지형은 타일 Sprite를 하나의 방 배경 Sprite로 합성하고, 통행 판정은 별도 CollisionMap에서 수행한다.
+- 논리 타일은 `TileMetrics`에 따라 콘솔 셀로 확장한다. 현재 구현은 `5 x 3`이며, 원작의 `16 x 16` 픽셀을 직접 의미하지 않는다.
+- 정적 지형은 타일 Sprite를 하나의 방 배경 Sprite로 합성하고, 통행 판정은 별도 BlockingMap에서 수행한다.
 - 플레이어, 적, 아이템과 보스처럼 동작이 필요한 대상만 Spawn Actor로 만든다.
 - 출구, 진입 위치와 스폰은 지형 타일 파일과 분리된 Room 메타데이터로 관리한다. 지형과 엔티티 토큰을 한 파일에 섞지 않는다.
 
@@ -184,7 +184,7 @@ Z1/
 - Room: 화면에 표시되는 고정 크기 필드 하나
 - RoomDefinition: 타일, 출구, 적 스폰, 진입 위치를 가진 순수 데이터
 
-필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. RoomDefinition에는 Room 격자 좌표, `16 x 11` 고정 크기 타일 맵, 통행 정보와 이후 추가될 이웃 Room/출구 메타데이터를 둔다. Overworld는 `Content/Z1/Maps/Overworld`의 `256 x 88` 원본 TileId/Blocking 맵을 `OverworldMapLoader`가 읽고 `16 x 11` Room으로 추출한다. 추출된 TileId는 TileDefinition을 조회하고, Room 배경은 타일 Sprite를 하나로 합성한다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
+필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. RoomDefinition에는 Room 격자 좌표, `16 x 11` 고정 크기 타일 맵, 통행 정보와 이후 추가될 이웃 Room/출구 메타데이터를 둔다. Overworld는 `Content/Z1/Maps/Overworld`의 `256 x 88` 원본 TileId/Blocking 맵을 `OverworldMapLoader`가 읽고 `16 x 11` Room으로 추출한다. 현재 `OverworldLevel`은 Room `(7, 7)` 하나를 사용하며, 추출된 TileId 일부를 TileCatalog에서 문자 Sprite로 조회해 하나의 Room 배경으로 합성한다. 플레이어 Box가 차지하는 월드 사각형은 BlockingMap의 모든 겹친 타일을 통과 가능해야 이동할 수 있다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
 
 ### 플레이어와 공격
 
@@ -248,7 +248,7 @@ RoomManager는 Room 전용 Actor를 추적하되 Level의 소유권을 대체하
 
 ### 단계 3: 한 방 전투 버티컬 슬라이스
 
-- 고정 `TileMetrics(2, 1)`, 논리 타일 좌표와 콘솔 셀 좌표 변환
+- 고정 `TileMetrics(5, 3)`, 논리 타일 좌표와 콘솔 셀 좌표 변환
 - `256 x 88` Overworld TileId/Blocking 파일을 읽고 `16 x 11` Room 하나를 추출
 - TileDefinition/Sprite 연결, 4방향 플레이어, 검, 적 하나, 체력 HUD와 사망
 
