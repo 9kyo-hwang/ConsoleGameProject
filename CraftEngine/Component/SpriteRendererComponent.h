@@ -34,11 +34,15 @@ namespace Craft
         inline const Sprite* GetSprite() const { return sprite.get(); }
         Vector2 GetSpriteSize() const;
 
+        inline void SetCellScale(const Vector2& newScale) { assert(newScale.x > 0 && newScale.y > 0); cellScale = newScale; }
+        inline Vector2 GetCellScale() const { return cellScale; }
+
     protected:
         // Actor가 가지고 있던 이미지, 색상, draw order 정보 이관
         std::string image{};
         Color color = Color::White;
         int sortingOrder = 0;
         std::shared_ptr<const Sprite> sprite;  // 실질 소유, renderer는 참조.
+        Vector2 cellScale = Vector2::One;
     };
 }

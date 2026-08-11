@@ -11,7 +11,7 @@ class CollisionTestActor : public Craft::Actor
     TYPE_DECLARATIONS(CollisionTestActor, Craft::Actor)
 
 public:
-    CollisionTestActor(Craft::Vector2 position, Craft::Vector2 size, Craft::Vector2 offset);
+    CollisionTestActor(Craft::Vector2 position, Craft::Vector2 size = Craft::Vector2::One, Craft::Vector2 offset = Craft::Vector2::Zero);
     ~CollisionTestActor() override = default;
 
     void OnCollision(const std::shared_ptr<Craft::Actor>& other) override;

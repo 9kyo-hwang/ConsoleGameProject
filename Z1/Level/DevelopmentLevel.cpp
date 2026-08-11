@@ -10,6 +10,9 @@ using namespace Craft;
 
 namespace
 {
+    const Vector2 WorldRenderScale(3, 2);
+    const Vector2 RoomOrigin(0, 3);
+
     // TEMP: 아직 Sprite가 없어 TileId 2글자 16진수 그대로 표시
     std::string MakeTileIdRow(const RoomDefinition& room, int y)
     {
@@ -34,19 +37,18 @@ namespace
     * 벽: ##
     * 물: ~~
     * 나무: TT
-    * 계단: <>
+    * ...
     * 미등록: ??
     */
-    std::shared_ptr<const Sprite> MakeTileSprite(char left, char right, WORD attribute)
+    std::shared_ptr<const Sprite> MakeTileSprite(char glyph, Color color)
     {
         // 2 x 1
         std::vector<SpriteCell> cells
         {
-            SpriteCell(left, attribute, false),
-            SpriteCell(right, attribute, false)
+            SpriteCell(glyph, (WORD)color, false),
         };
 
-        return std::make_shared<const Sprite>(Vector2(2, 1), std::move(cells));
+        return std::make_shared<const Sprite>(Vector2::One, std::move(cells));
     }
 
     TileCatalog CreateCatalog()
@@ -55,7 +57,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x02,
-                MakeTileSprite(' ', ' ', (WORD)Color::White),
+                MakeTileSprite('.', Color::White),
                 true,
                 false
             }
@@ -65,7 +67,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x12,
-                MakeTileSprite('[', ']', (WORD)Color::White),
+                MakeTileSprite(' ', Color::White),
                 false,
                 false
             }
@@ -74,7 +76,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x14,
-                MakeTileSprite('=', '=', (WORD)Color::Blue),
+                MakeTileSprite('=', Color::Blue),
                 false,
                 false
             }
@@ -83,7 +85,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x28,
-                MakeTileSprite('#', '#', (WORD)Color::Yellow),
+                MakeTileSprite('#', Color::Yellow),
                 false,
                 false
             }
@@ -92,7 +94,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x29,
-                MakeTileSprite('#', '#', (WORD)Color::Yellow),
+                MakeTileSprite('#', Color::Yellow),
                 false,
                 false
             }
@@ -101,7 +103,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x2A,
-                MakeTileSprite('#', '#', (WORD)Color::Yellow),
+                MakeTileSprite('#', Color::Yellow),
                 false,
                 false
             }
@@ -110,7 +112,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x28,
-                MakeTileSprite('#', '#', (WORD)Color::Yellow),
+                MakeTileSprite('#', Color::Yellow),
                 false,
                 false
             }
@@ -119,7 +121,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x29,
-                MakeTileSprite('#', '#', (WORD)Color::Yellow),
+                MakeTileSprite('#', Color::Yellow),
                 false,
                 false
             }
@@ -128,7 +130,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x3C,
-                MakeTileSprite('#', '#', (WORD)Color::Yellow),
+                MakeTileSprite('#', Color::Yellow),
                 false,
                 false
             }
@@ -137,7 +139,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x3D,
-                MakeTileSprite('#', '#', (WORD)Color::Yellow),
+                MakeTileSprite('#', Color::Yellow),
                 false,
                 false
             }
@@ -146,7 +148,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x3E,
-                MakeTileSprite('#', '#', (WORD)Color::Yellow),
+                MakeTileSprite('#', Color::Yellow),
                 false,
                 false
             }
@@ -155,7 +157,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x30,
-                MakeTileSprite('T', 'T', (WORD)Color::Green),
+                MakeTileSprite('T', Color::Green),
                 false,
                 false
             }
@@ -164,7 +166,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x42,
-                MakeTileSprite('T', 'T', (WORD)Color::Green),
+                MakeTileSprite('T', Color::Green),
                 false,
                 false
             }
@@ -173,7 +175,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x43,
-                MakeTileSprite('T', 'T', (WORD)Color::Green),
+                MakeTileSprite('T', Color::Green),
                 false,
                 false
             }
@@ -182,7 +184,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x44,
-                MakeTileSprite('T', 'T', (WORD)Color::Green),
+                MakeTileSprite('T', Color::Green),
                 false,
                 false
             }
@@ -191,7 +193,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x50,
-                MakeTileSprite('~', '~', (WORD)Color::Blue),
+                MakeTileSprite('~', Color::Blue),
                 false,
                 false
             }
@@ -200,7 +202,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x51,
-                MakeTileSprite('~', '~', (WORD)Color::Blue),
+                MakeTileSprite('~', Color::Blue),
                 false,
                 false
             }
@@ -209,7 +211,7 @@ namespace
         catalog.Register(TileDefinition
             {
                 0x52,
-                MakeTileSprite('~', '~', (WORD)Color::Blue),
+                MakeTileSprite('~', Color::Blue),
                 false,
                 false
             }
@@ -242,13 +244,9 @@ void DevelopmentLevel::BeginPlay()
         return;
     }
 
-    _testA = SpawnActor<CollisionTestActor>(
-        Vector2(14, 5),
-        Vector2(2, 1),
-        Vector2::Zero
-    );
-
-    _testA->AddComponent<SpriteRendererComponent>("PP");
+    _testA = SpawnActor<CollisionTestActor>(RoomOrigin + Vector2(7, 2));
+    auto renderer =_testA->AddComponent<SpriteRendererComponent>(MakeTileSprite('P', Color::White));
+    renderer->SetCellScale(WorldRenderScale);
 }
 
 void DevelopmentLevel::Tick(float deltaTime)
@@ -278,7 +276,7 @@ void DevelopmentLevel::Draw()
     if (_roomSprite)
     {
         Renderer::Get().Submit("Room Sprite: READY", Vector2(35, 4), Color::White, 100);
-        Renderer::Get().Submit(_roomSprite, Vector2(0, 3), 0);
+        Renderer::Get().Submit(_roomSprite, RoomOrigin, WorldRenderScale, 0);
     }
 
     Level::Draw();
@@ -340,8 +338,8 @@ void DevelopmentLevel::BuildRoomSprite()
     }
 
     //constexpr int CellsPerTileX = 2;
-    constexpr int RoomPixelWidth = RoomDefinition::Width << 1;   // (2x1)에 대응
-    constexpr int RoomPixelHeight = RoomDefinition::Height;   // (2x1)에 대응
+    constexpr int RoomPixelWidth = RoomDefinition::Width;
+    constexpr int RoomPixelHeight = RoomDefinition::Height;   
 
     std::vector<SpriteCell> cells(RoomPixelWidth * RoomPixelHeight, SpriteCell());
     bool hasMissingTile = false;
@@ -357,29 +355,26 @@ void DevelopmentLevel::BuildRoomSprite()
             {
                 hasMissingTile = true;
 
-                const int cellX = tileX << 1;
+                const int cellX = tileX;
                 const int cellY = tileY;
                 const int cellIndex = cellY * RoomPixelWidth + cellX;
 
                 cells[cellIndex] = SpriteCell{ '?', (WORD)Color::White, false };
-                cells[cellIndex + 1] = SpriteCell{ '?', (WORD)Color::White, false };
-
                 continue;
             }
 
             const Vector2 tileSize = tile.sprite->GetSize();
-            if (tileSize.x != 2 || tileSize.y != 1)
+            if (tileSize != Vector2::One)
             {
                 hasMissingTile = true;
                 continue;
             }
 
-            const int cellX = tileX << 1;
+            const int cellX = tileX;
             const int cellY = tileY;
             const int cellIndex = cellY * RoomPixelWidth + cellX;
 
             cells[cellIndex] = tile.sprite->GetCell(0, 0);
-            cells[cellIndex + 1] = tile.sprite->GetCell(1, 0);
         }
     }
 
@@ -397,17 +392,15 @@ bool DevelopmentLevel::CanMove(const Craft::Vector2& candidate) const
     const Vector2 size = box->GetSize();
     const Vector2 offset = box->GetOffset();
 
-    const Vector2 origin(0, 3);
+    const int left = candidate.x + offset.x - RoomOrigin.x;
+    const int top = candidate.y + offset.y - RoomOrigin.y;
+    const int right = left + size.x - 1;
+    const int bottom = top + size.y - 1;
 
-    const int localLeft = candidate.x + offset.x - origin.x;
-    const int localTop = candidate.y + offset.y - origin.y;
-    const int localRight = localLeft + size.x - 1;
-    const int localBottom = localTop + size.y - 1;
-
-    if (localLeft < 0 || localTop < 0 || localRight >= RoomDefinition::Width * 2 || localBottom >= RoomDefinition::Height)
+    if (left < 0 || top < 0 || right >= RoomDefinition::Width|| bottom >= RoomDefinition::Height)
     {
         return false;
     }
 
-    return _room->CanOccupyTiles(localLeft / 2, localTop, localRight / 2, localBottom);
+    return _room->CanOccupyTiles(left, top, right, bottom);
 }

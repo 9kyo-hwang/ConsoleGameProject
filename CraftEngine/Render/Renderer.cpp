@@ -96,21 +96,29 @@ namespace Craft
         _renderQueue.emplace_back(command);
     }
 
-    void Renderer::Submit(std::shared_ptr<const Sprite> sprite, const Vector2& position, int sortingOrder)
+    void Renderer::Submit(std::shared_ptr<const Sprite> sprite, const Vector2& position, const Vector2& cellScale, int sortingOrder)
     {
+        assert(cellScale.x > 0 && cellScale.y > 0);
+
         SpritePayload payload
         {
-            .sprite = sprite
+            .sprite = std::move(sprite),
+            .cellScale = cellScale,
         };
 
         RenderCommand command
         {
             .payload = payload,
-            .position = position,
+            .position = Vector2(position.x * cellScale.x, position.y * cellScale.y),
             .sortingOrder = sortingOrder
         };
 
-        _renderQueue.emplace_back(command);
+        _renderQueue.emplace_back(std::move(command));
+    }
+
+    void Renderer::Submit(std::shared_ptr<const Sprite> sprite, const Vector2& position, int sortingOrder)
+    {
+        Submit(sprite, position, Vector2::One, sortingOrder);
     }
 
     void Renderer::Draw()
@@ -195,13 +203,20 @@ namespace Craft
         }
 
         const Sprite& sprite = *payload.sprite;
+        const Vector2 logicalSize = sprite.GetSize();
+
+        // 실제 픽셀이 차지할 크기는 cellScale에 비례
+        const Vector2 physicalSize(logicalSize.x * payload.cellScale.x, logicalSize.y * payload.cellScale.y);
+
         DrawCellGrid(
             command.position,
-            sprite.GetSize(),
+            physicalSize,
             command.sortingOrder,
-            [&](int x, int y)
+            [&](int physicalX, int physicalY)
             {
-                return sprite.GetCell(x, y);
+                const int logicalX = physicalX / payload.cellScale.x;
+                const int logicalY = physicalY / payload.cellScale.y;
+                return sprite.GetCell(logicalX, logicalY);
             }
         );
     }

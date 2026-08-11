@@ -41,6 +41,7 @@ namespace Craft
             Renderer::Get().Submit(
                 sprite,
                 worldPosition,
+                cellScale,
                 sortingOrder
             );
         }

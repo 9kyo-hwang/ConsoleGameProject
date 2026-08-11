@@ -26,6 +26,7 @@ namespace Craft
         struct SpritePayload
         {
             std::shared_ptr<const Sprite> sprite;
+            Vector2 cellScale = Vector2::One;
         };
 
         using RenderPayload = std::variant<TextPayload, SpritePayload>;
@@ -63,6 +64,13 @@ namespace Craft
             const std::string& image, 
             const Vector2& position, 
             Color color = Color::White, 
+            int sortingOrder = 0
+        );
+
+        void Submit(
+            std::shared_ptr<const Sprite> sprite,
+            const Vector2& position,
+            const Vector2& cellScale,
             int sortingOrder = 0
         );
         
