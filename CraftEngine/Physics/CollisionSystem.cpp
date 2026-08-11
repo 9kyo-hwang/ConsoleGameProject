@@ -27,9 +27,9 @@ namespace Craft
             const Vector2 offset = box.GetOffset();
 
             int minX = std::min<int>(previous.x, current.x) + offset.x;
-            int maxX = minX + size.x - 1;
+            int maxX = std::max<int>(previous.x, current.x) + offset.x + size.x - 1;
             int minY = std::min<int>(previous.y, current.y) + offset.y;
-            int maxY = minY + size.y - 1;
+            int maxY = std::max<int>(previous.y, current.y) + offset.y + size.y - 1;
 
             return SweptBounds{ minX, maxX, minY, maxY };
         }

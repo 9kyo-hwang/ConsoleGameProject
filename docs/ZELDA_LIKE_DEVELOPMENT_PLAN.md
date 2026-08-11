@@ -244,7 +244,7 @@ RoomManager는 Room 전용 Actor를 추적하되 Level의 소유권을 대체하
 
 완료: 플레이어, 검과 적의 Y축 포함 충돌이 예상대로 동작한다.
 
-현재 상태: BoxComponent와 CollisionSystem 구현 완료. 다음으로 Z1 개발 장면에서 1x1/2x2 겹침, Y축 분리, offset, 이전/현재 위치 사이의 swept 이동을 확인한다.
+현재 상태: BoxComponent와 CollisionSystem 구현 및 Z1 개발 장면의 1x1/2x2 겹침, X/Y 분리, offset, 이전/현재 위치 사이의 swept 이동 검증을 완료했다. 다음은 첫 Room의 지형 데이터 로드다.
 
 ### 단계 3: 한 방 전투 버티컬 슬라이스
 

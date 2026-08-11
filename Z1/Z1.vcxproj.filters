@@ -7,6 +7,8 @@
     <ClCompile Include="Level\TitleLevel.cpp" />
     <ClCompile Include="Level\GameplayLevel.cpp" />
     <ClCompile Include="Level\ClearLevel.cpp" />
+    <ClCompile Include="Level\DevelopmentLevel.cpp" />
+    <ClCompile Include="Actor\CollisionTestActor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -14,5 +16,7 @@
     <ClInclude Include="Level\TitleLevel.h" />
     <ClInclude Include="Level\GameplayLevel.h" />
     <ClInclude Include="Level\ClearLevel.h" />
+    <ClInclude Include="Level\DevelopmentLevel.h" />
+    <ClInclude Include="Actor\CollisionTestActor.h" />
   </ItemGroup>
 </Project>
