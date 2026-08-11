@@ -1,6 +1,6 @@
 ﻿#include "pch.h"
 #include "DevelopmentLevel.h"
-#include <Actor/CollisionTestActor.h>
+#include <Actor/Player.h>
 #include <Render/Renderer.h>
 #include <Core/Input.h>
 #include <Component/BoxComponent.h>
@@ -10,7 +10,7 @@ using namespace Craft;
 
 namespace
 {
-    const Vector2 WorldRenderScale(3, 2);
+    const Vector2 WorldRenderScale(5, 3);
     const Vector2 RoomOrigin(0, 3);
 
     // TEMP: 아직 Sprite가 없어 TileId 2글자 16진수 그대로 표시
@@ -42,7 +42,6 @@ namespace
     */
     std::shared_ptr<const Sprite> MakeTileSprite(char glyph, Color color)
     {
-        // 2 x 1
         std::vector<SpriteCell> cells
         {
             SpriteCell(glyph, (WORD)color, false),
@@ -239,21 +238,17 @@ void DevelopmentLevel::BeginPlay()
         InitializeMapTest();
     }
 
-    if (_testA)
+    if (!_player)
     {
-        return;
+        _player = SpawnActor<Player>(RoomOrigin + Vector2(7, 2), WorldRenderScale);
     }
-
-    _testA = SpawnActor<CollisionTestActor>(RoomOrigin + Vector2(7, 2));
-    auto renderer =_testA->AddComponent<SpriteRendererComponent>(MakeTileSprite('P', Color::White));
-    renderer->SetCellScale(WorldRenderScale);
 }
 
 void DevelopmentLevel::Tick(float deltaTime)
 {
     Level::Tick(deltaTime);
 
-    if (!_testA) return;
+    if (!_player) return;
 
     Vector2 delta = Vector2::Zero;
     if (Input::Get().GetKeyDown('A')) delta.x = -1;
@@ -263,10 +258,10 @@ void DevelopmentLevel::Tick(float deltaTime)
 
     if (delta == Vector2::Zero) return;
 
-    const Vector2 candidate = _testA->GetPosition() + delta;
+    const Vector2 candidate = _player->GetPosition() + delta;
     if (CanMove(candidate))
     {
-        _testA->SetPosition(candidate);
+        _player->MoveBy(delta);
     }
 }
 
@@ -283,8 +278,6 @@ void DevelopmentLevel::Draw()
 
     Renderer::Get().Submit("[Development Level]", Vector2::Zero);
     Renderer::Get().Submit("Map: " + _mapStatus, Vector2(35, 1));
-    //Renderer::Get().Submit("CollisionCount A: " + std::to_string(_testA->GetCollisionCount()), Vector2(35, 2));
-    //Renderer::Get().Submit("CollisionCount B: " + std::to_string(_testB->GetCollisionCount()), Vector2(35, 3));
 }
 
 void DevelopmentLevel::InitializeMapTest()
@@ -383,12 +376,12 @@ void DevelopmentLevel::BuildRoomSprite()
 
 bool DevelopmentLevel::CanMove(const Craft::Vector2& candidate) const
 {
-    if (!_room || !_testA)
+    if (!_room || !_player)
     {
         return false;
     }
 
-    auto box = _testA->GetComponent<BoxComponent>();
+    auto box = _player->GetComponent<BoxComponent>();
     const Vector2 size = box->GetSize();
     const Vector2 offset = box->GetOffset();
 

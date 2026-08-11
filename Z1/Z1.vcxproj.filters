@@ -12,6 +12,7 @@
     <ClCompile Include="World\Tile.cpp" />
     <ClCompile Include="World\Room.cpp" />
     <ClCompile Include="World\OverworldMapLoader.cpp" />
+    <ClCompile Include="Actor\Player.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -24,5 +25,6 @@
     <ClInclude Include="World\Tile.h" />
     <ClInclude Include="World\Room.h" />
     <ClInclude Include="World\OverworldMapLoader.h" />
+    <ClInclude Include="Actor\Player.h" />
   </ItemGroup>
 </Project>

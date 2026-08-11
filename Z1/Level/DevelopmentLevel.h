@@ -2,7 +2,7 @@
 #include <Level/Level.h>
 #include <World/OverworldMapLoader.h>
 
-class CollisionTestActor;
+class Player;
 
 class DevelopmentLevel : public Craft::Level
 {
@@ -20,8 +20,7 @@ private:
     bool CanMove(const Craft::Vector2& candidate) const;
 
 private:
-    std::shared_ptr<CollisionTestActor> _testA;
-    std::shared_ptr<CollisionTestActor> _testB;
+    std::shared_ptr<Player> _player;
 
     OverworldMapLoader _loader;
     std::optional<RoomDefinition> _room;
