@@ -1,9 +1,24 @@
 ﻿#pragma once
 #include <Level/Level.h>
-#include <World/OverworldMapLoader.h>
+#include <World/OverworldMap.h>
+#include <unordered_map>
+
+namespace Craft
+{
+    class Sprite;
+}
+
+using TileSpriteMap = std::unordered_map<TileId, std::shared_ptr<const Craft::Sprite>>;
+
+struct RoomCoordinate
+{
+    int x = 0;
+    int y = 0;
+
+    bool operator==(const RoomCoordinate&) const = default;
+};
 
 class Player;
-
 class OverworldLevel : public Craft::Level
 {
 public:
@@ -14,22 +29,24 @@ public:
     void Draw() override;
 
 private:
-    void LoadMap();
-    bool LoadRoom(RoomCoordinate room, std::string& error);
+    bool LoadMap();
+    void ChangeRoom(RoomCoordinate room);
     void BuildRoomSprite();
+    
     RoomCoordinate GetRoomCoordinate(const Craft::Vector2& mapPosition) const;
     Craft::Vector2 GetRoomWorldOrigin(RoomCoordinate room) const;
+
     bool CanMove(const Craft::Vector2& candidate) const;
 
 private:
     std::shared_ptr<Player> _player;
 
-    OverworldMapLoader _loader;
-    TileSpriteCatalog _tileSprites;
+    OverworldMap _map;
+    TileSpriteMap _tileSprites;
 
-    bool _loaded = false;
-    std::optional<RoomData> _roomData;
     std::shared_ptr<const Craft::Sprite> _roomSprite;
     RoomCoordinate _currentRoom{ 7, 7 };
+
+    bool _loaded = false;
 };
 
