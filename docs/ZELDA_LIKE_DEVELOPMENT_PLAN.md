@@ -24,7 +24,7 @@
 1. 한 줄 문자열 렌더링을 투명도와 셀별 색상을 가진 `N x M` 콘솔 스프라이트로 확장한다.
 2. 가로 폭만 있는 충돌 박스를 크기와 오프셋을 가진 2차원 AABB로 확장한다.
 
-필드 데이터, 지형 통행 판정, 체력, 무기, 공격, 적 AI, 보스와 화면 상태는 새 콘텐츠 프로젝트에 둔다. 카메라, 물리 반응, 범용 타일맵 엔진, ECS, 범용 애니메이션 시스템은 현재 범위에 넣지 않는다.
+필드 데이터, 지형 통행 판정, 체력, 무기, 공격, 적 AI, 보스와 화면 상태는 새 콘텐츠 프로젝트에 둔다. 화면보다 큰 Overworld의 월드 좌표를 고정 Room 화면에 표시하기 위한 Renderer View 오프셋만 공용으로 사용하며, 추적·보간·줌을 가진 범용 카메라, 물리 반응, 범용 타일맵 엔진, ECS와 범용 애니메이션 시스템은 현재 범위에 넣지 않는다.
 
 ## 현재 엔진에서 확인한 계약
 
@@ -51,7 +51,9 @@
 
 ### 렌더링
 
-`Renderer::RenderCommand`는 문자열 payload와 `Sprite` payload를 함께 지원한다. `Sprite`는 크기와 `SpriteCell` 배열을 가지며, 각 셀은 glyph, Win32 attribute와 투명 여부를 가진다. `DrawRenderQueue`는 공통 셀 순회·클리핑 경로로 X/Y 양축을 처리하고, 투명 셀은 기존 백버퍼 셀을 보존한다. `SpriteRendererComponent`는 기존 문자열 API와 Sprite를 모두 제출할 수 있다.
+`Renderer::RenderCommand`는 문자열 payload와 `Sprite` payload를 함께 지원한다. `Sprite`는 크기와 `SpriteCell` 배열을 가지며, 각 셀은 glyph, Win32 attribute와 투명 여부를 가진다. `DrawRenderQueue`는 공통 셀 순회·클리핑 경로로 X/Y 양축을 처리하고, 투명 셀은 기존 백버퍼 셀을 보존한다. Sprite는 저장된 콘솔 셀 크기 그대로 1:1로 출력한다.
+
+`Submit`은 HUD와 메뉴의 화면 좌표를 사용하고, `SubmitWorld`는 현재 View의 `worldOrigin`과 `screenOrigin`으로 월드 좌표를 화면 좌표로 변환한다. `SpriteRendererComponent`는 문자열과 Sprite 모두 Actor 월드 위치로 제출한다.
 
 프레임은 `CHAR_INFO[]`와 셀별 sorting order 배열로 구성되므로 백엔드를 교체하지 않고 2차원 셀 합성을 수행한다. 높은 sorting order가 이기며 값이 같으면 나중 명령이 덮어쓴다. `ScreenBuffer`의 Right/Bottom은 inclusive 좌표 규칙에 맞게 `size - 1`을 사용한다.
 
@@ -77,21 +79,21 @@
 
 ## 기본 화면과 좌표 정책
 
-- 카메라가 없는 고정 화면 Room 방식을 사용한다.
+- 추적·보간 없는 고정 Room View 방식을 사용한다.
 - 상단 일부 행은 HUD, 나머지는 하나의 Room이 들어가는 플레이 영역이다.
 - 원작 자료의 `16 x 16`은 NES 픽셀 단위이며 CraftEngine 콘솔 셀 크기가 아니다.
 - Room의 논리 격자는 기본 `16 x 11` 타일로 고정한다.
 - 현재 Overworld 구현에서 논리 타일 하나의 콘솔 footprint는 `5 x 3` 셀이다. 이는 콘솔 글자 비율 보정값이며, Renderer의 모든 Sprite 크기를 제한하는 규칙이 아니다.
-- Transform, Sprite, collider의 위치와 크기는 최종 콘솔 셀 단위를 사용한다.
+- Transform과 collider는 전체 Map 기준 월드 셀 단위를 사용하고 Sprite는 실제 콘솔 셀 크기를 사용한다.
 - 부드러운 속도가 필요하면 ShootingGame처럼 Actor 내부에 float 위치를 누적하고 Transform에는 정수 결과만 기록한다.
 
-연속 스크롤이나 화면보다 큰 월드가 실제 요구가 되기 전에는 Camera 또는 Viewport를 추가하지 않는다.
+현재 View는 Room의 월드 좌상단을 화면 플레이 영역의 좌상단으로 옮기는 오프셋만 제공한다. 연속 스크롤, 추적, 보간, 줌이나 별도 viewport clipping이 필요해질 때 범용 Camera를 검토한다.
 
 ### 논리 타일과 렌더 셀
 
 - Room txt의 토큰 하나는 콘솔 셀 하나나 Actor 하나가 아니라 논리 타일 ID다. 기본 파일은 `16`개 토큰씩 `11`행을 갖고, 토큰은 공백으로 구분된 16진수 ID다.
-- 타일 ID는 `TileDefinition`으로 해석하며, TileDefinition은 Sprite와 통행/충돌 속성을 가진다.
-- 논리 타일은 `TileMetrics`에 따라 콘솔 셀로 확장한다. 현재 구현은 `5 x 3`이며, 원작의 `16 x 16` 픽셀을 직접 의미하지 않는다.
+- 타일 ID의 시각 정보는 `TileSpriteCatalog`에서 Sprite로 조회하고, 통행 정보는 전체 `OverworldMapData`의 BlockingMap에서 조회한다.
+- 논리 타일은 Z1의 `MapTileSize`에 따라 콘솔 셀로 확장한다. 현재 구현은 `5 x 3`이며, 원작의 `16 x 16` 픽셀을 직접 의미하지 않는다.
 - 정적 지형은 타일 Sprite를 하나의 방 배경 Sprite로 합성하고, 통행 판정은 별도 BlockingMap에서 수행한다.
 - 플레이어, 적, 아이템과 보스처럼 동작이 필요한 대상만 Spawn Actor로 만든다.
 - 출구, 진입 위치와 스폰은 지형 타일 파일과 분리된 Room 메타데이터로 관리한다. 지형과 엔티티 토큰을 한 파일에 섞지 않는다.
@@ -160,7 +162,7 @@ Z1/
 ├─ Actor/       Player, SwordAttack, EnemyBase, 적, 투사체, Boss
 ├─ Game/        Z1Game, GameSession
 ├─ Level/       TitleLevel, OverworldLevel, ClearLevel
-├─ World/       RoomDefinition, RoomManager
+├─ World/       OverworldMapData/Loader, RoomData, TileSpriteCatalog
 ├─ UI/          Hud
 └─ Main.cpp
 ```
@@ -182,9 +184,9 @@ Z1/
 - ClearLevel: 클리어 메시지와 종료 또는 재시작
 - Area: 여러 Room을 묶는 지상, 동굴 또는 던전 단위의 콘텐츠 그룹
 - Room: 화면에 표시되는 고정 크기 필드 하나
-- RoomDefinition: 타일, 출구, 적 스폰, 진입 위치를 가진 순수 데이터
+- RoomData: 현재 Room 배경 합성에 필요한 16×11 TileId
 
-필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. RoomDefinition에는 Room 격자 좌표, `16 x 11` 고정 크기 타일 맵, 통행 정보와 이후 추가될 이웃 Room/출구 메타데이터를 둔다. Overworld는 `Content/Z1/Maps/Overworld`의 `256 x 88` 원본 TileId/Blocking 맵을 `OverworldMapLoader`가 읽고 `16 x 11` Room으로 추출한다. 현재 `OverworldLevel`은 Room `(7, 7)` 하나를 사용하며, 추출된 TileId 일부를 TileCatalog에서 문자 Sprite로 조회해 하나의 Room 배경으로 합성한다. 플레이어 Box가 차지하는 월드 사각형은 BlockingMap의 모든 겹친 타일을 통과 가능해야 이동할 수 있다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
+필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. Overworld는 `Content/Z1/Maps/Overworld`의 `256 x 88` 원본 TileId/Blocking 맵을 `OverworldMapLoader`가 전체 `OverworldMapData`로 읽고, 현재 `16 x 11` TileId만 `RoomData`로 추출한다. `TileSpriteCatalog`의 문자 Sprite를 `MapTileSize (5, 3)`만큼 펼쳐 실제 Room 배경을 만들고, 통행 판정은 전체 BlockingMap에 Player의 월드 Box를 질의한다. Player의 전역 월드 좌표가 다른 Room 영역에 들어가면 배경과 Renderer View를 교체하며 Player Transform은 유지한다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
 
 ### 플레이어와 공격
 
@@ -208,15 +210,15 @@ EnemyBase에는 체력, 피해, 피격/사망처럼 실제 공유되는 최소 �
 
 ## Room 전환 절차
 
-1. OverworldLevel을 전환 상태로 바꾸고 입력을 잠근다.
-2. 현재 Room 전용 Actor에 Destroy를 요청한다. 플레이어는 유지한다.
-3. 현재 Room ID를 변경한다.
-4. 새 배경을 적용하고 적을 Spawn한다.
-5. 플레이어를 반대쪽 진입 위치로 옮긴다.
-6. 새 Actor가 반영될 때까지 암전 또는 전환 화면을 그린다.
-7. 전환 상태를 해제한다.
+현재 인접 Overworld Room은 별도 출구 메타데이터 없이 연속된 전체 Map 좌표로 이동한다.
 
-RoomManager는 Room 전용 Actor를 추적하되 Level의 소유권을 대체하거나 Actor 컨테이너를 직접 수정하지 않는다.
+1. Player의 후보 월드 Box를 전체 BlockingMap에 질의한다.
+2. 이동 가능하면 후보 월드 좌표가 속한 `RoomCoordinate`를 계산한다.
+3. Room이 달라졌으면 새 `RoomData`를 추출하고 배경 Sprite를 다시 만든다.
+4. Player의 월드 위치를 그대로 이동한다.
+5. Draw에서 새 Room 월드 원점을 Renderer View에 설정한다.
+
+적과 아이템 같은 Room 전용 Actor가 추가되면 Room 변경 시 Destroy/Spawn과 입력 잠금 또는 전환 연출을 이 절차에 추가한다. 동굴과 특수 워프는 별도 메타데이터가 필요하다.
 
 ## 구현 순서와 완료 기준
 
@@ -248,16 +250,16 @@ RoomManager는 Room 전용 Actor를 추적하되 Level의 소유권을 대체하
 
 ### 단계 3: 한 방 전투 버티컬 슬라이스
 
-- 고정 `TileMetrics(5, 3)`, 논리 타일 좌표와 콘솔 셀 좌표 변환
+- 고정 `MapTileSize(5, 3)`, 논리 타일 좌표와 월드 셀 좌표 변환
 - `256 x 88` Overworld TileId/Blocking 파일을 읽고 `16 x 11` Room 하나를 추출
-- TileDefinition/Sprite 연결, 4방향 플레이어, 검, 적 하나, 체력 HUD와 사망
+- TileId/Sprite 연결, 4방향 플레이어, 검, 적 하나, 체력 HUD와 사망
 
 완료: 이동, 공격, 피격, 적 사망과 플레이어 사망의 전체 루프가 동작한다.
 
 ### 단계 4: Room 전환
 
-- `RoomDefinition`/`RoomManager`, `11행 x 16토큰` 포맷 검증과 최소 세 필드
-- 출구 왕복, Room Actor 재생성, 플레이어 상태 유지
+- 전역 월드 좌표 기반 인접 Room 왕복과 View 전환
+- Room Actor 재생성, 플레이어 상태 유지, 동굴·워프 메타데이터
 
 완료: 반복 이동해도 Actor 중복, 플레이어 소실, 잘못된 충돌이나 상태 초기화가 없다.
 
@@ -291,7 +293,7 @@ RoomManager는 Room 전용 Actor를 추적하되 Level의 소유권을 대체하
 
 | 보류 기능 | 추가를 검토할 조건 |
 | --- | --- |
-| Camera/Viewport | 화면보다 큰 월드 또는 연속 스크롤이 실제 요구가 됨 |
+| 추적 Camera/Viewport | 연속 스크롤, 보간, 줌 또는 Room 영역 clipping이 실제 요구가 됨 |
 | float Transform | 정수 셀 이동이 게임플레이 결함을 만듦 |
 | 충돌 레이어/마스크 | 불필요한 콜백이나 검사 비용이 관측됨 |
 | 공간 분할 | 프로파일링에서 O(n²) 충돌이 병목임 |
@@ -309,7 +311,7 @@ RoomManager는 Room 전용 Actor를 추적하되 Level의 소유권을 대체하
 - Actor 컨테이너를 프레임 중 직접 수정하지 않는가?
 - 필요한 Super 호출을 보존했는가?
 - 논리 타일, 콘솔 렌더 셀과 동적 Actor를 구분했는가?
-- `TileMetrics`를 Renderer에 하드코딩하지 않고 논리 좌표 변환을 한 곳에서 공유하는가?
+- `MapTileSize`를 Renderer에 하드코딩하지 않고 Z1의 배경 합성과 Map 통행 판정에서 공유하는가?
 - Room 파일이 `16 x 11` 16진수 타일 포맷을 검증하고, 출구/스폰 메타데이터와 분리되어 있는가?
 - Room 배경 타일을 개별 Actor로 만들지 않았는가?
 - vcxproj, filters와 구조 문서를 함께 갱신했는가?

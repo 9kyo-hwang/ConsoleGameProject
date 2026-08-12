@@ -22,7 +22,7 @@ class Player : public Craft::Actor
     TYPE_DECLARATIONS(Player, Craft::Actor)
 
 public:
-    Player(Craft::Vector2 position, Craft::Vector2 renderScale);
+    Player(Craft::Vector2 position);
 
     int ConsumeMoveSteps(float deltaTime);
     void ClearMoveRemainder();

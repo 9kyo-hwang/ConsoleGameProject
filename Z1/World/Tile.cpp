@@ -1,18 +1,19 @@
 ﻿#include "pch.h"
 #include "Tile.h"
 
-bool TileCatalog::Find(TileId id, TileDefinition& outTile) const
+bool TileSpriteCatalog::TryGet(TileId id, std::shared_ptr<const Craft::Sprite>& sprite) const
 {
+    sprite.reset();
     if (_tiles.contains(id))
     {
-        outTile = _tiles.at(id);
+        sprite = _tiles.at(id);
         return true;
     }
 
     return false;
 }
 
-void TileCatalog::Register(TileDefinition tile)
+void TileSpriteCatalog::Add(TileId id, std::shared_ptr<const Craft::Sprite> sprite)
 {
-    _tiles.insert_or_assign(tile.id, tile);
+    _tiles.insert_or_assign(id, sprite);
 }

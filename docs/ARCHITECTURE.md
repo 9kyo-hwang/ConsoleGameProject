@@ -113,7 +113,9 @@ Attach 동작은 다음 계약을 가진다.
 
 ### 렌더링
 
-Actor의 `Draw`는 Component까지 전달되고 SpriteRenderer가 문자열 또는 Sprite 단위 명령을 제출한다. `RenderCommand`는 payload 종류에 따라 텍스트와 셀 배열을 보관하며, Renderer는 화면 크기의 `CHAR_INFO`와 sorting order 배열에 이를 합성한다. Sprite의 투명 셀은 기존 백버퍼 셀을 보존하고, X/Y 양축 부분 클리핑을 적용한다. 같은 셀에서는 높은 sorting order가 우선하며, Win32 콘솔 screen buffer 두 개를 번갈아 활성화해 깜박임을 줄인다.
+Actor의 `Draw`는 Component까지 전달되고 SpriteRenderer가 문자열 또는 Sprite 단위 명령을 제출한다. `RenderCommand`는 payload 종류에 따라 텍스트와 셀 배열을 보관하며, Renderer는 화면 크기의 `CHAR_INFO`와 sorting order 배열에 이를 합성한다. Sprite는 저장된 콘솔 셀 크기 그대로 1:1로 출력하며, 투명 셀은 기존 백버퍼 셀을 보존하고 X/Y 양축 부분 클리핑을 적용한다. 같은 셀에서는 높은 sorting order가 우선하며, Win32 콘솔 screen buffer 두 개를 번갈아 활성화해 깜박임을 줄인다.
+
+`Submit`은 화면 좌표를 그대로 사용하고 HUD와 메뉴에 적합하다. `SubmitWorld`는 현재 View의 `worldOrigin`을 빼고 `screenOrigin`을 더해 월드 좌표를 화면 좌표로 바꾼다. `SpriteRendererComponent`는 Actor의 월드 위치를 `SubmitWorld`로 제출한다. View는 이를 사용하는 Level이 Actor 제출 전에 설정하며, Renderer는 한 프레임을 출력한 뒤 원점을 `(0, 0)`으로 초기화한다.
 
 ### 충돌
 
@@ -135,9 +137,11 @@ SoundSystem의 전역 `Sound` 클래스는 WAV를 경로별로 캐시한다. 원
 
 ### Z1
 
-Z1의 `Game`은 Title, Overworld, Gameplay, Clear, Development Level을 예약 전환한다. 실제 지상 필드는 `OverworldLevel`이 담당한다. `OverworldMapLoader`는 `Content/Z1/Maps/Overworld`의 256×88 TileId·Blocking 맵을 검증해 읽고, 요청한 16×11 Room을 `RoomDefinition`으로 추출한다.
+Z1의 `Game`은 Title, Overworld, Gameplay, Clear, Development Level을 예약 전환한다. 실제 지상 필드는 `OverworldLevel`이 담당한다. `OverworldMapLoader`는 `Content/Z1/Maps/Overworld`의 256×88 TileId·Blocking 맵을 검증해 `OverworldMapData`로 읽고, 요청한 16×11 영역의 TileId를 배경 합성용 `RoomData`로 추출한다. 통행 정보는 Room에 복사하지 않고 전체 MapData에 유지한다.
 
-현재 Overworld는 Room `(7, 7)` 하나를 사용한다. `TileCatalog`이 일부 TileId를 문자 Sprite와 연결하고, Room 전체를 하나의 16×11 Sprite로 합성한다. 렌더러의 `cellScale (5, 3)`이 논리 타일 하나를 콘솔 셀 5×3으로 확대하며, 플레이어 Sprite와 Box도 같은 월드 크기를 사용한다. Room의 BlockingMap은 `RoomDefinition::CanOccupyWorldRect`를 통해 플레이어의 Box가 걸치는 모든 타일에 적용된다. 따라서 배경 타일은 Actor로 생성하지 않고, 플레이어만 동적 Actor로 유지한다.
+`TileSpriteCatalog`은 일부 TileId를 1×1 문자 Sprite와 연결한다. `OverworldLevel`은 각 논리 타일을 Z1 전용 `MapTileSize (5, 3)`만큼 반복해 현재 Room의 실제 80×33 콘솔 Sprite를 만들고, Renderer는 이를 확대 없이 그린다. Player를 포함한 Actor는 각자 제작한 Sprite 크기와 Box를 사용하므로 Map 타일 크기에 종속되지 않는다.
+
+Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 후보의 Box가 겹치는 모든 BlockingMap 타일을 `OverworldMapData::CanOccupyWorldRect`로 검사하고, 후보 월드 좌표가 다른 80×33 Room 영역에 들어가면 해당 Room 배경을 다시 만든다. `OverworldLevel`은 현재 Room의 월드 원점을 Renderer View의 `worldOrigin`으로 설정하고 화면 `(0, 3)`부터 표시한다. Actor 위치는 Room 전환 때 변환하거나 재설정하지 않는다.
 
 `DevelopmentLevel`과 `CollisionTestActor`는 Sprite·2D Box 충돌을 수동으로 확인하는 별도 장면이다. `SwordAttack` 타입은 등록되어 있지만 아직 Overworld 전투 흐름에 연결되지 않았다.
 

@@ -6,14 +6,14 @@
 
 using namespace Craft;
 
-Player::Player(Craft::Vector2 position, Craft::Vector2 renderScale)
+Player::Player(Craft::Vector2 position)
     : Super(position)
 {
     // 렌더러에서 스케일에 비례하게 박스 크기를 늘리지 않도록 변경되어
     // 명시적으로 박스 크기를 렌더 스케일로 지정
-    _box = AddComponent<BoxComponent>(renderScale, Vector2::Zero);  
-    _renderer = AddComponent<SpriteRendererComponent>(CreateSprite(), 10);
-    _renderer->SetCellScale(renderScale);
+    auto sprite = CreateSprite();
+    _box = AddComponent<BoxComponent>(sprite->GetSize(), Vector2::Zero);
+    _renderer = AddComponent<SpriteRendererComponent>(sprite, 10);
 }
 
 int Player::ConsumeMoveSteps(float deltaTime)

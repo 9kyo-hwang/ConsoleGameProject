@@ -26,44 +26,30 @@
 | --- | ---: | --- |
 | 지상 맵 | `16 × 8 Room` | `Overworld` Area의 Room 좌표 참고 |
 | 전체 지상 타일 배열 | `256 × 88` | 전역 맵 자료를 사용할 때의 크기 |
-| Room 하나 | `16 × 11` 논리 타일 | `RoomDefinition`의 기본 격자 크기 |
+| Room 하나 | `16 × 11` 논리 타일 | `RoomData`의 배경 추출 크기 |
 | 원작 타일 | `16 × 16` NES 픽셀 | 논리 타일 하나의 출처 단위. 콘솔 셀 개수가 아님 |
 
 원작 화면은 마지막 타일 행의 위쪽 절반만 보여준다. CraftEngine의 콘솔 셀은 픽셀 단위가 아니므로 첫 구현에서는 `16 × 11` 논리 격자를 그대로 유지하고, 필요하면 Room viewport에서 하단을 클리핑한다.
 
 페이지 본문과 예제 코드에는 전체 높이를 `1344`와 `1408` 픽셀로 각각 표현한 차이가 있다. 이는 마지막 행의 부분 표시를 포함하는지 여부의 차이로 보이며, 프로젝트의 논리 Room 크기 `16 × 11`을 정하는 데 영향을 주지 않는다.
 
-## `2 × 1` 콘솔 셀 정책의 정확한 의미
+## Map 타일의 콘솔 셀 크기
 
-앞서 계획에서 말한 `2 × 1`은 페이지의 `16 × 16` 픽셀 타일을 그대로 변환한 값이 아니다.
-
-CraftEngine의 현재 백엔드는 `CHAR_INFO` 하나를 콘솔 셀 하나로 출력한다. 일반적인 콘솔 글꼴의 셀은 화면에서 가로보다 세로가 긴 편이므로, 정사각형에 가까운 논리 타일을 표현하려면 다음과 같은 변환을 사용한다.
-
-```text
-원작의 16 × 16 픽셀 타일
-        ↓  (프로젝트의 논리 타일 1개)
-콘솔 셀 2열 × 1행
-```
-
-따라서 다음을 구분한다.
-
-- `N × M Sprite`: Renderer가 지원해야 하는 임의 크기의 콘솔 셀 배열
-- `2 × 1`: 논리 타일 하나의 초기 콘솔 셀 footprint
-- `16 × 16`: 원작 자료의 NES 픽셀 단위
-
-플레이어, 검, 보스처럼 한 타일보다 큰 대상은 `2 × 1`로 제한되지 않고 여러 콘솔 셀을 사용하는 `N × M Sprite`가 된다. Renderer는 Zelda의 타일 크기를 알지 않고 콘솔 셀 단위만 처리한다. `2 × 1`은 Zelda 콘텐츠의 `TileMetrics`에서 관리한다.
-
-Z1의 고정 표시 정책은 다음과 같다.
+초기 문서의 `2 × 1`은 임시 표시값이었고 현재 Overworld는 논리 타일 하나를 콘솔 셀 `5 × 3`으로 표시한다. 이 값은 원작의 `16 × 16` NES 픽셀을 직접 변환한 것이 아니라 현재 콘솔 글꼴과 Room 표시 크기에 맞춘 Z1 콘텐츠 정책이다.
 
 ```cpp
-struct TileMetrics
-{
-    int consoleWidthPerTile = 2;
-    int consoleHeightPerTile = 1;
-};
+const Craft::Vector2 MapTileSize(5, 3);
 ```
 
-이 값은 원작의 16×16 NES 픽셀을 콘솔 픽셀로 직접 변환한 값이 아니라, 콘솔 셀의 가로세로 비율을 고려해 `16 × 11` 논리 Room을 표시하기 위한 프로젝트 공통 계약이다. `Config/Setting.txt`의 `width`/`height`는 콘솔 셀 버퍼와 viewport 크기를 정할 뿐이며 NES의 `256 × 240` 픽셀 해상도를 직접 지정하는 값이 아니다. 이후 Room 파일, 플레이어 이동, 지형 충돌, Sprite 배치는 모두 이 변환을 사용한다. 렌더러 백엔드를 바꾸지 않는 한 이 정책을 변경하지 않는다.
+다음 단위를 구분한다.
+
+- `16 × 16`: 원작 자료의 NES 픽셀 단위
+- `16 × 11`: Room 하나의 논리 타일 격자
+- `5 × 3`: Overworld 논리 타일 하나가 차지하는 월드·콘솔 셀 크기
+- `80 × 33`: 현재 Room 배경 Sprite의 실제 콘솔 셀 크기
+- `N × M Sprite`: Actor나 배경이 실제로 차지하는 콘솔 셀 배열
+
+Renderer는 Z1의 타일 크기를 모르며 Sprite를 저장된 크기 그대로 1:1로 출력한다. `MapTileSize`는 `OverworldLevel`의 Room 배경 합성과 `OverworldMapData`의 타일 통행 질의에만 사용한다. Player, 검, 적과 무기는 자체 Sprite와 Box 크기를 가지며 Map 타일 크기에 종속되지 않는다. `Config/Setting.txt`의 `width`와 `height`도 NES 픽셀 해상도가 아니라 콘솔 셀 버퍼 크기다.
 
 ## Room 파일 포맷 결정
 
@@ -82,65 +68,44 @@ Overworld는 원본 전체 맵을 그대로 보관한다.
 - Blocking 맵 문자: `.`은 이동 가능, `X`는 이동 불가
 - 주석, 스폰, 출구 지시는 원본 맵 파일에 넣지 않는다.
 
-토큰 하나는 논리 타일 하나이며, 렌더링 시 `TileDefinition`을 거쳐 `2 × 1` 이상의 콘솔 셀로 확장된다.
+토큰 하나는 논리 타일 하나다. 현재 구현은 `TileSpriteCatalog`에서 TileId에 대응하는 1×1 문자 Sprite를 찾고, `OverworldLevel`이 그 셀을 `MapTileSize (5, 3)` 영역에 반복해 Room 배경을 만든다.
 
-`OverworldMapLoader`는 전체 맵을 한 번 읽고 `(roomX * 16, roomY * 11)` 위치에서 `16 × 11` 영역을 `RoomDefinition`으로 추출한다. 동굴·던전처럼 별도 제작 데이터가 필요한 경우에는 추후 `Content/Z1/Rooms` 아래에 Room 전용 파일을 추가할 수 있다.
+`OverworldMapLoader`는 전체 맵을 한 번 읽어 `OverworldMapData`에 보관한다. `(roomX * 16, roomY * 11)` 위치에서 `16 × 11` TileId를 배경용 `RoomData`로 추출하지만, BlockingMap은 전역 이동 판정을 위해 MapData에 유지한다. 동굴·던전처럼 별도 제작 데이터가 필요한 경우에는 추후 `Content/Z1/Rooms` 아래에 Room 전용 파일을 추가할 수 있다.
 
 ### Room 외부 메타데이터
 
 출구, 진입 위치, 적 스폰, 보스 여부는 타일 ID와 분리한다.
 
-```text
-RoomDefinition
-  - roomX / roomY
-  - width = 16, height = 11
-  - tileIds[11][16]
-  - walkable[11][16]
-  - exits[4]
-  - entryPositions[4]
-  - actorSpawns
-  - boss flag
-```
+현재 인접 Overworld Room 이동은 전체 Map에서 연속된 월드 좌표로 판정하므로 별도 출구 정보가 필요 없다. Player의 후보 월드 좌표가 다른 Room 영역에 들어가면 현재 Room 배경과 View만 교체한다.
 
-초기에는 `RoomCatalog` 또는 C++ 초기화 코드로 메타데이터를 제공해도 된다. Room 수가 늘어나면 `Room_*.meta` 같은 별도 텍스트 포맷으로 옮긴다. 지형 토큰과 엔티티 토큰을 한 파일에 섞는 방식은 16진수 타일 포맷과 충돌할 수 있으므로 기본 선택에서 제외한다.
+동굴 입구, 특수 워프, 적 스폰과 보스처럼 단순 인접 이동으로 표현할 수 없는 정보가 실제로 필요해지면 TileId·BlockingMap과 분리된 Room 메타데이터를 추가한다. 초기에는 C++ 초기화 데이터로 시작하고 양이 늘어날 때 별도 파일 포맷을 도입한다.
 
 ## 타일 로드와 렌더링 파이프라인
 
 ```text
 OverworldMapLoader
   → 256 × 88 TileId/Blocking 맵 검증
-  → 16 × 11 Room 추출
-  → RoomDefinition 생성
-  → TileDefinition 조회
-  → 타일 Sprite를 Room 배경으로 합성
-  → 타일 속성으로 통행/충돌 질의
-  → 동적 스폰만 Actor 생성
+  → OverworldMapData에 전체 TileId/walkable 보관
+  → 현재 16 × 11 TileId를 RoomData로 추출
+  → TileSpriteCatalog에서 TileId의 문자 Sprite 조회
+  → 각 타일을 5 × 3으로 펼쳐 80 × 33 Room Sprite 합성
+  → 전체 MapData에 Actor의 월드 Box 통행 여부 질의
+  → 월드 좌표가 속한 Room이 바뀌면 배경과 View 교체
 ```
 
-`TileDefinition`은 시각 정보와 게임플레이 속성을 함께 제공하되, 정적 지형을 Actor로 만들지는 않는다.
+시각 정보와 통행 정보는 분리한다. `TileSpriteCatalog`은 TileId와 Sprite의 대응만 보관하고, `OverworldMapData`는 원본 BlockingMap에서 읽은 walkable 값을 보관한다. 따라서 같은 TileId라도 Map 데이터가 허용하면 다른 통행 결과를 가질 수 있고, 카탈로그가 게임플레이 속성을 재정의하지 않는다.
 
-```cpp
-struct TileDefinition
-{
-    TileId id;
-    Sprite sprite;       // 콘솔 셀 배열
-    bool walkable;
-    bool blocksProjectiles;
-    bool isHazard;
-    bool isExit;
-};
-```
-
-현재 구현은 원본 `BlockingMap`을 Room별 `walkable` 데이터로 추출해 통행을 판정한다. 시각 타일 하나가 여러 충돌 셀을 차지하거나 같은 Sprite가 Room에 따라 다른 통행 속성을 가져야 하면 별도 `CollisionMap`을 도입한다.
-
-플레이어와 적의 위치·충돌은 최종 콘솔 셀 단위를 사용한다. 논리 Room 좌표를 화면에 배치할 때는 다음 변환을 한 곳에서 수행한다.
+Actor의 Transform과 Box는 전체 Map 기준 월드 셀 단위를 사용한다. 좌표 변환은 다음 두 단계다.
 
 ```text
-logicalTile(x, y)
-  → consolePosition(x * 2, y)
+mapTile(x, y)
+  → worldCell(x * MapTileSize.x, y * MapTileSize.y)
+
+worldCell
+  → screenCell = worldCell - viewWorldOrigin + viewScreenOrigin
 ```
 
-이 변환을 `RoomRenderer`와 Zelda 콘텐츠의 이동/충돌 보조 함수가 공유하면, 나중에 `TileMetrics`를 변경해도 Room 파일과 게임 규칙을 다시 작성할 필요가 없다.
+`OverworldLevel`은 현재 Room의 월드 좌상단을 View의 `worldOrigin`으로, HUD 아래 `(0, 3)`을 `screenOrigin`으로 설정한다. Room이 바뀌어도 Actor Transform은 전역 월드 좌표를 그대로 유지한다.
 
 ## Area와 Room에 대한 적용
 
@@ -148,7 +113,7 @@ logicalTile(x, y)
 
 - `Area`: Overworld, Cave, Dungeon처럼 여러 Room과 연결 규칙을 묶는 콘텐츠 그룹
 - `Room`: 한 번에 표시되는 고정 화면 하나
-- `GameplayLevel`: 현재 Area/Room을 관리하고 Room 전환과 Actor 수명을 조정
+- `OverworldLevel`: 현재 Area/Room을 관리하고 Room 전환과 Actor 수명을 조정
 
 동굴과 던전은 이 외부 지상 맵 자료에 포함되지 않으므로 자체 Room 파일과 `RoomCatalog` 메타데이터를 만든다. 그렇다고 Area마다 Level을 만들 필요는 없다.
 

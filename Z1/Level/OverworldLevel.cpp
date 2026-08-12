@@ -20,8 +20,8 @@ using namespace Craft;
 
 namespace
 {
-    const Vector2 WorldCellScale(5, 3);
-    const Vector2 RoomOrigin(0, 3);
+    const Vector2 MapTileSize(5, 3);
+    const Vector2 RoomScreenOffset(0, 3);
 
     std::shared_ptr<const Sprite> MakeTileSprite(char glyph, Color color)
     {
@@ -33,160 +33,91 @@ namespace
         return std::make_shared<const Sprite>(Vector2::One, std::move(cells));
     }
 
-    TileCatalog CreateCatalog()
+    TileSpriteCatalog CreateTileSprites()
     {
-        TileCatalog catalog;
-        catalog.Register(TileDefinition
-            {
-                0x02,
-                MakeTileSprite('.', Color::White),
-                true,
-                false
-            }
+        TileSpriteCatalog catalog;
+        catalog.Add(
+            0x02,
+            MakeTileSprite('.', Color::White)
         );
 
         // 원래는 빈 검은 공간이지만 구분을 위해
-        catalog.Register(TileDefinition
-            {
-                0x12,
-                MakeTileSprite(' ', Color::White),
-                false,
-                false
-            }
+        catalog.Add(
+            0x12,
+            MakeTileSprite(' ', Color::White)
         );
 
-        catalog.Register(TileDefinition
-            {
-                0x14,
-                MakeTileSprite('=', Color::Blue),
-                false,
-                false
-            }
+        catalog.Add(
+            0x14,
+            MakeTileSprite('=', Color::Blue)
         );
 
-        catalog.Register(TileDefinition
-            {
-                0x28,
-                MakeTileSprite('#', Color::Yellow),
-                false,
-                false
-            }
+        catalog.Add(
+            0x28,
+            MakeTileSprite('#', Color::Yellow)
         );
 
-        catalog.Register(TileDefinition
-            {
-                0x29,
-                MakeTileSprite('#', Color::Yellow),
-                false,
-                false
-            }
+        catalog.Add(
+            0x29,
+            MakeTileSprite('#', Color::Yellow)
         );
 
-        catalog.Register(TileDefinition
-            {
-                0x2A,
-                MakeTileSprite('#', Color::Yellow),
-                false,
-                false
-            }
+        catalog.Add(
+            0x2A,
+            MakeTileSprite('#', Color::Yellow)
         );
 
-        catalog.Register(TileDefinition
-            {
-                0x3C,
-                MakeTileSprite('#', Color::Yellow),
-                false,
-                false
-            }
+        catalog.Add(
+            0x3C,
+            MakeTileSprite('#', Color::Yellow)
         );
 
-        catalog.Register(TileDefinition
-            {
-                0x3D,
-                MakeTileSprite('#', Color::Yellow),
-                false,
-                false
-            }
+        catalog.Add(
+            0x3D,
+            MakeTileSprite('#', Color::Yellow)
         );
 
-        catalog.Register(TileDefinition
-            {
-                0x3E,
-                MakeTileSprite('#', Color::Yellow),
-                false,
-                false
-            }
+        catalog.Add(
+            0x3E,
+            MakeTileSprite('#', Color::Yellow)
         );
 
-        catalog.Register(TileDefinition
-            {
-                0x30,
-                MakeTileSprite('T', Color::Green),
-                false,
-                false
-            }
+        catalog.Add(
+            0x30,
+            MakeTileSprite('T', Color::Green)
         );
 
-        catalog.Register(TileDefinition
-            {
-                0x42,
-                MakeTileSprite('T', Color::Green),
-                false,
-                false
-            }
+        catalog.Add(
+            0x42,
+            MakeTileSprite('T', Color::Green)
         );
 
-        catalog.Register(TileDefinition
-            {
-                0x43,
-                MakeTileSprite('T', Color::Green),
-                false,
-                false
-            }
+        catalog.Add(
+            0x43,
+            MakeTileSprite('T', Color::Green)
         );
 
-catalog.Register(TileDefinition
-    {
-        0x44,
-        MakeTileSprite('T', Color::Green),
-        false,
-        false
-    }
-);
+        catalog.Add(
+            0x44,
+            MakeTileSprite('T', Color::Green)
+        );
 
-catalog.Register(TileDefinition
-    {
-        0x50,
-        MakeTileSprite('~', Color::Blue),
-        false,
-        false
-    }
-);
+        catalog.Add(
+            0x50,
+            MakeTileSprite('~', Color::Blue)
+        );
 
-catalog.Register(TileDefinition
-    {
-        0x51,
-        MakeTileSprite('~', Color::Blue),
-        false,
-        false
-    }
-);
+        catalog.Add(
+            0x51,
+            MakeTileSprite('~', Color::Blue)
+        );
 
-catalog.Register(TileDefinition
-    {
-        0x52,
-        MakeTileSprite('~', Color::Blue),
-        false,
-        false
-    }
-);
+        catalog.Add(
+            0x52,
+            MakeTileSprite('~', Color::Blue)
+        );
 
-return catalog;
-    }
-
-    Vector2 ToWorldPosition(const Vector2& tilePosition)
-    {
-        return RoomOrigin + tilePosition * WorldCellScale;
+        return catalog;
     }
 }
 
@@ -203,11 +134,13 @@ void OverworldLevel::BeginPlay()
         LoadMap();
     }
 
-    if (!_player)
+    if (!_loaded || _player)
     {
-        // 생성 위치도 스케일만큼 곱한 위치로 세팅
-        _player = SpawnActor<Player>(ToWorldPosition(Vector2(7, 2)), WorldCellScale);
+        return;
     }
+
+    // 월드 좌표
+    _player = SpawnActor<Player>(GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize);
 }
 
 void OverworldLevel::Tick(float deltaTime)
@@ -218,31 +151,35 @@ void OverworldLevel::Tick(float deltaTime)
 
     Vector2 direction = Vector2::Zero;
 
-    if (Input::Get().GetKey(VK_UP))
-    {
-        direction = Vector2::Up;
-    }
-    else if (Input::Get().GetKey(VK_DOWN))
-    {
-        direction = Vector2::Up * -1;
-    }
-    else if (Input::Get().GetKey(VK_LEFT))
-    {
-        direction = Vector2::Right * -1;
-    }
-    else if (Input::Get().GetKey(VK_RIGHT))
-    {
-        direction = Vector2::Right;
-    }
+    if (Input::Get().GetKey(VK_UP)) direction = Vector2::Up;
+    else if (Input::Get().GetKey(VK_DOWN)) direction = Vector2::Up * -1;
+    else if (Input::Get().GetKey(VK_LEFT)) direction = Vector2::Right * -1;
+    else if (Input::Get().GetKey(VK_RIGHT)) direction = Vector2::Right;
+
+    // TODO: Facing 전환
+
+    if (direction == Vector2::Zero) return;
 
     const int moveSteps = _player->ConsumeMoveSteps(deltaTime);
     for (int i = 0; i < moveSteps; ++i)
     {
-        const Vector2 candidate = _player->GetPosition() + direction;
+        const Vector2 candidate = _player->GetWorldPosition() + direction;
+        
         if (!CanMove(candidate))
         {
             _player->ClearMoveRemainder();
             break;
+        }
+
+        const RoomCoordinate nextRoom = GetRoomCoordinate(candidate);
+        if (nextRoom != _currentRoom)
+        {
+            std::string error;
+            if (!LoadRoom(nextRoom, error))
+            {
+                _player->ClearMoveRemainder();
+                break;
+            }
         }
 
         _player->MoveBy(direction);
@@ -251,99 +188,149 @@ void OverworldLevel::Tick(float deltaTime)
 
 void OverworldLevel::Draw()
 {
+    Renderer& renderer = Renderer::Get();
+
+    const Vector2 roomWorldOrigin = GetRoomWorldOrigin(_currentRoom);
+    renderer.SetView(roomWorldOrigin, RoomScreenOffset);
+
     if (_roomSprite)
     {
-        Renderer::Get().Submit(_roomSprite, RoomOrigin, WorldCellScale, 0);
+        renderer.SubmitWorld(
+            _roomSprite, 
+            roomWorldOrigin, 
+            0
+        );
     }
 
     Level::Draw();
 
-    Renderer::Get().Submit("[Overworld Level]", Vector2::Zero);
+    renderer.Submit("[Overworld Level]", Vector2::Zero);
 }
 
 void OverworldLevel::LoadMap()
 {
-    _loaded = true;
-
     const FilePath basePath = "../Content/Z1/Maps/Overworld";
     std::string error;
+
     if(!_loader.Load(basePath / "TileMap.txt", basePath / "BlockingMap.txt", error))
     {
+        _loaded = false;
         return;
     }
 
-    auto room = _loader.ExtractRoom(7, 7, error);
-    if (!room)
+    _tileSprites = CreateTileSprites();
+    
+    if (!LoadRoom({7, 7}, error))
     {
+        _loaded = false;
         return;
     }
 
-    _room = std::move(room);
-
-    _tileCatalog = CreateCatalog();
-    if (_room.has_value())
-    {
-        BuildRoomSprite();
-    }
+    _loaded = true;
 }
 
+bool OverworldLevel::LoadRoom(RoomCoordinate room, std::string& error)
+{
+    auto data = _loader.ExtractRoom(room, error);
+    if (!data)
+    {
+        return false;
+    }
+
+    _roomData = std::move(data);
+    _currentRoom = room;
+
+    BuildRoomSprite();
+    return true;
+}
+
+/*
+* Room은 가로 16 x 세로 11 Sprite를 가짐
+* Renderer가 Sprite에 Scale을 적용해서 확장하는 구조
+*/
 void OverworldLevel::BuildRoomSprite()
 {
-    if (!_room.has_value())
+    if (!_roomData.has_value())
     {
+        _roomSprite.reset();
         return;
     }
 
-    //constexpr int CellsPerTileX = 2;
-    constexpr int RoomPixelWidth = RoomDefinition::Width;
-    constexpr int RoomPixelHeight = RoomDefinition::Height;
+    // 렌더러가 1:1로만 그리게 변경되어 Room Sprite를 처음부터 (16, 11)의 (5, 3)배 한 걸로 만들어야 함
+    const Vector2 spriteSize(RoomData::Width * MapTileSize.x, RoomData::Height * MapTileSize.y);
+    std::vector<SpriteCell> tilemap(spriteSize.x * spriteSize.y, SpriteCell());
 
-    std::vector<SpriteCell> cells(RoomPixelWidth * RoomPixelHeight, SpriteCell());
-
-    // Room -> Tile -> Sprite
-    for (int tileY = 0; tileY < RoomDefinition::Height; ++tileY)
+    // Room에 속하는 Tile 순회
+    for (int tileY = 0; tileY < RoomData::Height; ++tileY)
     {
-        for (int tileX = 0; tileX < RoomDefinition::Width; ++tileX)
+        for (int tileX = 0; tileX < RoomData::Width; ++tileX)
         {
-            const TileId id = _room->GetTileId(tileX, tileY);
-            TileDefinition tile;
-            if (!_tileCatalog.Find(id, tile) || !tile.sprite)
-            {
-                const int cellX = tileX;
-                const int cellY = tileY;
-                const int cellIndex = cellY * RoomPixelWidth + cellX;
+            const TileId id = _roomData->GetTileId(tileX, tileY);
+            std::shared_ptr<const Sprite> sprite;
+            SpriteCell visual{ '?', (WORD)Color::White, false };
 
-                cells[cellIndex] = SpriteCell{ '?', (WORD)Color::White, false };
-                continue;
+            if (_tileSprites.TryGet(id, sprite) && sprite)
+            {
+                visual = sprite->GetCell(0, 0);
             }
 
-            const Vector2 tileSize = tile.sprite->GetSize();
-            if (tileSize != Vector2::One)
+            // 타일 크기만큼 반복해서 그리기
+            for (int offsetY = 0; offsetY < MapTileSize.y; ++offsetY)
             {
-                continue;
+                for (int offsetX = 0; offsetX < MapTileSize.x; ++offsetX)
+                {
+                    const int destX = tileX * MapTileSize.x + offsetX;
+                    const int destY = tileY * MapTileSize.y + offsetY;
+                    const int destIndex = destY * spriteSize.x + destX;
+
+                    tilemap[destIndex] = visual;
+                }
             }
-
-            const int cellX = tileX;
-            const int cellY = tileY;
-            const int cellIndex = cellY * RoomPixelWidth + cellX;
-
-            cells[cellIndex] = tile.sprite->GetCell(0, 0);
         }
     }
 
-    _roomSprite = std::make_shared<const Sprite>(Vector2(RoomPixelWidth, RoomPixelHeight), std::move(cells));
+    _roomSprite = std::make_shared<const Sprite>(spriteSize, std::move(tilemap));
 }
 
-bool OverworldLevel::CanMove(const Craft::Vector2& candidate) const
+/// <summary>
+/// 현재 위치(전체 맵에 Cell 좌표 기준)가 어디 Room에 속하는지
+/// </summary>
+/// <param name="mapCellPosition"></param>
+/// <returns></returns>
+RoomCoordinate OverworldLevel::GetRoomCoordinate(const Craft::Vector2& worldPosition) const
 {
-    if (!_room || !_player)
+    assert(worldPosition.x >= 0 && worldPosition.y >= 0);
+
+    // 룸의 셀 단위 가로세로길이
+    const int roomCellWidth = RoomData::Width * MapTileSize.x;
+    const int roomCellHeight = RoomData::Height * MapTileSize.y;
+
+    return RoomCoordinate(worldPosition.x / roomCellWidth, worldPosition.y / roomCellHeight);
+}
+
+// Map 기준 Room의 좌상단 셀 좌표
+Vector2 OverworldLevel::GetRoomWorldOrigin(RoomCoordinate room) const
+{
+    return Vector2
+    {
+        room.x * RoomData::Width * MapTileSize.x,
+        room.y * RoomData::Height * MapTileSize.y
+    };
+}
+
+bool OverworldLevel::CanMove(const Vector2& candidate) const
+{
+    if (!_player || !_loader.IsLoaded())
     {
         return false;
     }
 
     const auto& box = _player->GetComponent<BoxComponent>();
-    const Vector2 worldTopLeft = candidate + box->GetOffset();
-    const Vector2 roomLocalTopLeft = worldTopLeft - RoomOrigin;
+    if (!box)
+    {
+        return false;
+    }
 
-    return _room->CanOccupyWorldRect(roomLocalTopLeft, box->GetSize(), WorldCellScale);
+    const Vector2 boxPosition = candidate + box->GetOffset();
+    return _loader.CanOccupyWorldRect(boxPosition, box->GetSize(), MapTileSize);
 }
