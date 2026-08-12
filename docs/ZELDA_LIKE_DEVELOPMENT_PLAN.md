@@ -92,7 +92,7 @@
 ### 논리 타일과 렌더 셀
 
 - Room txt의 토큰 하나는 콘솔 셀 하나나 Actor 하나가 아니라 논리 타일 ID다. 기본 파일은 `16`개 토큰씩 `11`행을 갖고, 토큰은 공백으로 구분된 16진수 ID다.
-- 타일 ID의 시각 정보는 `TileSpriteCatalog`에서 Sprite로 조회하고, 통행 정보는 전체 `OverworldMapData`의 BlockingMap에서 조회한다.
+- 타일 ID의 시각 정보는 `OverworldLevel`이 소유한 TileId-Sprite map에서 조회하고, 통행 정보는 전체 `OverworldMap`의 Cell Grid에서 조회한다.
 - 논리 타일은 Z1의 `MapTileSize`에 따라 콘솔 셀로 확장한다. 현재 구현은 `5 x 3`이며, 원작의 `16 x 16` 픽셀을 직접 의미하지 않는다.
 - 정적 지형은 타일 Sprite를 하나의 방 배경 Sprite로 합성하고, 통행 판정은 별도 BlockingMap에서 수행한다.
 - 플레이어, 적, 아이템과 보스처럼 동작이 필요한 대상만 Spawn Actor로 만든다.
@@ -162,7 +162,7 @@ Z1/
 ├─ Actor/       Player, SwordAttack, EnemyBase, 적, 투사체, Boss
 ├─ Game/        Z1Game, GameSession
 ├─ Level/       TitleLevel, OverworldLevel, ClearLevel
-├─ World/       OverworldMapData/Loader, RoomData, TileSpriteCatalog
+├─ World/       OverworldMap
 ├─ UI/          Hud
 └─ Main.cpp
 ```
@@ -183,10 +183,9 @@ Z1/
 - OverworldLevel: 플레이어, 현재 Room, 전투와 방 전환
 - ClearLevel: 클리어 메시지와 종료 또는 재시작
 - Area: 여러 Room을 묶는 지상, 동굴 또는 던전 단위의 콘텐츠 그룹
-- Room: 화면에 표시되는 고정 크기 필드 하나
-- RoomData: 현재 Room 배경 합성에 필요한 16×11 TileId
+- Room: 별도 데이터 객체가 아니라 전체 Map에서 현재 화면에 표시하는 16×11 논리 타일 구간
 
-필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. Overworld는 `Content/Z1/Maps/Overworld`의 `256 x 88` 원본 TileId/Blocking 맵을 `OverworldMapLoader`가 전체 `OverworldMapData`로 읽고, 현재 `16 x 11` TileId만 `RoomData`로 추출한다. `TileSpriteCatalog`의 문자 Sprite를 `MapTileSize (5, 3)`만큼 펼쳐 실제 Room 배경을 만들고, 통행 판정은 전체 BlockingMap에 Player의 월드 Box를 질의한다. Player의 전역 월드 좌표가 다른 Room 영역에 들어가면 배경과 Renderer View를 교체하며 Player Transform은 유지한다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
+필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. Overworld는 `Content/Z1/Maps/Overworld`의 `256 x 88` 원본 TileId/Blocking 맵을 `OverworldMap` 하나가 읽어 2차원 Cell Grid로 보관한다. 현재 Room의 `16 x 11` TileId는 별도 데이터로 추출하지 않고 전체 Map 좌표로 직접 조회한다. `OverworldLevel`의 TileId-Sprite map에서 찾은 문자 Sprite를 `MapTileSize (5, 3)`만큼 펼쳐 실제 Room 배경을 만들고, 통행 판정은 전체 Map에 Player의 월드 Box를 질의한다. Player의 전역 월드 좌표가 다른 Room 영역에 들어가면 배경과 Renderer View를 교체하며 Player Transform은 유지한다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
 
 ### 플레이어와 공격
 
@@ -214,7 +213,7 @@ EnemyBase에는 체력, 피해, 피격/사망처럼 실제 공유되는 최소 �
 
 1. Player의 후보 월드 Box를 전체 BlockingMap에 질의한다.
 2. 이동 가능하면 후보 월드 좌표가 속한 `RoomCoordinate`를 계산한다.
-3. Room이 달라졌으면 새 `RoomData`를 추출하고 배경 Sprite를 다시 만든다.
+3. Room이 달라졌으면 전체 Map에서 새 16×11 구간의 TileId를 직접 조회해 배경 Sprite를 다시 만든다.
 4. Player의 월드 위치를 그대로 이동한다.
 5. Draw에서 새 Room 월드 원점을 Renderer View에 설정한다.
 

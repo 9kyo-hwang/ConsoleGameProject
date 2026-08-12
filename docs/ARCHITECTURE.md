@@ -137,11 +137,11 @@ SoundSystem의 전역 `Sound` 클래스는 WAV를 경로별로 캐시한다. 원
 
 ### Z1
 
-Z1의 `Game`은 Title, Overworld, Gameplay, Clear, Development Level을 예약 전환한다. 실제 지상 필드는 `OverworldLevel`이 담당한다. `OverworldMapLoader`는 `Content/Z1/Maps/Overworld`의 256×88 TileId·Blocking 맵을 검증해 `OverworldMapData`로 읽고, 요청한 16×11 영역의 TileId를 배경 합성용 `RoomData`로 추출한다. 통행 정보는 Room에 복사하지 않고 전체 MapData에 유지한다.
+Z1의 `Game`은 Title, Overworld, Gameplay, Clear, Development Level을 예약 전환한다. 실제 지상 필드는 `OverworldLevel`이 담당한다. `OverworldMap`은 `Content/Z1/Maps/Overworld`의 256×88 TileId·Blocking 맵을 각각 검증하고, 같은 좌표의 `TileId`와 `walkable`을 하나의 2차원 Cell 그리드에 보관한다. 별도 로더, 중간 맵 데이터, Room 데이터 객체는 없으며 Room은 전체 Map에서 현재 화면에 표시할 16×11 논리 타일 구간을 뜻한다.
 
-`TileSpriteCatalog`은 일부 TileId를 1×1 문자 Sprite와 연결한다. `OverworldLevel`은 각 논리 타일을 Z1 전용 `MapTileSize (5, 3)`만큼 반복해 현재 Room의 실제 80×33 콘솔 Sprite를 만들고, Renderer는 이를 확대 없이 그린다. Player를 포함한 Actor는 각자 제작한 Sprite 크기와 Box를 사용하므로 Map 타일 크기에 종속되지 않는다.
+`OverworldLevel`은 별도 Catalog 클래스 없이 `TileId`와 `Sprite`의 `unordered_map`을 소유한다. 현재 등록된 1×1 문자 Sprite의 첫 셀을 Z1 전용 `MapTileSize (5, 3)`만큼 반복해 현재 Room의 실제 80×33 콘솔 Sprite를 만들고, Renderer는 이를 확대 없이 그린다. 향후 타일별 ASCII 아트를 적용할 때는 같은 map의 다중 셀 Sprite를 Room 배경에 복사한다. Player를 포함한 Actor는 각자 제작한 Sprite 크기와 Box를 사용하므로 Map 타일 크기에 종속되지 않는다.
 
-Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 후보의 Box가 겹치는 모든 BlockingMap 타일을 `OverworldMapData::CanOccupyWorldRect`로 검사하고, 후보 월드 좌표가 다른 80×33 Room 영역에 들어가면 해당 Room 배경을 다시 만든다. `OverworldLevel`은 현재 Room의 월드 원점을 Renderer View의 `worldOrigin`으로 설정하고 화면 `(0, 3)`부터 표시한다. Actor 위치는 Room 전환 때 변환하거나 재설정하지 않는다.
+Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 후보의 Box가 겹치는 모든 타일을 `OverworldMap::CanOccupyWorldRect`로 검사하고, 후보 월드 좌표가 다른 80×33 Room 영역에 들어가면 `OverworldMap::GetTileId(x, y)`로 새 16×11 구간을 직접 조회해 배경 캐시를 다시 만든다. `OverworldLevel`은 현재 Room의 월드 원점을 Renderer View의 `worldOrigin`으로 설정하고 화면 `(0, 3)`부터 표시한다. Actor 위치는 Room 전환 때 변환하거나 재설정하지 않는다.
 
 `DevelopmentLevel`과 `CollisionTestActor`는 Sprite·2D Box 충돌을 수동으로 확인하는 별도 장면이다. `SwordAttack` 타입은 등록되어 있지만 아직 Overworld 전투 흐름에 연결되지 않았다.
 

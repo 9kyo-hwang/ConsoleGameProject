@@ -34,14 +34,15 @@
 - [x] Z1 개발 장면에서 offset이 충돌 영역에 반영되는지 확인
 - [x] Z1 개발 장면에서 이전 위치와 현재 위치 사이의 swept 충돌 확인
 - [x] `Content/Z1/Maps/Overworld`의 원본 TileId/Blocking 맵 추가
-- [x] `OverworldMapLoader`로 256x88 맵 파싱 및 형식 검증
-- [x] Room `(7,7)` 및 `(0,0)`의 16x11 추출과 TileId 일치 확인
-- [x] `TileSpriteCatalog`으로 현재 Room의 TileId 일부를 문자 Sprite로 매핑
+- [x] `OverworldMap`으로 256x88 TileId/Blocking 맵 파싱 및 형식 검증
+- [x] 같은 좌표의 TileId/walkable을 하나의 2차원 Cell Grid에 보관
+- [x] Room `(7,7)` 및 `(0,0)`의 16x11 구간을 전체 Map 좌표로 직접 조회해 TileId 일치 확인
+- [x] `OverworldLevel`의 TileId-Sprite map으로 현재 Room의 TileId 일부를 문자 Sprite로 매핑
 - [x] 논리 타일을 `MapTileSize (5,3)`으로 펼쳐 실제 80x33 Room 배경 Sprite 생성
 - [x] Renderer의 Sprite Scale을 제거하고 Sprite를 실제 크기 그대로 1:1 출력
 - [x] Renderer의 World/View 변환과 화면 좌표 제출 경로 분리
 - [x] Player Actor의 Transform을 전체 Map 기준 월드 좌표로 관리하고 자체 Sprite 크기로 Box 생성
-- [x] `BlockingMap`을 `OverworldMapData::CanOccupyWorldRect` 전역 이동 판정에 연결
+- [x] `BlockingMap`을 `OverworldMap::CanOccupyWorldRect` 전역 이동 판정에 연결
 - [x] Player 월드 좌표로 Room 변경을 감지하고 인접 Room 배경과 View 전환 확인
 
 ## 상태 기록 규칙
@@ -90,7 +91,7 @@ SweptBounds 수정 후 Z1 실행 검증까지 완료했다. 기존 두 게임의
 단계 3 한 방 전투 버티컬 슬라이스는 다음을 만족하면 완료로 본다.
 
 - [x] `MapTileSize(5, 3)`과 논리 타일/월드 셀 좌표 변환을 확정
-- [x] Overworld 원본 맵을 `Content`에서 읽고 최소 Room 하나를 추출
-- [x] TileId를 `TileSpriteCatalog`의 Sprite로 매핑
+- [x] Overworld 원본 맵을 `Content`에서 읽고 최소 Room 하나의 구간을 직접 조회
+- [x] TileId를 `OverworldLevel`의 TileId-Sprite map에 매핑
 - [x] 지형 Sprite를 화면에 합성
 - [x] 지형 통행 가능 여부를 이동 판정에 연결

@@ -26,7 +26,7 @@
 | --- | ---: | --- |
 | 지상 맵 | `16 × 8 Room` | `Overworld` Area의 Room 좌표 참고 |
 | 전체 지상 타일 배열 | `256 × 88` | 전역 맵 자료를 사용할 때의 크기 |
-| Room 하나 | `16 × 11` 논리 타일 | `RoomData`의 배경 추출 크기 |
+| Room 하나 | `16 × 11` 논리 타일 | 전체 Map에서 현재 화면에 표시할 구간 크기 |
 | 원작 타일 | `16 × 16` NES 픽셀 | 논리 타일 하나의 출처 단위. 콘솔 셀 개수가 아님 |
 
 원작 화면은 마지막 타일 행의 위쪽 절반만 보여준다. CraftEngine의 콘솔 셀은 픽셀 단위가 아니므로 첫 구현에서는 `16 × 11` 논리 격자를 그대로 유지하고, 필요하면 Room viewport에서 하단을 클리핑한다.
@@ -49,7 +49,7 @@ const Craft::Vector2 MapTileSize(5, 3);
 - `80 × 33`: 현재 Room 배경 Sprite의 실제 콘솔 셀 크기
 - `N × M Sprite`: Actor나 배경이 실제로 차지하는 콘솔 셀 배열
 
-Renderer는 Z1의 타일 크기를 모르며 Sprite를 저장된 크기 그대로 1:1로 출력한다. `MapTileSize`는 `OverworldLevel`의 Room 배경 합성과 `OverworldMapData`의 타일 통행 질의에만 사용한다. Player, 검, 적과 무기는 자체 Sprite와 Box 크기를 가지며 Map 타일 크기에 종속되지 않는다. `Config/Setting.txt`의 `width`와 `height`도 NES 픽셀 해상도가 아니라 콘솔 셀 버퍼 크기다.
+Renderer는 Z1의 타일 크기를 모르며 Sprite를 저장된 크기 그대로 1:1로 출력한다. `MapTileSize`는 `OverworldLevel`의 Room 배경 합성과 `OverworldMap`의 타일 통행 질의에만 사용한다. Player, 검, 적과 무기는 자체 Sprite와 Box 크기를 가지며 Map 타일 크기에 종속되지 않는다. `Config/Setting.txt`의 `width`와 `height`도 NES 픽셀 해상도가 아니라 콘솔 셀 버퍼 크기다.
 
 ## Room 파일 포맷 결정
 
@@ -68,9 +68,9 @@ Overworld는 원본 전체 맵을 그대로 보관한다.
 - Blocking 맵 문자: `.`은 이동 가능, `X`는 이동 불가
 - 주석, 스폰, 출구 지시는 원본 맵 파일에 넣지 않는다.
 
-토큰 하나는 논리 타일 하나다. 현재 구현은 `TileSpriteCatalog`에서 TileId에 대응하는 1×1 문자 Sprite를 찾고, `OverworldLevel`이 그 셀을 `MapTileSize (5, 3)` 영역에 반복해 Room 배경을 만든다.
+토큰 하나는 논리 타일 하나다. 현재 구현은 `OverworldLevel`이 소유한 `unordered_map<TileId, shared_ptr<const Sprite>>`에서 1×1 문자 Sprite를 찾고, 그 첫 셀을 `MapTileSize (5, 3)` 영역에 반복해 Room 배경을 만든다. 별도 Catalog 타입은 두지 않는다. 향후 타일별 ASCII 아트를 적용할 때는 map의 값은 그대로 Sprite로 유지하고 합성 단계에서 Sprite 전체 셀을 복사한다.
 
-`OverworldMapLoader`는 전체 맵을 한 번 읽어 `OverworldMapData`에 보관한다. `(roomX * 16, roomY * 11)` 위치에서 `16 × 11` TileId를 배경용 `RoomData`로 추출하지만, BlockingMap은 전역 이동 판정을 위해 MapData에 유지한다. 동굴·던전처럼 별도 제작 데이터가 필요한 경우에는 추후 `Content/Z1/Rooms` 아래에 Room 전용 파일을 추가할 수 있다.
+`OverworldMap`은 두 파일을 한 번 읽어 같은 좌표의 `TileId`와 `walkable`을 `Cell` 하나로 묶은 `88 × 256` 2차원 배열에 보관한다. TileMap 파서와 BlockingMap 파서는 입력 형식이 다르므로 분리되어 있지만 같은 임시 Grid의 각 필드만 채우며, 두 파싱이 모두 성공한 뒤 런타임 Grid에 반영한다. Room 전환 시 TileId를 별도 Room 데이터로 복사하지 않고 `(roomX * 16, roomY * 11)`에서 시작하는 `16 × 11` 구간을 전체 Map에 직접 질의한다. 동굴·던전처럼 별도 제작 데이터가 필요한 경우에는 추후 `Content/Z1/Rooms` 아래에 Room 전용 파일을 추가할 수 있다.
 
 ### Room 외부 메타데이터
 
@@ -83,17 +83,17 @@ Overworld는 원본 전체 맵을 그대로 보관한다.
 ## 타일 로드와 렌더링 파이프라인
 
 ```text
-OverworldMapLoader
-  → 256 × 88 TileId/Blocking 맵 검증
-  → OverworldMapData에 전체 TileId/walkable 보관
-  → 현재 16 × 11 TileId를 RoomData로 추출
-  → TileSpriteCatalog에서 TileId의 문자 Sprite 조회
+OverworldMap
+  → 256 × 88 TileId/Blocking 맵을 각각 검증
+  → 2차원 Cell Grid에 전체 TileId/walkable 보관
+  → 현재 Room의 16 × 11 TileId를 전역 Map 좌표로 직접 조회
+  → OverworldLevel의 TileId-Sprite map에서 문자 Sprite 조회
   → 각 타일을 5 × 3으로 펼쳐 80 × 33 Room Sprite 합성
-  → 전체 MapData에 Actor의 월드 Box 통행 여부 질의
+  → OverworldMap에 Actor의 월드 Box 통행 여부 질의
   → 월드 좌표가 속한 Room이 바뀌면 배경과 View 교체
 ```
 
-시각 정보와 통행 정보는 분리한다. `TileSpriteCatalog`은 TileId와 Sprite의 대응만 보관하고, `OverworldMapData`는 원본 BlockingMap에서 읽은 walkable 값을 보관한다. 따라서 같은 TileId라도 Map 데이터가 허용하면 다른 통행 결과를 가질 수 있고, 카탈로그가 게임플레이 속성을 재정의하지 않는다.
+시각 정보와 통행 정보는 분리한다. `OverworldLevel`의 TileId-Sprite map은 시각 정보만 보관하고, `OverworldMap`의 Cell은 원본 TileMap과 BlockingMap에서 읽은 TileId와 walkable을 보관한다. 따라서 같은 TileId라도 Map 데이터가 허용하면 다른 통행 결과를 가질 수 있고, Sprite map이 게임플레이 속성을 재정의하지 않는다.
 
 Actor의 Transform과 Box는 전체 Map 기준 월드 셀 단위를 사용한다. 좌표 변환은 다음 두 단계다.
 
