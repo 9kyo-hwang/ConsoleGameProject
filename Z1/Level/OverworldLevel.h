@@ -27,6 +27,7 @@ public:
     void BeginPlay() override;
     void Tick(float deltaTime) override;
     void Draw() override;
+    void EndPlay() override;
 
 private:
     bool LoadMap();
@@ -48,5 +49,6 @@ private:
     RoomCoordinate _currentRoom{ 7, 7 };
 
     bool _loaded = false;
+    bool _bgmStarted = false;
 };
 

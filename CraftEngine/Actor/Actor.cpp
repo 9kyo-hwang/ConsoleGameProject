@@ -69,6 +69,19 @@ namespace Craft
         }
 	}
 
+    void Actor::EndPlay()
+    {
+        if (!IsActive())
+        {
+            return;
+        }
+
+        for (const auto& component : components)
+        {
+            component->EndPlay();
+        }
+    }
+
     void Actor::Destroy()
 	{
 		hasExpired = true;

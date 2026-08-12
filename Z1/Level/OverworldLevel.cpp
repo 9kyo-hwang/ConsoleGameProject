@@ -6,6 +6,7 @@
 #include <Render/Sprite.h>
 #include <Component/BoxComponent.h>
 #include <filesystem>
+#include <Engine/Engine.h>
 
 using namespace Craft;
 using FilePath = std::filesystem::path;
@@ -82,6 +83,12 @@ void OverworldLevel::BeginPlay()
 
     // 월드 좌표
     _player = SpawnActor<Player>(GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize);
+
+    if (!_bgmStarted)
+    {
+        Engine::Get().PlayBGM("Z1/02. Overworld of Hyrule.wav");
+        _bgmStarted = true;
+    }
 }
 
 void OverworldLevel::Tick(float deltaTime)
@@ -141,6 +148,14 @@ void OverworldLevel::Draw()
     Level::Draw();
 
     renderer.Submit("[Overworld Level]", Vector2::Zero);
+}
+
+void OverworldLevel::EndPlay()
+{
+    Level::EndPlay();
+
+    Engine::Get().StopBGM();
+    _bgmStarted = false;
 }
 
 bool OverworldLevel::LoadMap()

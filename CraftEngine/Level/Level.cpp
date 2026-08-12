@@ -51,6 +51,17 @@ namespace Craft
 		}
 	}
 
+	void Level::EndPlay()
+	{
+        for (const auto& actor : actors)
+        {
+            if (actor->IsActive())
+            {
+                actor->EndPlay();
+            }
+        }
+	}
+
 	// 이전 프레임에서 추가/삭제 요청한 액터 목록을 현재 프레임에서 처리
 	void Level::ProcessRequestedActors()
 	{

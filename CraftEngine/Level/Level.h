@@ -23,6 +23,7 @@ namespace Craft
 		virtual void BeginPlay();
 		virtual void Tick(float deltaTime);
 		virtual void Draw();
+        virtual void EndPlay();
 
         inline bool HasInitialized() const { return hasInitialized; }
 

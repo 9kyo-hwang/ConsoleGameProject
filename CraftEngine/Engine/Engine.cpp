@@ -70,6 +70,7 @@ namespace Craft
                 {
                     if (mainLevel)
                     {
+                        mainLevel->EndPlay();
                         mainLevel.reset();
                     }
 

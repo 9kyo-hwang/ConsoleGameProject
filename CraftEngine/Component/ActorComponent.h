@@ -17,6 +17,7 @@ namespace Craft
         virtual void Tick(float deltaTime) {}
         virtual void Draw() {}
         virtual void OnCollision(const std::shared_ptr<Actor>& other) {}
+        virtual void EndPlay() {}
 
         inline bool HasBeganPlay() const { return hasBeganPlay; }
         inline std::shared_ptr<Actor> GetOwner() const { return owner.lock(); }
