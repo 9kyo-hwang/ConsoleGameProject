@@ -23,10 +23,10 @@ namespace Craft
             Color color = Color::White;
         };
 
+        // 스프라이트 스케일링 기능 제거(무조건 그대로)
         struct SpritePayload
         {
             std::shared_ptr<const Sprite> sprite;
-            Vector2 cellScale = Vector2::One;
         };
 
         using RenderPayload = std::variant<TextPayload, SpritePayload>;
@@ -66,13 +66,6 @@ namespace Craft
             Color color = Color::White, 
             int sortingOrder = 0
         );
-
-        void Submit(
-            std::shared_ptr<const Sprite> sprite,
-            const Vector2& position,
-            const Vector2& cellScale,
-            int sortingOrder = 0
-        );
         
         void Submit(
             std::shared_ptr<const Sprite> sprite, 
@@ -80,8 +73,28 @@ namespace Craft
             int sortingOrder = 0
         );
 
+        void SubmitWorld(
+            const std::string& image,
+            const Vector2& worldPosition,
+            Color color = Color::White,
+            int sortingOrder = 0
+        );
+
+        void SubmitWorld(
+            std::shared_ptr<const Sprite> sprite,
+            const Vector2& worldPosition,
+            int sortingOrder = 0
+        );
+
         // 엔진이 호출할 이벤트 함수
         void Draw();
+
+    public:
+        inline void SetView(const Vector2& worldOrigin, const Vector2& screenOrigin = Vector2::Zero) 
+        {
+            _viewWorldOrigin = worldOrigin;
+            _viewScreenOrigin = screenOrigin;
+        }
 
     private:
         void Clear();           // 프레임 시작 시 화면을 지우는 함수
@@ -91,6 +104,8 @@ namespace Craft
         void Present();         // 이중 버퍼 구현 시 버퍼 스왑하는 함수
 
         ScreenBuffer* const GetCurrentScreenBuffer() const;  // 백버퍼 Getter
+
+        inline Vector2 WorldToScreen(const Vector2& position) const { return position - _viewWorldOrigin + _viewScreenOrigin; }
 
         template<typename CellGetter>
         void DrawCellGrid(
@@ -126,6 +141,8 @@ namespace Craft
 
     private:
         static Renderer* _instance;
+        Vector2 _viewWorldOrigin = Vector2::Zero;   // 카메라가 보고있는 영역의 월드 최상단
+        Vector2 _viewScreenOrigin = Vector2::Zero;  // 실제 콘솔 화면의 어느 위치부터 표시할지
 
         // 현재 프레임에 화면에 그릴 데이터
         std::vector<RenderCommand> _renderQueue{};

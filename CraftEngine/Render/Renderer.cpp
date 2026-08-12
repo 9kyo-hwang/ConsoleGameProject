@@ -96,14 +96,11 @@ namespace Craft
         _renderQueue.emplace_back(command);
     }
 
-    void Renderer::Submit(std::shared_ptr<const Sprite> sprite, const Vector2& position, const Vector2& cellScale, int sortingOrder)
+    void Renderer::Submit(std::shared_ptr<const Sprite> sprite, const Vector2& position, int sortingOrder)
     {
-        assert(cellScale.x > 0 && cellScale.y > 0);
-
         SpritePayload payload
         {
             .sprite = std::move(sprite),
-            .cellScale = cellScale,
         };
 
         RenderCommand command
@@ -116,18 +113,24 @@ namespace Craft
         _renderQueue.emplace_back(std::move(command));
     }
 
-    void Renderer::Submit(std::shared_ptr<const Sprite> sprite, const Vector2& position, int sortingOrder)
+    void Renderer::SubmitWorld(const std::string& image, const Vector2& worldPosition, Color color, int sortingOrder)
     {
-        Submit(sprite, position, Vector2::One, sortingOrder);
+        Submit(image, WorldToScreen(worldPosition), color, sortingOrder);
+    }
+
+    void Renderer::SubmitWorld(std::shared_ptr<const Sprite> sprite, const Vector2& worldPosition, int sortingOrder)
+    {
+        Submit(std::move(sprite), WorldToScreen(worldPosition), sortingOrder);
     }
 
     void Renderer::Draw()
     {
         Clear();
-
         DrawRenderQueue();
-
         Present();
+
+        _viewWorldOrigin = Vector2::Zero;
+        _viewScreenOrigin = Vector2::Zero;
     }
 
     void Renderer::Clear()
@@ -203,20 +206,13 @@ namespace Craft
         }
 
         const Sprite& sprite = *payload.sprite;
-        const Vector2 logicalSize = sprite.GetSize();
-
-        // 실제 픽셀이 차지할 크기는 cellScale에 비례
-        const Vector2 physicalSize(logicalSize.x * payload.cellScale.x, logicalSize.y * payload.cellScale.y);
-
         DrawCellGrid(
             command.position,
-            physicalSize,
+            sprite.GetSize(),
             command.sortingOrder,
-            [&](int physicalX, int physicalY)
+            [&](int x, int y)
             {
-                const int logicalX = physicalX / payload.cellScale.x;
-                const int logicalY = physicalY / payload.cellScale.y;
-                return sprite.GetCell(logicalX, logicalY);
+                return sprite.GetCell(x, y);
             }
         );
     }

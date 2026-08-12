@@ -38,16 +38,15 @@ namespace Craft
         const Vector2 worldPosition = transform->GetWorldPosition();
         if (sprite)
         {
-            Renderer::Get().Submit(
+            Renderer::Get().SubmitWorld(
                 sprite,
                 worldPosition,
-                cellScale,
                 sortingOrder
             );
         }
         else
         {
-            Renderer::Get().Submit(
+            Renderer::Get().SubmitWorld(
                 image, 
                 worldPosition,
                 color,
