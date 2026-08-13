@@ -154,7 +154,7 @@ void OverworldLevel::Tick(float deltaTime)
         default:break;
         }
 
-        auto attack = SpawnActor<SwordAttack>(offset);
+        auto attack = SpawnActor<SwordAttack>(offset, _player, 1);
         attack->AttachTo(_player, false);
         _player->SetActiveAttack(attack);
     }

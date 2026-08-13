@@ -14,8 +14,10 @@ Pawn::~Pawn()
 {
 }
 
-void Pawn::TakeDamage(int damageAmount, const std::shared_ptr<Actor>& damageInstigator)
+void Pawn::TakeDamage(int damageAmount, const std::shared_ptr<Pawn>& damageInstigator)
 {
+    // TODO: 현재 Facing 방향으로 밀림 처리
+
     _hp -= damageAmount;
     if (_hp <= 0)
     {
@@ -24,7 +26,7 @@ void Pawn::TakeDamage(int damageAmount, const std::shared_ptr<Actor>& damageInst
     }
 }
 
-void Pawn::OnDeath(const std::shared_ptr<Actor>& damageInstigator)
+void Pawn::OnDeath(const std::shared_ptr<Pawn>& damageInstigator)
 {
 
 }

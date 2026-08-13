@@ -22,7 +22,12 @@ void Enemy::Tick(float deltaTime)
     Super::Tick(deltaTime);
 }
 
-void Enemy::OnDeath(const std::shared_ptr<Actor>& damageInstigator)
+void Enemy::TakeDamage(int damageAmount, const std::shared_ptr<Pawn>& damageInstigator)
+{
+    Super::TakeDamage(damageAmount, damageInstigator);
+}
+
+void Enemy::OnDeath(const std::shared_ptr<Pawn>& damageInstigator)
 {
     // Enemy는 파괴 처리
 

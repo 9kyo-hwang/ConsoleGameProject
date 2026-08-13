@@ -10,9 +10,10 @@ public:
 
     void BeginPlay() override;
     void Tick(float deltaTime) override;
+    void TakeDamage(int damageAmount, const std::shared_ptr<Pawn>& damageInstigator) override;
 
 protected:
-    void OnDeath(const std::shared_ptr<Craft::Actor>& damageInstigator) override;
+    void OnDeath(const std::shared_ptr<Pawn>& damageInstigator) override;
 
 private:
 

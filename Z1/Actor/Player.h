@@ -29,7 +29,7 @@ public:
     void CancelAttack();
 
 protected:
-    void OnDeath(const std::shared_ptr<Craft::Actor>& damageInstigator) override;
+    void OnDeath(const std::shared_ptr<Pawn>& damageInstigator) override;
 
 private:
     std::shared_ptr<const Craft::Sprite> CreateSprite();

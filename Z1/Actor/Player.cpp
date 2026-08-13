@@ -58,7 +58,7 @@ void Player::CancelAttack()
     _activeAttack.reset();
 }
 
-void Player::OnDeath(const std::shared_ptr<Craft::Actor>& damageInstigator)
+void Player::OnDeath(const std::shared_ptr<Pawn>& damageInstigator)
 {
     // TODO: 사망 연출(?) -> 게임 오버 표시 -> Restart or Quit 선택 레벨
 }

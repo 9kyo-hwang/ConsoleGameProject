@@ -19,7 +19,7 @@ public:
     ~Pawn() override;
 
     // 내가 피해를 입었을 때 호출하는 API
-    void TakeDamage(int damageAmount, const std::shared_ptr<Craft::Actor>& damageInstigator);
+    virtual void TakeDamage(int damageAmount, const std::shared_ptr<Pawn>& damageInstigator);
     inline int GetHp() const { return _hp; }
     inline bool IsDead() const { return _hp <= 0; }
 
@@ -27,7 +27,7 @@ public:
     void SetFacing(Facing facing) { _facing = facing; }
 
 protected:
-    virtual void OnDeath(const std::shared_ptr<Craft::Actor>& damageInstigator);
+    virtual void OnDeath(const std::shared_ptr<Pawn>& damageInstigator);
 
 private:
     Facing _facing = Facing::Up;
