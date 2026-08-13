@@ -22,8 +22,10 @@ namespace Craft
 
         Vector2& operator=(const Vector2& other);
 
-        bool operator==(const Vector2& other) const;
+        bool operator==(const Vector2& other) const = default;
         bool operator!=(const Vector2& other) const;
+
+        auto operator<=>(const Vector2&) const = default;
 
     public:
         static Vector2 Zero;

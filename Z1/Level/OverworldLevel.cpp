@@ -8,6 +8,9 @@
 #include <filesystem>
 #include <Engine/Engine.h>
 #include <Actor/SwordAttack.h>
+#include <Actor/Enemy.h>
+#include <Math/MathUtility.h>
+#include <set>
 
 using namespace Craft;
 using FilePath = std::filesystem::path;
@@ -27,6 +30,11 @@ namespace
 {
     const Vector2 MapTileSize(10, 5);
     const Vector2 RoomScreenOffset(0, 3);
+
+    const Vector2 EnemyBoxSize(1, 1);
+
+    constexpr int EnemyCounts = 3;
+    constexpr int MaxSpawnAttempts = 30;
 
     std::shared_ptr<const Sprite> MakeTileSprite(char glyph, Color color)
     {
@@ -134,12 +142,12 @@ void OverworldLevel::Tick(float deltaTime)
             }
 
             const RoomCoordinate nextRoom = GetRoomCoordinate(candidate);
+            _player->MoveBy(delta); // 적 Spawn할 때 Player 유무를 검사하기 때문에, 먼저 이동시킴
+
             if (nextRoom != _currentRoom)
             {
                 ChangeRoom(nextRoom);
             }
-
-            _player->MoveBy(delta);
         }
     }
     else if (_player->HasSword() && Input::Get().GetKeyDown(VK_SPACE) && !_player->IsAttacking())
@@ -201,7 +209,7 @@ bool OverworldLevel::LoadMap()
     }
 
     _tileSprites = CreateTileSprites();
-    _currentRoom = { 7, 7 };
+    _currentRoom = StartRoom;
     BuildRoomSprite();
 
     _loaded = true;
@@ -215,8 +223,12 @@ void OverworldLevel::ChangeRoom(RoomCoordinate room)
         return;
     }
 
+    DestroyRoomEnemies();   // 원래 Room 적 날리고
+
     _currentRoom = room;
     BuildRoomSprite();
+
+    SpawnRoomEnemies();     // 새로운 Room 적 생성하고
 }
 
 /*
@@ -313,4 +325,72 @@ bool OverworldLevel::CanMove(const Vector2& candidate) const
 
     const Vector2 boxPosition = candidate + box->GetOffset();
     return _map.CanOccupyWorldRect(boxPosition, box->GetSize(), MapTileSize);
+}
+
+uint32_t OverworldLevel::MakeRoomSeed(RoomCoordinate room) const
+{
+    return _worldSeed
+        ^ (uint32_t)room.x * 73856093u
+        ^ (uint32_t)room.y * 19349663u;
+}
+
+void OverworldLevel::SpawnRoomEnemies()
+{
+    if (!_player || _currentRoom == StartRoom)
+    {
+        return;
+    }
+
+    FMath::SetRandomSeed(MakeRoomSeed(_currentRoom));
+
+    const Vector2 roomOrigin = GetRoomWorldOrigin(_currentRoom);
+    const Vector2 playerPos = _player->GetWorldPosition();
+
+    std::set<Vector2> selected;
+    for (int attempt = 0; attempt < MaxSpawnAttempts && (int)selected.size() < EnemyCounts; ++attempt)
+    {
+        // 논리 타일 좌표를
+        const int x = FMath::RandRange(1, OverworldMap::RoomTileWidth - 2);
+        const int y = FMath::RandRange(1, OverworldMap::RoomTileHeight - 2);
+
+        // 월드 셀 좌표로
+        const Vector2 worldPosition = roomOrigin + Vector2(x, y) * MapTileSize;
+
+        // 적이 배치될 수 없는 위치면 pass
+        if (!_map.CanOccupyWorldRect(worldPosition, EnemyBoxSize, MapTileSize))
+        {
+            continue;
+        }
+
+        // 너무 가까워도 pass
+        const Vector2 distance = worldPosition - playerPos;
+        if (std::abs(distance.x) < MapTileSize.x << 1 &&
+            std::abs(distance.y) < MapTileSize.y << 1)
+        {
+            continue;
+        }
+
+        // 이미 스폰된 위치면 pass
+        if (selected.contains(worldPosition))
+        {
+            continue;
+        }
+
+        auto enemy = SpawnActor<Enemy>(worldPosition, 2);  // 체력 2
+        _roomEnemies.push_back(enemy);  // Level 외에 내가 따로 들고 있음
+        selected.emplace(worldPosition);
+    }
+}
+
+void OverworldLevel::DestroyRoomEnemies()
+{
+    for (const auto& enemy : _roomEnemies)
+    {
+        if (enemy)
+        {
+            enemy->Destroy();
+        }
+    }
+
+    _roomEnemies.clear();
 }

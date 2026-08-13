@@ -1,6 +1,6 @@
 # target framerate
-framerate = 120
+framerate = 60
 # screen width
-width = 512
+width = 256
 # screen height
-height = 176
+height = 88

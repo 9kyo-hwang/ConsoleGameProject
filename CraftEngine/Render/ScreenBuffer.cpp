@@ -15,6 +15,11 @@ namespace Craft
 
         assert(_handle != INVALID_HANDLE_VALUE);
 
+        // 스크린 버퍼 크기 설정
+        _size = screenSize;
+        BOOL result = SetConsoleScreenBufferSize(_handle, _size);
+        assert(result == TRUE);
+
         // 창 크기 설정
         SMALL_RECT windowInfo
         {
@@ -24,17 +29,12 @@ namespace Craft
             .Bottom = (SHORT)screenSize.y - 1
         };
 
-        BOOL result = SetConsoleWindowInfo(
+        result = SetConsoleWindowInfo(
             _handle,   // GENERIC_READ 권한 필요
             true,       // 좌상단을 (0, 0)으로 사용(기본값)
             &windowInfo
         );
 
-        assert(result == TRUE);
-
-        // 스크린 버퍼 크기 설정
-        _size = screenSize;
-        result = SetConsoleScreenBufferSize(_handle, _size);
         assert(result == TRUE);
 
         // 콘솔 커서 끄기

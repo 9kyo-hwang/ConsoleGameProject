@@ -19,6 +19,7 @@ struct RoomCoordinate
 };
 
 class Player;
+class Enemy;
 class OverworldLevel : public Craft::Level
 {
 public:
@@ -39,7 +40,13 @@ private:
 
     bool CanMove(const Craft::Vector2& candidate) const;
 
+    uint32_t MakeRoomSeed(RoomCoordinate room) const;
+    void SpawnRoomEnemies();
+    void DestroyRoomEnemies();
+
 private:
+    inline static constexpr RoomCoordinate StartRoom{ 7, 7 };
+
     std::shared_ptr<Player> _player;
 
     OverworldMap _map;
@@ -50,5 +57,8 @@ private:
 
     bool _loaded = false;
     bool _bgmStarted = false;
+
+    std::vector<std::shared_ptr<Enemy>> _roomEnemies;   // 현재 룸에 생성된 적 별도 보관
+    uint32_t _worldSeed = 12345u;
 };
 

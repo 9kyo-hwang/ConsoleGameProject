@@ -13,6 +13,11 @@ namespace Craft
             Engine().seed(device());
         }
 
+        static void SetRandomSeed(uint32_t newSeed)
+        {
+            Engine().seed(newSeed);
+        }
+
         // Unreal FMath::RandRange(int32, int32)처럼 양 끝값 포함.
         static int RandRange(int min, int max)
         {

@@ -56,11 +56,6 @@ namespace Craft
         return *this;
     }
 
-    bool Vector2::operator==(const Vector2& other) const
-    {
-        return x == other.x && y == other.y;
-    }
-
     bool Vector2::operator!=(const Vector2& other) const
     {
         return !(*this == other);
