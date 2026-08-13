@@ -15,6 +15,7 @@
     <ClCompile Include="World\OverworldMap.cpp" />
     <ClCompile Include="Actor\Pawn.cpp" />
     <ClCompile Include="Actor\Enemy.cpp" />
+    <ClCompile Include="Level\EnemySpawner.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -30,5 +31,7 @@
     <ClInclude Include="World\OverworldMap.h" />
     <ClInclude Include="Actor\Pawn.h" />
     <ClInclude Include="Actor\Enemy.h" />
+    <ClInclude Include="Level\EnemySpawner.h" />
+    <ClInclude Include="Level\Room.h" />
   </ItemGroup>
 </Project>

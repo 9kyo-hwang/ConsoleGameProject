@@ -2,6 +2,8 @@
 #include <Level/Level.h>
 #include <World/OverworldMap.h>
 #include <unordered_map>
+#include <Level/Room.h>
+#include <Level/EnemySpawner.h>
 
 namespace Craft
 {
@@ -10,13 +12,7 @@ namespace Craft
 
 using TileSpriteMap = std::unordered_map<TileId, std::shared_ptr<const Craft::Sprite>>;
 
-struct RoomCoordinate
-{
-    int x = 0;
-    int y = 0;
 
-    bool operator==(const RoomCoordinate&) const = default;
-};
 
 class Player;
 class Enemy;
@@ -40,7 +36,6 @@ private:
 
     bool CanMove(const Craft::Vector2& candidate) const;
 
-    uint32_t MakeRoomSeed(RoomCoordinate room) const;
     void SpawnRoomEnemies();
     void DestroyRoomEnemies();
 
@@ -58,6 +53,7 @@ private:
     bool _loaded = false;
     bool _bgmStarted = false;
 
+    EnemySpawner _enemySpawner;
     std::vector<std::shared_ptr<Enemy>> _roomEnemies;   // 현재 룸에 생성된 적 별도 보관
     uint32_t _worldSeed = 12345u;
 };

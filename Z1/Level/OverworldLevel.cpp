@@ -33,9 +33,6 @@ namespace
 
     const Vector2 EnemyBoxSize(1, 1);
 
-    constexpr int EnemyCounts = 3;
-    constexpr int MaxSpawnAttempts = 30;
-
     std::shared_ptr<const Sprite> MakeTileSprite(char glyph, Color color)
     {
         std::vector<SpriteCell> cells
@@ -69,6 +66,16 @@ namespace
         };
 
         return sprites;
+    }
+
+    bool Overlaps(const Vector2& lhsPos, const Vector2& lhsSize, const Vector2& rhsPos, const Vector2& rhsSize)
+    {
+        const int lhsRight  = lhsPos.x + lhsSize.x - 1;
+        const int lhsBottom = lhsPos.y + lhsSize.y - 1;
+        const int rhsRight  = rhsPos.x + rhsSize.x - 1;
+        const int rhsBottom = rhsPos.y + rhsSize.y - 1;
+
+        return !(lhsRight < rhsPos.x || rhsRight < lhsPos.x || lhsBottom < rhsPos.y || rhsBottom < lhsPos.y);
     }
 }
 
@@ -238,8 +245,8 @@ void OverworldLevel::ChangeRoom(RoomCoordinate room)
 void OverworldLevel::BuildRoomSprite()
 {
     // 렌더러가 1:1로만 그리게 변경되어 Room Sprite를 처음부터 (16, 11)의 (5, 3)배 한 걸로 만들어야 함
-    const int roomTileWidth = OverworldMap::RoomTileWidth;
-    const int roomTileHeight = OverworldMap::RoomTileHeight;
+    const int roomTileWidth  = RoomTileWidth;
+    const int roomTileHeight = RoomTileHeight;
 
     const Vector2 spriteSize(roomTileWidth * MapTileSize.x, roomTileHeight * MapTileSize.y);
     std::vector<SpriteCell> roomCells(spriteSize.x * spriteSize.y, SpriteCell());
@@ -294,8 +301,8 @@ RoomCoordinate OverworldLevel::GetRoomCoordinate(const Vector2& worldPosition) c
     assert(worldPosition.x >= 0 && worldPosition.y >= 0);
 
     // Room의 셀 단위 가로/세로 길이
-    const int roomCellWidth = OverworldMap::RoomTileWidth * MapTileSize.x;
-    const int roomCellHeight = OverworldMap::RoomTileHeight * MapTileSize.y;
+    const int roomCellWidth =  RoomTileWidth * MapTileSize.x;
+    const int roomCellHeight = RoomTileHeight * MapTileSize.y;
 
     return RoomCoordinate(worldPosition.x / roomCellWidth, worldPosition.y / roomCellHeight);
 }
@@ -305,8 +312,8 @@ Vector2 OverworldLevel::GetRoomWorldOrigin(RoomCoordinate room) const
 {
     return Vector2
     {
-        room.x * OverworldMap::RoomTileWidth * MapTileSize.x,
-        room.y * OverworldMap::RoomTileHeight * MapTileSize.y
+        room.x * RoomTileWidth * MapTileSize.x,
+        room.y * RoomTileHeight * MapTileSize.y
     };
 }
 
@@ -323,15 +330,33 @@ bool OverworldLevel::CanMove(const Vector2& candidate) const
         return false;
     }
 
-    const Vector2 boxPosition = candidate + box->GetOffset();
-    return _map.CanOccupyWorldRect(boxPosition, box->GetSize(), MapTileSize);
-}
+    const Vector2 position = candidate + box->GetOffset();
+    if (!_map.CanOccupyWorldRect(position, box->GetSize(), MapTileSize))
+    {
+        return false;
+    }
 
-uint32_t OverworldLevel::MakeRoomSeed(RoomCoordinate room) const
-{
-    return _worldSeed
-        ^ (uint32_t)room.x * 73856093u
-        ^ (uint32_t)room.y * 19349663u;
+    for (const auto& enemy : _roomEnemies)
+    {
+        if (!enemy || !enemy->IsActive())
+        {
+            continue;
+        }
+
+        const auto enemyBox = enemy->GetComponent<BoxComponent>();
+        if (!enemyBox)
+        {
+            continue;
+        }
+
+        const Vector2 enemyPosition = enemy->GetWorldPosition() + enemyBox->GetOffset();
+        if (Overlaps(position, box->GetSize(), enemyPosition, enemyBox->GetSize()))
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void OverworldLevel::SpawnRoomEnemies()
@@ -341,44 +366,18 @@ void OverworldLevel::SpawnRoomEnemies()
         return;
     }
 
-    FMath::SetRandomSeed(MakeRoomSeed(_currentRoom));
+    const auto spawnPlan = _enemySpawner.BuildSpawnPlan(
+        _currentRoom,
+        _map,
+        _player->GetWorldPosition(),
+        MapTileSize,
+        _worldSeed,
+        GetRoomWorldOrigin(_currentRoom)
+    );
 
-    const Vector2 roomOrigin = GetRoomWorldOrigin(_currentRoom);
-    const Vector2 playerPos = _player->GetWorldPosition();
-
-    std::set<Vector2> selected;
-    for (int attempt = 0; attempt < MaxSpawnAttempts && (int)selected.size() < EnemyCounts; ++attempt)
+    for (const auto& spawn : spawnPlan)
     {
-        // 논리 타일 좌표를
-        const int x = FMath::RandRange(1, OverworldMap::RoomTileWidth - 2);
-        const int y = FMath::RandRange(1, OverworldMap::RoomTileHeight - 2);
-
-        // 월드 셀 좌표로
-        const Vector2 worldPosition = roomOrigin + Vector2(x, y) * MapTileSize;
-
-        // 적이 배치될 수 없는 위치면 pass
-        if (!_map.CanOccupyWorldRect(worldPosition, EnemyBoxSize, MapTileSize))
-        {
-            continue;
-        }
-
-        // 너무 가까워도 pass
-        const Vector2 distance = worldPosition - playerPos;
-        if (std::abs(distance.x) < MapTileSize.x << 1 &&
-            std::abs(distance.y) < MapTileSize.y << 1)
-        {
-            continue;
-        }
-
-        // 이미 스폰된 위치면 pass
-        if (selected.contains(worldPosition))
-        {
-            continue;
-        }
-
-        auto enemy = SpawnActor<Enemy>(worldPosition, 2);  // 체력 2
-        _roomEnemies.push_back(enemy);  // Level 외에 내가 따로 들고 있음
-        selected.emplace(worldPosition);
+        _roomEnemies.push_back(SpawnActor<Enemy>(spawn.worldPosition, spawn.maxHp));
     }
 }
 

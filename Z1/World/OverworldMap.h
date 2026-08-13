@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <Math/Vector2.h>
 #include <array>
+#include <Level/Room.h>
 
 using TileId = std::uint8_t;    // 00, 01, ..., 9c, 9d. 지형 구분 Id
 constexpr TileId InvalidTileId = 0xff;
@@ -11,10 +12,6 @@ class OverworldMap
     using FilePath = std::filesystem::path;
 
 public:
-    // Room 하나가 차지하는 타일 개수
-    static constexpr int RoomTileWidth = 16;
-    static constexpr int RoomTileHeight = 11;
-
     // Map을 구성하는 Room 개수
     static constexpr int RoomColumns = 16;
     static constexpr int RoomRows = 8;
