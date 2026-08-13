@@ -34,10 +34,13 @@ private:
     RoomCoordinate GetRoomCoordinate(const Craft::Vector2& mapPosition) const;
     Craft::Vector2 GetRoomWorldOrigin(RoomCoordinate room) const;
 
-    bool CanMove(const Craft::Vector2& candidate) const;
+    bool CanPlayerMove(const Craft::Vector2& candidate) const;
+    bool CanEnemyMove(const Craft::Vector2& candidate) const;
 
     void SpawnRoomEnemies();
     void DestroyRoomEnemies();
+
+    void UpdateEnemyMovement(float deltaTime);
 
 private:
     inline static constexpr RoomCoordinate StartRoom{ 7, 7 };

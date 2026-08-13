@@ -142,7 +142,7 @@ void OverworldLevel::Tick(float deltaTime)
         {
             const Vector2 candidate = _player->GetWorldPosition() + delta;
 
-            if (!CanMove(candidate))
+            if (!CanPlayerMove(candidate))
             {
                 _player->ClearMoveRemainder();
                 break;
@@ -173,6 +173,8 @@ void OverworldLevel::Tick(float deltaTime)
         attack->AttachTo(_player, false);
         _player->SetActiveAttack(attack);
     }
+
+    UpdateEnemyMovement(deltaTime);
 }
 
 void OverworldLevel::Draw()
@@ -317,7 +319,7 @@ Vector2 OverworldLevel::GetRoomWorldOrigin(RoomCoordinate room) const
     };
 }
 
-bool OverworldLevel::CanMove(const Vector2& candidate) const
+bool OverworldLevel::CanPlayerMove(const Vector2& candidate) const
 {
     if (!_player)
     {
@@ -359,6 +361,37 @@ bool OverworldLevel::CanMove(const Vector2& candidate) const
     return true;
 }
 
+bool OverworldLevel::CanEnemyMove(const Craft::Vector2& candidate) const
+{
+    // 1. enemy 검사는 이미 수행됨
+
+    // 2. enemy는 box offset이 zero라고 임시 가정
+
+    if (!_map.CanOccupyWorldRect(candidate, EnemyBoxSize, MapTileSize))
+    {
+        return false;
+    }
+
+    if (!_player || !_player->IsActive())
+    {
+        return false;
+    }
+
+    const auto playerBox = _player->GetComponent<BoxComponent>();
+    if (!playerBox)
+    {
+        return false;
+    }
+
+    const Vector2 playerPosition = _player->GetWorldPosition() + playerBox->GetOffset();
+    if (Overlaps(candidate, EnemyBoxSize, playerPosition, playerBox->GetSize()))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 void OverworldLevel::SpawnRoomEnemies()
 {
     if (!_player || _currentRoom == StartRoom)
@@ -392,4 +425,30 @@ void OverworldLevel::DestroyRoomEnemies()
     }
 
     _roomEnemies.clear();
+}
+
+void OverworldLevel::UpdateEnemyMovement(float deltaTime)
+{
+    for (const auto& enemy : _roomEnemies)
+    {
+        if (!enemy || !enemy->IsActive())
+        {
+            continue;
+        }
+
+        const int moveSteps = enemy->ConsumeMoveSteps(deltaTime);
+        for (int i = 0; i < moveSteps; ++i)
+        {
+            const Vector2 delta = enemy->GetChaseDelta(_player->GetWorldPosition());
+            const Vector2 candidate = enemy->GetWorldPosition() + delta;
+
+            if (!CanEnemyMove(candidate))
+            {
+                enemy->ClearMoveRemainder();
+                break;
+            }
+
+            enemy->MoveBy(delta);
+        }
+    }
 }

@@ -31,6 +31,37 @@ void Enemy::TakeDamage(int damageAmount, const std::shared_ptr<Pawn>& damageInst
     Super::TakeDamage(damageAmount, damageInstigator);
 }
 
+Vector2 Enemy::GetChaseDelta(const Vector2& target) const
+{
+    const Vector2 distance = target - GetWorldPosition();
+    if (std::abs(distance.x) >= std::abs(distance.y))
+    {
+        return distance.x >= 0 ? Vector2::Right : Vector2::Right * -1;
+    }
+
+    return distance.y >= 0 ? Vector2::Up * -1: Vector2::Up;
+}
+
+int Enemy::ConsumeMoveSteps(float deltaTime)
+{
+    _moveRemainder += _moveSpeed * deltaTime;
+
+    const int steps = (int)_moveRemainder;
+    _moveRemainder -= steps;
+
+    return steps;
+}
+
+void Enemy::ClearMoveRemainder()
+{
+    _moveRemainder = 0.f;
+}
+
+void Enemy::MoveBy(const Craft::Vector2& delta)
+{
+    SetPosition(GetPosition() + delta);
+}
+
 void Enemy::OnDeath(const std::shared_ptr<Pawn>& damageInstigator)
 {
     // Enemy는 파괴 처리
