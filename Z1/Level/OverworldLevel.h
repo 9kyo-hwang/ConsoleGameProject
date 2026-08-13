@@ -12,8 +12,7 @@ namespace Craft
 
 using TileSpriteMap = std::unordered_map<TileId, std::shared_ptr<const Craft::Sprite>>;
 
-
-
+class Pawn;
 class Player;
 class Enemy;
 class OverworldLevel : public Craft::Level
@@ -34,8 +33,7 @@ private:
     RoomCoordinate GetRoomCoordinate(const Craft::Vector2& mapPosition) const;
     Craft::Vector2 GetRoomWorldOrigin(RoomCoordinate room) const;
 
-    bool CanPlayerMove(const Craft::Vector2& candidate) const;
-    bool CanEnemyMove(const Craft::Vector2& candidate) const;
+    bool CanMoveTo(const Craft::Vector2& destination, const Pawn& mover);
 
     void SpawnRoomEnemies();
     void DestroyRoomEnemies();

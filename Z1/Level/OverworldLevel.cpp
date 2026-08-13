@@ -142,7 +142,7 @@ void OverworldLevel::Tick(float deltaTime)
         {
             const Vector2 candidate = _player->GetWorldPosition() + delta;
 
-            if (!CanPlayerMove(candidate))
+            if (!CanMoveTo(candidate, *_player))
             {
                 _player->ClearMoveRemainder();
                 break;
@@ -319,74 +319,54 @@ Vector2 OverworldLevel::GetRoomWorldOrigin(RoomCoordinate room) const
     };
 }
 
-bool OverworldLevel::CanPlayerMove(const Vector2& candidate) const
+bool OverworldLevel::CanMoveTo(const Craft::Vector2& destination, const Pawn& mover)
 {
-    if (!_player)
+    const auto& moverBox = mover.GetComponent<BoxComponent>();
+    if (!moverBox)
     {
         return false;
     }
 
-    const auto& box = _player->GetComponent<BoxComponent>();
-    if (!box)
+    const Vector2 moverPosition = destination + moverBox->GetOffset();
+    if (!_map.CanOccupyWorldRect(moverPosition, moverBox->GetSize(), MapTileSize))
     {
         return false;
     }
 
-    const Vector2 position = candidate + box->GetOffset();
-    if (!_map.CanOccupyWorldRect(position, box->GetSize(), MapTileSize))
+    auto IsOverlapping = [&mover, &moverPosition, &moverBox](const std::shared_ptr<Pawn>& other) -> bool
+        {
+            if (!other || !other->IsActive() || other.get() == &mover)
+            {
+                return false;
+            }
+
+            const auto& otherBox = other->GetComponent<BoxComponent>();
+            if (!otherBox)
+            {
+                return false;
+            }
+
+            const Vector2 otherPosition = other->GetWorldPosition() + otherBox->GetOffset();
+
+            return Overlaps(moverPosition, moverBox->GetSize(), otherPosition, otherBox->GetSize());
+        };
+
+    if (IsOverlapping(_player))
     {
         return false;
+    }
+
+    if (mover.IsA<Enemy>())
+    {
+        return true;
     }
 
     for (const auto& enemy : _roomEnemies)
     {
-        if (!enemy || !enemy->IsActive())
-        {
-            continue;
-        }
-
-        const auto enemyBox = enemy->GetComponent<BoxComponent>();
-        if (!enemyBox)
-        {
-            continue;
-        }
-
-        const Vector2 enemyPosition = enemy->GetWorldPosition() + enemyBox->GetOffset();
-        if (Overlaps(position, box->GetSize(), enemyPosition, enemyBox->GetSize()))
+        if (IsOverlapping(enemy))
         {
             return false;
         }
-    }
-
-    return true;
-}
-
-bool OverworldLevel::CanEnemyMove(const Craft::Vector2& candidate) const
-{
-    // 1. enemy 검사는 이미 수행됨
-
-    // 2. enemy는 box offset이 zero라고 임시 가정
-
-    if (!_map.CanOccupyWorldRect(candidate, EnemyBoxSize, MapTileSize))
-    {
-        return false;
-    }
-
-    if (!_player || !_player->IsActive())
-    {
-        return false;
-    }
-
-    const auto playerBox = _player->GetComponent<BoxComponent>();
-    if (!playerBox)
-    {
-        return false;
-    }
-
-    const Vector2 playerPosition = _player->GetWorldPosition() + playerBox->GetOffset();
-    if (Overlaps(candidate, EnemyBoxSize, playerPosition, playerBox->GetSize()))
-    {
-        return false;
     }
 
     return true;
@@ -442,7 +422,7 @@ void OverworldLevel::UpdateEnemyMovement(float deltaTime)
             const Vector2 delta = enemy->GetChaseDelta(_player->GetWorldPosition());
             const Vector2 candidate = enemy->GetWorldPosition() + delta;
 
-            if (!CanEnemyMove(candidate))
+            if (!CanMoveTo(candidate, *enemy))
             {
                 enemy->ClearMoveRemainder();
                 break;
