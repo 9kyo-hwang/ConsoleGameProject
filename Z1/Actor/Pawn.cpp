@@ -3,6 +3,14 @@
 
 using namespace Craft;
 
+namespace 
+{
+    constexpr int KnockbackDistance = 4;    // 밀려날 픽셀
+    constexpr float KnockbackSpeed = 40.f;  // 초당 밀려날 속도  
+    constexpr float InvincibleTime = 0.75f;  // 피격 무적 시간
+    constexpr float BlinkInterval = 0.08f;  // 깜빡임 간격
+}
+
 Pawn::Pawn(Vector2 position, int maxHp, float moveSpeed)
     : Super(position)
     , _maxHp(maxHp)
@@ -15,16 +23,50 @@ Pawn::~Pawn()
 {
 }
 
-void Pawn::TakeDamage(int damageAmount, const std::shared_ptr<Pawn>& damageInstigator)
+void Pawn::Tick(float deltaTime)
 {
-    // TODO: 현재 Facing 방향으로 밀림 처리
+    Super::Tick(deltaTime);
 
-    _hp -= damageAmount;
-    if (_hp <= 0)
+    _remainInvincibleTime = std::max(0.f, _remainInvincibleTime - deltaTime);
+}
+
+void Pawn::Draw()
+{
+    // TODO: 추후 SpriteRendererComponent에 SetVisible()을...?
+    if (_remainInvincibleTime > 0.f)
     {
-        _hp = 0;
-        OnDeath(damageInstigator);
+        // 일단 임시로 숨겨진 프레임에선 Draw를 호출 안하도록 수정
+        const int phase = (int)(_remainInvincibleTime / BlinkInterval);
+        if (phase % 2 == 0)
+        {
+            return;
+        }
     }
+
+    Super::Draw();
+}
+
+void Pawn::TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer)
+{
+    if (amount <= 0 || IsDead())
+    {
+        return;
+    }
+
+    if (_remainInvincibleTime > 0.f)
+    {
+        return;
+    }
+
+    _hp = std::max<int>(0, _hp - amount);
+    if (IsDead())
+    {
+        OnDeath(instigator);
+        return;
+    }
+
+    _remainInvincibleTime = InvincibleTime;
+    Knockback(instigator, causer);
 }
 
 int Pawn::ConsumeMoveSteps(float deltaTime)
@@ -47,7 +89,66 @@ void Pawn::MoveBy(const Craft::Vector2& delta)
     SetPosition(GetPosition() + delta);
 }
 
-void Pawn::OnDeath(const std::shared_ptr<Pawn>& damageInstigator)
+int Pawn::ConsumeKnockbackSteps(float deltaTime)
 {
+    if (!IsKnockback())
+    {
+        return 0;
+    }
 
+    _knockbackRemainder += KnockbackSpeed * deltaTime;
+    int steps = std::min<int>((int)_knockbackRemainder, _remainKnockbackSteps);
+
+    _knockbackRemainder -= steps;
+    _remainKnockbackSteps -= steps;
+
+    if (_remainKnockbackSteps == 0)
+    {
+        _knockbackRemainder = 0.f;
+    }
+
+    return steps;
+}
+
+void Pawn::StopKnockback()
+{
+    _knockbackDirection = Vector2::Zero;
+    _remainKnockbackSteps = 0;
+    _knockbackRemainder = 0.f;
+}
+
+void Pawn::Knockback(const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer)
+{
+    Vector2 direction = Vector2::Zero;
+    if (instigator && causer)
+    {
+        // 공격자 -> 무기 방향
+        direction = causer->GetWorldPosition() - instigator->GetWorldPosition();
+    }
+
+    if (direction == Vector2::Zero && instigator)
+    {
+        // 피해자가 공격자로부터 떨어지는 방향 
+        direction = GetWorldPosition() - causer->GetWorldPosition();
+    }
+
+    if (direction == Vector2::Zero)
+    {
+        return;
+    }
+
+    if (std::abs(direction.x) >= std::abs(direction.y))
+    {
+        _knockbackDirection = direction.x >= 0 ? Vector2::Right : Vector2::Right * -1;
+    }
+    else
+    {
+        _knockbackDirection = direction.y >= 0 ? Vector2::Up * -1: Vector2::Up;
+    }
+
+    _remainKnockbackSteps = KnockbackDistance;
+    _knockbackRemainder = 0.f;
+
+    // 이동 누적값이 넉백 직후 적용되지 않도록?
+    ClearMoveRemainder();
 }

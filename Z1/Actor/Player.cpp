@@ -4,6 +4,7 @@
 #include <Component/BoxComponent.h>
 #include <Component/SpriteRendererComponent.h>
 #include <Actor/SwordAttack.h>
+#include <Core/Input.h>
 
 using namespace Craft;
 
@@ -15,6 +16,36 @@ Player::Player(Craft::Vector2 position, int maxHp)
     auto sprite = CreateSprite();
     _box = AddComponent<BoxComponent>(sprite->GetSize(), Vector2::Zero);
     _renderer = AddComponent<SpriteRendererComponent>(sprite, 10);
+}
+
+void Player::Tick(float deltaTime)
+{
+    Super::Tick(deltaTime);
+
+    _moveInput = Vector2::Zero; // 이동 방향을 나타내는 벡터 변수는 배 프레임 reset
+
+    if (Input::Get().GetKey(VK_UP))
+    {
+        SetFacing(Facing::Up);
+        _moveInput = Vector2::Up;
+    }
+    else if (Input::Get().GetKey(VK_DOWN))
+    {
+        SetFacing(Facing::Down);
+        _moveInput = Vector2::Up * -1;
+    }
+    else if (Input::Get().GetKey(VK_LEFT))
+    {
+        SetFacing(Facing::Left);
+        _moveInput = Vector2::Right * -1;
+    }
+    else if (Input::Get().GetKey(VK_RIGHT))
+    {
+        SetFacing(Facing::Right);
+        _moveInput = Vector2::Right;
+    }
+
+
 }
 
 bool Player::IsAttacking() const

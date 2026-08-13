@@ -17,8 +17,12 @@ class Player : public Pawn
 public:
     Player(Craft::Vector2 position, int maxHp);
 
+    void Tick(float deltaTime) override;
+
     inline bool HasSword() const { return _hasSword; }
     void EquipSword() { _hasSword = true; } // TODO: 확장
+
+    inline Craft::Vector2 GetMovementInputDirection() const { return _moveInput; }
 
     bool IsAttacking() const;
     void SetActiveAttack(const std::shared_ptr<SwordAttack>& attack) { _activeAttack = attack; }
@@ -36,4 +40,5 @@ private:
     std::weak_ptr<SwordAttack> _activeAttack;
 
     bool _hasSword = true;  // TEMP
+    Craft::Vector2 _moveInput = Craft::Vector2::Zero;
 };

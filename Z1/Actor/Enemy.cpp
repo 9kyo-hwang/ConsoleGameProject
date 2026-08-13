@@ -26,9 +26,9 @@ void Enemy::Tick(float deltaTime)
     Super::Tick(deltaTime);
 }
 
-void Enemy::TakeDamage(int damageAmount, const std::shared_ptr<Pawn>& damageInstigator)
+void Enemy::TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer)
 {
-    Super::TakeDamage(damageAmount, damageInstigator);
+    Super::TakeDamage(amount, instigator, causer);
 }
 
 Vector2 Enemy::GetChaseDelta(const Vector2& target) const
@@ -42,9 +42,9 @@ Vector2 Enemy::GetChaseDelta(const Vector2& target) const
     return distance.y >= 0 ? Vector2::Up * -1: Vector2::Up;
 }
 
-void Enemy::OnDeath(const std::shared_ptr<Pawn>& damageInstigator)
+void Enemy::OnDeath(const std::shared_ptr<Pawn>& instigator)
 {
-    // Enemy는 파괴 처리
+    // TODO: 사망 이펙트 + 사운드 처리
 
     Destroy();
 }

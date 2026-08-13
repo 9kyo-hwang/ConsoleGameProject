@@ -114,64 +114,31 @@ void OverworldLevel::Tick(float deltaTime)
     // TODO: 나중에 PlayerContoller 같은 걸로 다 이관시켜야 하나?
     if (!_player) return;
 
-    Facing dir = Facing::NONE;
-
-    if (Input::Get().GetKey(VK_UP))         dir = Facing::Up;
-    else if (Input::Get().GetKey(VK_DOWN))  dir = Facing::Down;
-    else if (Input::Get().GetKey(VK_LEFT))  dir = Facing::Left;
-    else if (Input::Get().GetKey(VK_RIGHT)) dir = Facing::Right;
-
-    if (dir != Facing::NONE)
+    const bool playerWasKnockback = UpdatePawnKnockback(*_player, deltaTime);
+    if (!playerWasKnockback)
     {
-        _player->CancelAttack();    // 이동 시 공격 중단
-
-        _player->SetFacing(dir);
-        Vector2 delta = Vector2::Zero;
-
-        switch (dir)
+        const Vector2 movementInputDirection = _player->GetMovementInputDirection();
+        if (movementInputDirection != Vector2::Zero)
         {
-        case Facing::Up: delta = Vector2::Up; break;
-        case Facing::Down: delta = Vector2::Up * -1; break;
-        case Facing::Left: delta = Vector2::Right * -1; break;
-        case Facing::Right: delta = Vector2::Right; break;
-        default:break;
+            _player->CancelAttack();    // 이동 시 공격 중단
+            UpdatePlayerMovement(deltaTime, movementInputDirection);
         }
-
-        const int moveSteps = _player->ConsumeMoveSteps(deltaTime);
-        for (int i = 0; i < moveSteps; ++i)
+        else if (_player->HasSword() && Input::Get().GetKeyDown(VK_SPACE) && !_player->IsAttacking())
         {
-            const Vector2 candidate = _player->GetWorldPosition() + delta;
-
-            if (!CanMoveTo(candidate, *_player))
+            Vector2 offset = Vector2::Zero;
+            switch (_player->GetFacing())
             {
-                _player->ClearMoveRemainder();
-                break;
+            case Facing::Up:    offset = Vector2::Up; break;
+            case Facing::Down:  offset = Vector2::Up * -1; break;
+            case Facing::Left:  offset = Vector2::Right * -1; break;
+            case Facing::Right: offset = Vector2::Right; break;
+            default:break;
             }
 
-            const RoomCoordinate nextRoom = GetRoomCoordinate(candidate);
-            _player->MoveBy(delta); // 적 Spawn할 때 Player 유무를 검사하기 때문에, 먼저 이동시킴
-
-            if (nextRoom != _currentRoom)
-            {
-                ChangeRoom(nextRoom);
-            }
+            auto attack = SpawnActor<SwordAttack>(offset, _player, 1);
+            attack->AttachTo(_player, false);
+            _player->SetActiveAttack(attack);
         }
-    }
-    else if (_player->HasSword() && Input::Get().GetKeyDown(VK_SPACE) && !_player->IsAttacking())
-    {
-        Vector2 offset = Vector2::Zero;
-        switch (_player->GetFacing())
-        {
-        case Facing::Up:    offset = Vector2::Up; break;
-        case Facing::Down:  offset = Vector2::Up * -1; break;
-        case Facing::Left:  offset = Vector2::Right * -1; break;
-        case Facing::Right: offset = Vector2::Right; break;
-        default:break;
-        }
-
-        auto attack = SpawnActor<SwordAttack>(offset, _player, 1);
-        attack->AttachTo(_player, false);
-        _player->SetActiveAttack(attack);
     }
 
     UpdateEnemyMovement(deltaTime);
@@ -225,11 +192,11 @@ bool OverworldLevel::LoadMap()
     return true;
 }
 
-void OverworldLevel::ChangeRoom(RoomCoordinate room)
+bool OverworldLevel::TryChangeRoom(RoomCoordinate room)
 {
     if (room == _currentRoom)
     {
-        return;
+        return false;
     }
 
     DestroyRoomEnemies();   // 원래 Room 적 날리고
@@ -238,6 +205,8 @@ void OverworldLevel::ChangeRoom(RoomCoordinate room)
     BuildRoomSprite();
 
     SpawnRoomEnemies();     // 새로운 Room 적 생성하고
+    
+    return true;
 }
 
 /*
@@ -372,6 +341,36 @@ bool OverworldLevel::CanMoveTo(const Craft::Vector2& destination, const Pawn& mo
     return true;
 }
 
+bool OverworldLevel::UpdatePawnKnockback(Pawn& pawn, float deltaTime)
+{
+    if (!pawn.IsKnockback())
+    {
+        return false;
+    }
+
+    const Vector2 direction = pawn.GetKnockbackDirection();
+    const int steps = pawn.ConsumeKnockbackSteps(deltaTime);
+
+    for (int i = 0; i < steps; ++i)
+    {
+        const Vector2 destination = pawn.GetWorldPosition() + direction;
+        if (!CanMoveTo(destination, pawn))
+        {
+            pawn.StopKnockback();
+            break;
+        }
+
+        pawn.MoveBy(direction);
+
+        if (pawn.IsA<Player>())
+        {
+            TryChangeRoom(GetRoomCoordinate(pawn.GetWorldPosition()));
+        }
+    }
+
+    return true;
+}
+
 void OverworldLevel::SpawnRoomEnemies()
 {
     if (!_player || _currentRoom == StartRoom)
@@ -407,11 +406,35 @@ void OverworldLevel::DestroyRoomEnemies()
     _roomEnemies.clear();
 }
 
+void OverworldLevel::UpdatePlayerMovement(float deltaTime, const Vector2& delta)
+{
+    const int moveSteps = _player->ConsumeMoveSteps(deltaTime);
+    for (int i = 0; i < moveSteps; ++i)
+    {
+        const Vector2 candidate = _player->GetWorldPosition() + delta;
+
+        if (!CanMoveTo(candidate, *_player))
+        {
+            _player->ClearMoveRemainder();
+            break;
+        }
+
+        const RoomCoordinate nextRoom = GetRoomCoordinate(candidate);
+        _player->MoveBy(delta); // 적 Spawn할 때 Player 유무를 검사하기 때문에, 먼저 이동시킴
+        TryChangeRoom(nextRoom);
+    }
+}
+
 void OverworldLevel::UpdateEnemyMovement(float deltaTime)
 {
     for (const auto& enemy : _roomEnemies)
     {
         if (!enemy || !enemy->IsActive())
+        {
+            continue;
+        }
+
+        if (UpdatePawnKnockback(*enemy, deltaTime))
         {
             continue;
         }

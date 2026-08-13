@@ -27,17 +27,19 @@ public:
 
 private:
     bool LoadMap();
-    void ChangeRoom(RoomCoordinate room);
+    bool TryChangeRoom(RoomCoordinate room);
     void BuildRoomSprite();
     
     RoomCoordinate GetRoomCoordinate(const Craft::Vector2& mapPosition) const;
     Craft::Vector2 GetRoomWorldOrigin(RoomCoordinate room) const;
 
     bool CanMoveTo(const Craft::Vector2& destination, const Pawn& mover);
+    bool UpdatePawnKnockback(Pawn& pawn, float deltaTime);
 
     void SpawnRoomEnemies();
     void DestroyRoomEnemies();
 
+    void UpdatePlayerMovement(float deltaTime, const Craft::Vector2& delta);
     void UpdateEnemyMovement(float deltaTime);
 
 private:

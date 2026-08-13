@@ -41,7 +41,7 @@ void SwordAttack::OnCollision(const std::shared_ptr<Craft::Actor>& other)
         return;
     }
 
-    enemy->TakeDamage(_damage, _damageInstigator.lock());
+    enemy->TakeDamage(_damage, _damageInstigator.lock(), shared_from_this());
     
     _hasHit = true;
     Destroy();
