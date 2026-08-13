@@ -113,6 +113,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Actor\CollisionTestActor.cpp" />
+    <ClCompile Include="Actor\Enemy.cpp" />
     <ClCompile Include="Level\DevelopmentLevel.cpp" />
     <ClCompile Include="Level\ClearLevel.cpp" />
     <ClCompile Include="Level\GameplayLevel.cpp" />
@@ -121,6 +122,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClCompile Include="Actor\Player.cpp" />
     <ClCompile Include="Level\OverworldLevel.cpp" />
     <ClCompile Include="Actor\SwordAttack.cpp" />
+    <ClCompile Include="Actor\Pawn.cpp" />
     <ClCompile Include="World\OverworldMap.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -130,6 +132,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Actor\CollisionTestActor.h" />
+    <ClInclude Include="Actor\Enemy.h" />
     <ClInclude Include="Level\DevelopmentLevel.h" />
     <ClInclude Include="Level\ClearLevel.h" />
     <ClInclude Include="Level\GameplayLevel.h" />
@@ -137,6 +140,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClInclude Include="Actor\Player.h" />
     <ClInclude Include="Level\OverworldLevel.h" />
     <ClInclude Include="Actor\SwordAttack.h" />
+    <ClInclude Include="Actor\Pawn.h" />
     <ClInclude Include="World\OverworldMap.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Level\TitleLevel.h" />

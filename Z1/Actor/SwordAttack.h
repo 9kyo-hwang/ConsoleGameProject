@@ -7,6 +7,10 @@ class SwordAttack : public Craft::Actor
 
 public:
     SwordAttack(const Craft::Vector2& spawnPosition);
+    
+    void Tick(float deltaTime) override;
 
+private:
+    float _lifetime = 0.5f;
 };
 

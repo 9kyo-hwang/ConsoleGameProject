@@ -13,6 +13,8 @@
     <ClCompile Include="Level\OverworldLevel.cpp" />
     <ClCompile Include="Actor\SwordAttack.cpp" />
     <ClCompile Include="World\OverworldMap.cpp" />
+    <ClCompile Include="Actor\Pawn.cpp" />
+    <ClCompile Include="Actor\Enemy.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -26,5 +28,7 @@
     <ClInclude Include="Level\OverworldLevel.h" />
     <ClInclude Include="Actor\SwordAttack.h" />
     <ClInclude Include="World\OverworldMap.h" />
+    <ClInclude Include="Actor\Pawn.h" />
+    <ClInclude Include="Actor\Enemy.h" />
   </ItemGroup>
 </Project>

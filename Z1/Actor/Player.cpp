@@ -3,11 +3,12 @@
 
 #include <Component/BoxComponent.h>
 #include <Component/SpriteRendererComponent.h>
+#include <Actor/SwordAttack.h>
 
 using namespace Craft;
 
-Player::Player(Craft::Vector2 position)
-    : Super(position)
+Player::Player(Craft::Vector2 position, int maxHp)
+    : Super(position, maxHp)
 {
     // 렌더러에서 스케일에 비례하게 박스 크기를 늘리지 않도록 변경되어
     // 명시적으로 박스 크기를 렌더 스케일로 지정
@@ -35,6 +36,31 @@ void Player::ClearMoveRemainder()
 void Player::MoveBy(const Craft::Vector2& delta)
 {
     SetPosition(GetPosition() + delta);
+}
+
+bool Player::IsAttacking() const
+{
+    if (auto attack = _activeAttack.lock())
+    {
+        return attack->IsActive();
+    }
+
+    return false;
+}
+
+void Player::CancelAttack()
+{
+    if (auto attack = _activeAttack.lock())
+    {
+        attack->Destroy();
+    }
+
+    _activeAttack.reset();
+}
+
+void Player::OnDeath(const std::shared_ptr<Craft::Actor>& damageInstigator)
+{
+    // TODO: 사망 연출(?) -> 게임 오버 표시 -> Restart or Quit 선택 레벨
 }
 
 std::shared_ptr<const Craft::Sprite> Player::CreateSprite()

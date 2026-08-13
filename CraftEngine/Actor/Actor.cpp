@@ -84,6 +84,11 @@ namespace Craft
 
     void Actor::Destroy()
 	{
+        if (hasExpired)
+        {
+            return;
+        }
+
 		hasExpired = true;
 
         // 자식 Actor의 파괴 결정은 여전히 Actor의 책임

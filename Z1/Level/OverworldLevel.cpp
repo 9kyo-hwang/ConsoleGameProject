@@ -7,6 +7,7 @@
 #include <Component/BoxComponent.h>
 #include <filesystem>
 #include <Engine/Engine.h>
+#include <Actor/SwordAttack.h>
 
 using namespace Craft;
 using FilePath = std::filesystem::path;
@@ -24,7 +25,7 @@ using FilePath = std::filesystem::path;
 
 namespace
 {
-    const Vector2 MapTileSize(5, 3);
+    const Vector2 MapTileSize(10, 5);
     const Vector2 RoomScreenOffset(0, 3);
 
     std::shared_ptr<const Sprite> MakeTileSprite(char glyph, Color color)
@@ -82,7 +83,7 @@ void OverworldLevel::BeginPlay()
     }
 
     // 월드 좌표
-    _player = SpawnActor<Player>(GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize);
+    _player = SpawnActor<Player>(GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize, 6);
 
     if (!_bgmStarted)
     {
@@ -95,37 +96,67 @@ void OverworldLevel::Tick(float deltaTime)
 {
     Level::Tick(deltaTime);
 
+    // TODO: 나중에 PlayerContoller 같은 걸로 다 이관시켜야 하나?
     if (!_player) return;
 
-    Vector2 direction = Vector2::Zero;
+    Facing dir = Facing::NONE;
 
-    if (Input::Get().GetKey(VK_UP)) direction = Vector2::Up;
-    else if (Input::Get().GetKey(VK_DOWN)) direction = Vector2::Up * -1;
-    else if (Input::Get().GetKey(VK_LEFT)) direction = Vector2::Right * -1;
-    else if (Input::Get().GetKey(VK_RIGHT)) direction = Vector2::Right;
+    if (Input::Get().GetKey(VK_UP))         dir = Facing::Up;
+    else if (Input::Get().GetKey(VK_DOWN))  dir = Facing::Down;
+    else if (Input::Get().GetKey(VK_LEFT))  dir = Facing::Left;
+    else if (Input::Get().GetKey(VK_RIGHT)) dir = Facing::Right;
 
-    // TODO: Facing 전환
-
-    if (direction == Vector2::Zero) return;
-
-    const int moveSteps = _player->ConsumeMoveSteps(deltaTime);
-    for (int i = 0; i < moveSteps; ++i)
+    if (dir != Facing::NONE)
     {
-        const Vector2 candidate = _player->GetWorldPosition() + direction;
-        
-        if (!CanMove(candidate))
+        _player->CancelAttack();    // 이동 시 공격 중단
+
+        _player->SetFacing(dir);
+        Vector2 delta = Vector2::Zero;
+
+        switch (dir)
         {
-            _player->ClearMoveRemainder();
-            break;
+        case Facing::Up: delta = Vector2::Up; break;
+        case Facing::Down: delta = Vector2::Up * -1; break;
+        case Facing::Left: delta = Vector2::Right * -1; break;
+        case Facing::Right: delta = Vector2::Right; break;
+        default:break;
         }
 
-        const RoomCoordinate nextRoom = GetRoomCoordinate(candidate);
-        if (nextRoom != _currentRoom)
+        const int moveSteps = _player->ConsumeMoveSteps(deltaTime);
+        for (int i = 0; i < moveSteps; ++i)
         {
-            ChangeRoom(nextRoom);
+            const Vector2 candidate = _player->GetWorldPosition() + delta;
+
+            if (!CanMove(candidate))
+            {
+                _player->ClearMoveRemainder();
+                break;
+            }
+
+            const RoomCoordinate nextRoom = GetRoomCoordinate(candidate);
+            if (nextRoom != _currentRoom)
+            {
+                ChangeRoom(nextRoom);
+            }
+
+            _player->MoveBy(delta);
+        }
+    }
+    else if (_player->HasSword() && Input::Get().GetKeyDown(VK_SPACE) && !_player->IsAttacking())
+    {
+        Vector2 offset = Vector2::Zero;
+        switch (_player->GetFacing())
+        {
+        case Facing::Up:    offset = Vector2::Up; break;
+        case Facing::Down:  offset = Vector2::Up * -1; break;
+        case Facing::Left:  offset = Vector2::Right * -1; break;
+        case Facing::Right: offset = Vector2::Right; break;
+        default:break;
         }
 
-        _player->MoveBy(direction);
+        auto attack = SpawnActor<SwordAttack>(offset);
+        attack->AttachTo(_player, false);
+        _player->SetActiveAttack(attack);
     }
 }
 

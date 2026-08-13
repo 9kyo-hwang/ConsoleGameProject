@@ -1,6 +1,5 @@
 ﻿#pragma once
-#include <Actor/Actor.h>
-#include <functional>
+#include <Actor/Pawn.h>
 
 namespace Craft
 {
@@ -9,27 +8,28 @@ namespace Craft
     class Sprite;
 }
 
-enum Facing
-{
-    Up = 0,
-    Right,
-    Down,
-    Left
-};
+class SwordAttack;
 
-class Player : public Craft::Actor
+class Player : public Pawn
 {
-    TYPE_DECLARATIONS(Player, Craft::Actor)
+    TYPE_DECLARATIONS(Player, Pawn)
 
 public:
-    Player(Craft::Vector2 position);
+    Player(Craft::Vector2 position, int maxHp);
 
     int ConsumeMoveSteps(float deltaTime);
     void ClearMoveRemainder();
     void MoveBy(const Craft::Vector2& delta);
 
-    inline Facing GetFacing() const { return _facing; }
-    void SetFacing(Facing facing) { _facing = facing; }
+    inline bool HasSword() const { return _hasSword; }
+    void EquipSword() { _hasSword = true; } // TODO: 확장
+
+    bool IsAttacking() const;
+    void SetActiveAttack(const std::shared_ptr<SwordAttack>& attack) { _activeAttack = attack; }
+    void CancelAttack();
+
+protected:
+    void OnDeath(const std::shared_ptr<Craft::Actor>& damageInstigator) override;
 
 private:
     std::shared_ptr<const Craft::Sprite> CreateSprite();
@@ -37,8 +37,10 @@ private:
 private:
     std::shared_ptr<Craft::BoxComponent> _box;
     std::shared_ptr<Craft::SpriteRendererComponent> _renderer;
+    std::weak_ptr<SwordAttack> _activeAttack;
 
-    Facing _facing = Facing::Down;
-    float _moveSpeed = 10.f;    // 초당 셀 20칸
+    float _moveSpeed = 20.f;    // 초당 셀 20칸
     float _moveRemainder = 0.f;
+
+    bool _hasSword = true;  // TEMP
 };
