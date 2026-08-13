@@ -8,34 +8,13 @@
 using namespace Craft;
 
 Player::Player(Craft::Vector2 position, int maxHp)
-    : Super(position, maxHp)
+    : Super(position, maxHp, 20.f)
 {
     // 렌더러에서 스케일에 비례하게 박스 크기를 늘리지 않도록 변경되어
     // 명시적으로 박스 크기를 렌더 스케일로 지정
     auto sprite = CreateSprite();
     _box = AddComponent<BoxComponent>(sprite->GetSize(), Vector2::Zero);
     _renderer = AddComponent<SpriteRendererComponent>(sprite, 10);
-}
-
-int Player::ConsumeMoveSteps(float deltaTime)
-{
-    _moveRemainder += _moveSpeed * deltaTime;
-
-    const int steps = (int)_moveRemainder;
-    _moveRemainder -= steps;
-
-    return steps;
-}
-
-void Player::ClearMoveRemainder()
-{
-    _moveRemainder = 0.f;
-}
-
-// 이동 판정은 Room, 기본 이동 책임만 수행
-void Player::MoveBy(const Craft::Vector2& delta)
-{
-    SetPosition(GetPosition() + delta);
 }
 
 bool Player::IsAttacking() const

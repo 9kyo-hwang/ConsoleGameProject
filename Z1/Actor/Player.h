@@ -17,10 +17,6 @@ class Player : public Pawn
 public:
     Player(Craft::Vector2 position, int maxHp);
 
-    int ConsumeMoveSteps(float deltaTime);
-    void ClearMoveRemainder();
-    void MoveBy(const Craft::Vector2& delta);
-
     inline bool HasSword() const { return _hasSword; }
     void EquipSword() { _hasSword = true; } // TODO: 확장
 
@@ -38,9 +34,6 @@ private:
     std::shared_ptr<Craft::BoxComponent> _box;
     std::shared_ptr<Craft::SpriteRendererComponent> _renderer;
     std::weak_ptr<SwordAttack> _activeAttack;
-
-    float _moveSpeed = 20.f;    // 초당 셀 20칸
-    float _moveRemainder = 0.f;
 
     bool _hasSword = true;  // TEMP
 };

@@ -15,7 +15,7 @@ class Pawn : public Craft::Actor
     TYPE_DECLARATIONS(Pawn, Craft::Actor)
 
 public:
-    Pawn(Craft::Vector2 position, int maxHp);
+    Pawn(Craft::Vector2 position, int maxHp, float moveSpeed);
     ~Pawn() override;
 
     // 내가 피해를 입었을 때 호출하는 API
@@ -26,12 +26,19 @@ public:
     inline Facing GetFacing() const { return _facing; }
     void SetFacing(Facing facing) { _facing = facing; }
 
+    int ConsumeMoveSteps(float deltaTime);
+    void ClearMoveRemainder();
+    void MoveBy(const Craft::Vector2& delta);
+
 protected:
     virtual void OnDeath(const std::shared_ptr<Pawn>& damageInstigator);
+    void SetMoveSpeed(float moveSpeed);
 
 private:
     Facing _facing = Facing::Up;
     int _maxHp = 0;
     int _hp = 0;
+    float _moveSpeed = 20.f;    // 초당 셀 20칸
+    float _moveRemainder = 0.f;
 };
 

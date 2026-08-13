@@ -15,15 +15,7 @@ public:
     // 목표 방향 계산 -> 이동은 Level에서
     Craft::Vector2 GetChaseDelta(const Craft::Vector2& target) const;
 
-    int ConsumeMoveSteps(float deltaTime);
-    void ClearMoveRemainder();
-    void MoveBy(const Craft::Vector2& delta);
-
 protected:
     void OnDeath(const std::shared_ptr<Pawn>& damageInstigator) override;
-
-private:
-    float _moveSpeed = 8.f;
-    float _moveRemainder = 0.f;
 };
 
