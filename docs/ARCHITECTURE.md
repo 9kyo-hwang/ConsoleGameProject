@@ -139,11 +139,15 @@ SoundSystem의 전역 `Sound` 클래스는 WAV를 경로별로 캐시한다. 원
 
 Z1의 `Game`은 Title, Overworld, Gameplay, Clear, Development Level을 예약 전환한다. 실제 지상 필드는 `OverworldLevel`이 담당한다. `OverworldMap`은 `Content/Z1/Maps/Overworld`의 256×88 TileId·Blocking 맵을 각각 검증하고, 같은 좌표의 `TileId`와 `walkable`을 하나의 2차원 Cell 그리드에 보관한다. 별도 로더, 중간 맵 데이터, Room 데이터 객체는 없으며 Room은 전체 Map에서 현재 화면에 표시할 16×11 논리 타일 구간을 뜻한다.
 
-`OverworldLevel`은 별도 Catalog 클래스 없이 `TileId`와 `Sprite`의 `unordered_map`을 소유한다. 현재 등록된 1×1 문자 Sprite의 첫 셀을 Z1 전용 `MapTileSize (5, 3)`만큼 반복해 현재 Room의 실제 80×33 콘솔 Sprite를 만들고, Renderer는 이를 확대 없이 그린다. 향후 타일별 ASCII 아트를 적용할 때는 같은 map의 다중 셀 Sprite를 Room 배경에 복사한다. Player를 포함한 Actor는 각자 제작한 Sprite 크기와 Box를 사용하므로 Map 타일 크기에 종속되지 않는다.
+`OverworldLevel`은 별도 Catalog 클래스 없이 `TileId`와 `Sprite`의 `unordered_map`을 소유한다. 현재 등록된 1×1 문자 Sprite의 첫 셀을 Z1 전용 `MapTileSize (10, 5)`만큼 반복해 현재 Room의 실제 160×55 콘솔 Sprite를 만들고, Renderer는 이를 확대 없이 그린다. 향후 타일별 ASCII 아트를 적용할 때는 같은 map의 다중 셀 Sprite를 Room 배경에 복사한다. Player를 포함한 Actor는 각자 제작한 Sprite 크기와 Box를 사용하므로 Map 타일 크기에 종속되지 않는다.
 
-Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 후보의 Box가 겹치는 모든 타일을 `OverworldMap::CanOccupyWorldRect`로 검사하고, 후보 월드 좌표가 다른 80×33 Room 영역에 들어가면 `OverworldMap::GetTileId(x, y)`로 새 16×11 구간을 직접 조회해 배경 캐시를 다시 만든다. `OverworldLevel`은 현재 Room의 월드 원점을 Renderer View의 `worldOrigin`으로 설정하고 화면 `(0, 3)`부터 표시한다. Actor 위치는 Room 전환 때 변환하거나 재설정하지 않는다.
+Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 후보의 Box가 겹치는 모든 타일을 `OverworldMap::CanOccupyWorldRect`로 검사하고, 후보 월드 좌표가 다른 160×55 Room 영역에 들어가면 `OverworldMap::GetTileId(x, y)`로 새 16×11 구간을 직접 조회해 배경 캐시를 다시 만든다. `OverworldLevel`은 현재 Room의 월드 원점을 Renderer View의 `worldOrigin`으로 설정하고 화면 `(0, 3)`부터 표시한다. Actor 위치는 Room 전환 때 변환하거나 재설정하지 않는다.
 
-`DevelopmentLevel`과 `CollisionTestActor`는 Sprite·2D Box 충돌을 수동으로 확인하는 별도 장면이다. `SwordAttack` 타입은 등록되어 있지만 아직 Overworld 전투 흐름에 연결되지 않았다.
+`Pawn`은 Player와 Enemy가 공유하는 HP, facing, 셀 단위 이동 누산, 피해·사망, 넉백과 피격 무적 상태를 담당한다. Player는 매 Tick 현재 이동 입력과 마지막 facing을 분리해 갱신하고, Enemy는 현재 Player를 향하는 축 방향을 선택한다. 실제 지형·Pawn 점유 판정과 이동 적용은 `OverworldLevel::CanMoveTo` 및 각 업데이트 함수가 담당한다. Player는 Enemy와 겹칠 수 없지만 Enemy끼리는 서로 통과한다.
+
+`EnemySpawner`는 시작 Room `(7, 7)`을 제외한 Room 좌표와 월드 시드로 결정적인 스폰 계획을 만든다. Room을 나가면 기존 Enemy를 파괴하고 새 Room의 통행 가능한 임의 위치에 다시 생성한다. `SwordAttack`은 Player에 attach되는 짧은 수명의 Actor이며 Enemy 충돌 시 공격자·피해 원인을 함께 전달해 한 번만 피해를 준다. 살아남은 Pawn은 공격 방향 반대로 밀려나고 짧은 무적 시간 동안 깜빡인다. 현재 Enemy는 추적 이동만 하며 Enemy 공격과 구체 적 타입 분화는 아직 구현되지 않았다.
+
+`DevelopmentLevel`과 `CollisionTestActor`는 Sprite·2D Box 충돌을 수동으로 확인하는 별도 장면이다.
 
 ## 현재 경계와 확장 시점
 

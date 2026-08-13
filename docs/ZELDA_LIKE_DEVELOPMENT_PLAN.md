@@ -83,7 +83,7 @@
 - 상단 일부 행은 HUD, 나머지는 하나의 Room이 들어가는 플레이 영역이다.
 - 원작 자료의 `16 x 16`은 NES 픽셀 단위이며 CraftEngine 콘솔 셀 크기가 아니다.
 - Room의 논리 격자는 기본 `16 x 11` 타일로 고정한다.
-- 현재 Overworld 구현에서 논리 타일 하나의 콘솔 footprint는 `5 x 3` 셀이다. 이는 콘솔 글자 비율 보정값이며, Renderer의 모든 Sprite 크기를 제한하는 규칙이 아니다.
+- 현재 Overworld 구현에서 논리 타일 하나의 콘솔 footprint는 `10 x 5` 셀이다. 이는 콘솔 글자 비율 보정값이며, Renderer의 모든 Sprite 크기를 제한하는 규칙이 아니다.
 - Transform과 collider는 전체 Map 기준 월드 셀 단위를 사용하고 Sprite는 실제 콘솔 셀 크기를 사용한다.
 - 부드러운 속도가 필요하면 ShootingGame처럼 Actor 내부에 float 위치를 누적하고 Transform에는 정수 결과만 기록한다.
 
@@ -93,7 +93,7 @@
 
 - Room txt의 토큰 하나는 콘솔 셀 하나나 Actor 하나가 아니라 논리 타일 ID다. 기본 파일은 `16`개 토큰씩 `11`행을 갖고, 토큰은 공백으로 구분된 16진수 ID다.
 - 타일 ID의 시각 정보는 `OverworldLevel`이 소유한 TileId-Sprite map에서 조회하고, 통행 정보는 전체 `OverworldMap`의 Cell Grid에서 조회한다.
-- 논리 타일은 Z1의 `MapTileSize`에 따라 콘솔 셀로 확장한다. 현재 구현은 `5 x 3`이며, 원작의 `16 x 16` 픽셀을 직접 의미하지 않는다.
+- 논리 타일은 Z1의 `MapTileSize`에 따라 콘솔 셀로 확장한다. 현재 구현은 `10 x 5`이며, 원작의 `16 x 16` 픽셀을 직접 의미하지 않는다.
 - 정적 지형은 타일 Sprite를 하나의 방 배경 Sprite로 합성하고, 통행 판정은 별도 BlockingMap에서 수행한다.
 - 플레이어, 적, 아이템과 보스처럼 동작이 필요한 대상만 Spawn Actor로 만든다.
 - 출구, 진입 위치와 스폰은 지형 타일 파일과 분리된 Room 메타데이터로 관리한다. 지형과 엔티티 토큰을 한 파일에 섞지 않는다.
@@ -159,7 +159,7 @@ Title, Gameplay, Clear는 현재 API로 구현 가능하므로 Level 개편은 �
 
 ```text
 Z1/
-├─ Actor/       Player, SwordAttack, EnemyBase, 적, 투사체, Boss
+├─ Actor/       Pawn, Player, SwordAttack, Enemy, 적 파생 타입, 투사체, Boss
 ├─ Game/        Z1Game, GameSession
 ├─ Level/       TitleLevel, OverworldLevel, ClearLevel
 ├─ World/       OverworldMap
@@ -185,11 +185,11 @@ Z1/
 - Area: 여러 Room을 묶는 지상, 동굴 또는 던전 단위의 콘텐츠 그룹
 - Room: 별도 데이터 객체가 아니라 전체 Map에서 현재 화면에 표시하는 16×11 논리 타일 구간
 
-필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. Overworld는 `Content/Z1/Maps/Overworld`의 `256 x 88` 원본 TileId/Blocking 맵을 `OverworldMap` 하나가 읽어 2차원 Cell Grid로 보관한다. 현재 Room의 `16 x 11` TileId는 별도 데이터로 추출하지 않고 전체 Map 좌표로 직접 조회한다. `OverworldLevel`의 TileId-Sprite map에서 찾은 문자 Sprite를 `MapTileSize (5, 3)`만큼 펼쳐 실제 Room 배경을 만들고, 통행 판정은 전체 Map에 Player의 월드 Box를 질의한다. Player의 전역 월드 좌표가 다른 Room 영역에 들어가면 배경과 Renderer View를 교체하며 Player Transform은 유지한다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
+필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. Overworld는 `Content/Z1/Maps/Overworld`의 `256 x 88` 원본 TileId/Blocking 맵을 `OverworldMap` 하나가 읽어 2차원 Cell Grid로 보관한다. 현재 Room의 `16 x 11` TileId는 별도 데이터로 추출하지 않고 전체 Map 좌표로 직접 조회한다. `OverworldLevel`의 TileId-Sprite map에서 찾은 문자 Sprite를 `MapTileSize (10, 5)`만큼 펼쳐 실제 Room 배경을 만들고, 통행 판정은 전체 Map에 Pawn의 월드 Box를 질의한다. Player의 전역 월드 좌표가 다른 Room 영역에 들어가면 배경과 Renderer View를 교체하며 Player Transform은 유지한다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
 
 ### 플레이어와 공격
 
-플레이어는 facing, float 누적 위치, 이동/공격 상태, 체력, 무기 보유, 공격 쿨다운과 피격 무적 타이머를 가진다.
+`Pawn`은 Player와 Enemy가 공유하는 체력, facing, 이동 속도 누산, 피해·사망, 넉백과 피격 무적 상태를 가진다. Player는 현재 프레임의 이동 입력과 마지막 facing을 분리해 유지하며, 무기 보유와 활성 공격을 관리한다.
 
 검은 짧은 수명의 별도 SwordAttack Actor로 구현한다.
 
@@ -203,7 +203,7 @@ Z1/
 
 ### 적과 보스
 
-EnemyBase에는 체력, 피해, 피격/사망처럼 실제 공유되는 최소 행동만 둔다. 이동과 공격 패턴은 구체 타입에 둔다. 첫 버전은 추적형, 배회형, 원거리형 정도면 충분하며 행동 트리 대신 작은 상태 enum과 타이머를 사용한다.
+`Enemy`는 `Pawn`을 상속하고 공통 사망 처리와 적 행동의 확장 지점만 가진다. 이동과 공격 패턴은 구체 타입에 둔다. 현재 단일 Enemy는 Player를 향해 한 축씩 추적하며, 두 번째 적 타입부터 추적형·배회형·원거리형으로 분리한다. 행동 트리 대신 작은 상태 enum과 타이머를 사용한다.
 
 보스도 이동, 투사체 또는 접촉 공격, 높은 체력과 사망 처리부터 시작한다. 보스가 죽으면 Session의 클리어 상태를 설정하고 ClearLevel을 예약한다.
 
@@ -217,7 +217,7 @@ EnemyBase에는 체력, 피해, 피격/사망처럼 실제 공유되는 최소 �
 4. Player의 월드 위치를 그대로 이동한다.
 5. Draw에서 새 Room 월드 원점을 Renderer View에 설정한다.
 
-적과 아이템 같은 Room 전용 Actor가 추가되면 Room 변경 시 Destroy/Spawn과 입력 잠금 또는 전환 연출을 이 절차에 추가한다. 동굴과 특수 워프는 별도 메타데이터가 필요하다.
+현재 Enemy는 Room 변경 시 기존 인스턴스를 Destroy하고 `EnemySpawner`가 새 Room 좌표와 월드 시드로 만든 계획에 따라 다시 Spawn한다. 아이템, 입력 잠금과 전환 연출은 아직 없으며 동굴과 특수 워프에는 별도 메타데이터가 필요하다.
 
 ## 구현 순서와 완료 기준
 
@@ -249,11 +249,13 @@ EnemyBase에는 체력, 피해, 피격/사망처럼 실제 공유되는 최소 �
 
 ### 단계 3: 한 방 전투 버티컬 슬라이스
 
-- 고정 `MapTileSize(5, 3)`, 논리 타일 좌표와 월드 셀 좌표 변환
+- 고정 `MapTileSize(10, 5)`, 논리 타일 좌표와 월드 셀 좌표 변환
 - `256 x 88` Overworld TileId/Blocking 파일을 읽고 `16 x 11` Room 하나를 추출
 - TileId/Sprite 연결, 4방향 플레이어, 검, 적 하나, 체력 HUD와 사망
 
 완료: 이동, 공격, 피격, 적 사망과 플레이어 사망의 전체 루프가 동작한다.
+
+현재 상태: Player 검 공격, Enemy 피해·사망, 공통 넉백과 피격 무적까지 구현했다. Enemy 공격, Player 사망 흐름과 체력 HUD는 남아 있다.
 
 ### 단계 4: Room 전환
 

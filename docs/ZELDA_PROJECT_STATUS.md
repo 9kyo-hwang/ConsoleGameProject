@@ -5,10 +5,10 @@
 ## 현재 진행
 
 - 현재 단계: 단계 3 - 한 방 전투 버티컬 슬라이스
-- 현재 작업: 전체 Overworld 월드 좌표 기반 이동과 인접 Room 전환 기반 완성
-- 상태: 단계 0, 단계 1, 단계 2 완료. 단계 3의 Overworld 배경·전역 통행 판정·플레이어 이동과 기본 인접 Room 전환까지 구현됨
-- 다음 작업: 전투에 필요한 플레이어 방향과 공격 연결
-- 마지막 검증: Z1 빌드 성공 및 실행에서 BlockingMap 이동 제한과 인접 Room 전환 확인
+- 현재 작업: Overworld 전투 버티컬 슬라이스 구현
+- 상태: 단계 0, 단계 1, 단계 2 완료. 단계 3의 Player 검 공격, Enemy 배치·추적·피해·사망과 Pawn 공통 넉백·피격 무적까지 구현됨
+- 다음 작업: Enemy 공격과 Player 피격·사망 흐름 연결
+- 마지막 검증: 실행에서 Room별 Enemy 임의 배치·추적, HP 2 Enemy의 2회 피격 사망, 인접한 검 공격의 넉백 확인
 
 ## 완료 및 검증
 
@@ -38,12 +38,23 @@
 - [x] 같은 좌표의 TileId/walkable을 하나의 2차원 Cell Grid에 보관
 - [x] Room `(7,7)` 및 `(0,0)`의 16x11 구간을 전체 Map 좌표로 직접 조회해 TileId 일치 확인
 - [x] `OverworldLevel`의 TileId-Sprite map으로 현재 Room의 TileId 일부를 문자 Sprite로 매핑
-- [x] 논리 타일을 `MapTileSize (5,3)`으로 펼쳐 실제 80x33 Room 배경 Sprite 생성
+- [x] 논리 타일을 `MapTileSize (10,5)`으로 펼쳐 실제 160x55 Room 배경 Sprite 생성
 - [x] Renderer의 Sprite Scale을 제거하고 Sprite를 실제 크기 그대로 1:1 출력
 - [x] Renderer의 World/View 변환과 화면 좌표 제출 경로 분리
 - [x] Player Actor의 Transform을 전체 Map 기준 월드 좌표로 관리하고 자체 Sprite 크기로 Box 생성
 - [x] `BlockingMap`을 `OverworldMap::CanOccupyWorldRect` 전역 이동 판정에 연결
 - [x] Player 월드 좌표로 Room 변경을 감지하고 인접 Room 배경과 View 전환 확인
+- [x] Player와 Enemy의 HP·피해·사망 기반 클래스 `Pawn` 추가
+- [x] Player 검 공격에 공격자, 피해 원인과 공격당 1회 피해 전달
+- [x] 시작 Room `(7,7)`을 제외한 Room의 통행 가능한 임의 위치에 Enemy 생성
+- [x] Room 좌표와 월드 시드 기반 스폰 계획을 `EnemySpawner`로 분리
+- [x] Room 전환 시 기존 Enemy 제거 및 새 Room Enemy 생성
+- [x] Enemy가 Player를 향해 한 축씩 추적 이동
+- [x] Player/Enemy 공통 이동 누산과 이동 API를 `Pawn`으로 통합
+- [x] 지형과 Pawn 점유 이동 판정을 `OverworldLevel::CanMoveTo`로 통합
+- [x] Player-Enemy 이동 차단과 Enemy 간 통과 정책 적용
+- [x] Pawn 피격 시 공격 반대 방향 넉백, 벽 충돌 중단과 짧은 무적·깜빡임 구현
+- [x] Player의 현재 이동 입력과 마지막 facing 분리
 
 ## 상태 기록 규칙
 
@@ -90,8 +101,13 @@ SweptBounds 수정 후 Z1 실행 검증까지 완료했다. 기존 두 게임의
 
 단계 3 한 방 전투 버티컬 슬라이스는 다음을 만족하면 완료로 본다.
 
-- [x] `MapTileSize(5, 3)`과 논리 타일/월드 셀 좌표 변환을 확정
+- [x] `MapTileSize(10, 5)`과 논리 타일/월드 셀 좌표 변환을 확정
 - [x] Overworld 원본 맵을 `Content`에서 읽고 최소 Room 하나의 구간을 직접 조회
 - [x] TileId를 `OverworldLevel`의 TileId-Sprite map에 매핑
 - [x] 지형 Sprite를 화면에 합성
 - [x] 지형 통행 가능 여부를 이동 판정에 연결
+- [x] 검 공격으로 Enemy에 피해를 주고 HP 0에서 제거
+- [x] Room별 Enemy 생성·제거와 Player 추적 이동
+- [x] Player와 Enemy 공통 넉백 및 피격 무적
+- [ ] Enemy 공격과 Player 피격 연결
+- [ ] Player 사망 처리와 체력 HUD
