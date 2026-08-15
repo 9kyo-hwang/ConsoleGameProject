@@ -15,6 +15,9 @@ using TileSpriteMap = std::unordered_map<TileId, std::shared_ptr<const Craft::Sp
 class Pawn;
 class Player;
 class Enemy;
+class Projectile;
+struct ProjectileSpec;
+
 class OverworldLevel : public Craft::Level
 {
 public:
@@ -24,6 +27,9 @@ public:
     void Tick(float deltaTime) override;
     void Draw() override;
     void EndPlay() override;
+
+    bool CanProjectileOccupy(Craft::Vector2 destination, const Projectile& projectile);
+    std::shared_ptr<Projectile> SpawnProjectile(Craft::Vector2 position, const ProjectileSpec& spec, const std::shared_ptr<Pawn>& instigator);
 
 private:
     bool LoadMap();
@@ -42,6 +48,8 @@ private:
     void UpdatePlayerMovement(float deltaTime, const Craft::Vector2& delta);
     void UpdateEnemyMovement(float deltaTime);
 
+    void DestroyRoomProjectiles();
+
 private:
     inline static constexpr RoomCoordinate StartRoom{ 7, 7 };
 
@@ -59,5 +67,7 @@ private:
     EnemySpawner _enemySpawner;
     std::vector<std::shared_ptr<Enemy>> _roomEnemies;   // 현재 룸에 생성된 적 별도 보관
     uint32_t _worldSeed = 12345u;
+
+    std::vector<std::shared_ptr<Projectile>> _roomProjectiles;
 };
 

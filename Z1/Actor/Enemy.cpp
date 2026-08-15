@@ -26,9 +26,9 @@ void Enemy::Tick(float deltaTime)
     Super::Tick(deltaTime);
 }
 
-void Enemy::TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer)
+int Enemy::TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer)
 {
-    Super::TakeDamage(amount, instigator, causer);
+    return Super::TakeDamage(amount, instigator, causer);
 }
 
 Vector2 Enemy::GetChaseDelta(const Vector2& target) const

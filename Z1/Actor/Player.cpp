@@ -5,6 +5,7 @@
 #include <Component/SpriteRendererComponent.h>
 #include <Actor/SwordAttack.h>
 #include <Core/Input.h>
+#include <Actor/Projectile.h>
 
 using namespace Craft;
 
@@ -44,8 +45,21 @@ void Player::Tick(float deltaTime)
         SetFacing(Facing::Right);
         _moveInput = Vector2::Right;
     }
+}
 
+bool Player::Shieldable(const Projectile& projectile) const
+{
+    if (IsAttacking())
+    {
+        return false;
+    }
 
+    if (!projectile.Shieldable())
+    {
+        return false;
+    }
+
+    return GetFacingDirection() == projectile.Direction() * -1;
 }
 
 bool Player::IsAttacking() const

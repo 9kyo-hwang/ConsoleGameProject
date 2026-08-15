@@ -8,6 +8,7 @@ using namespace Craft;
 
 SwordAttack::SwordAttack(const Craft::Vector2& position, std::shared_ptr<Pawn> damageInstigator, int damage)
     : Super(position)
+    , _timer(0.5f)
     , _damageInstigator(damageInstigator)
     , _damage(damage)
 {
@@ -19,8 +20,8 @@ void SwordAttack::Tick(float deltaTime)
 {
     Super::Tick(deltaTime);
 
-    _lifetime -= deltaTime;
-    if (_lifetime <= 0.f)
+    _timer.Tick(deltaTime);
+    if (_timer.TimeOver())
     {
         Destroy();
     }

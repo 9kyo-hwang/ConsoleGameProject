@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <Actor/Actor.h>
+#include <Util/Timer.h>
 
 class Pawn;
 
@@ -15,7 +16,7 @@ public:
 
 private:
     std::weak_ptr<Pawn> _damageInstigator;
-    float _lifetime = 0.5f;
+    Timer _timer;
     int _damage = 1;
     bool _hasHit = false;   // 1회만 공격하도록
 };

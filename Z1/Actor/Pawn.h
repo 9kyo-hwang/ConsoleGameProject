@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <Actor/Actor.h>
+#include <Util/Timer.h>
 
 enum class Facing
 {
@@ -24,7 +25,7 @@ public:
     void Tick(float deltaTime) override;
     void Draw() override;
 
-    virtual void TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer);
+    virtual int TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer);
 
     int ConsumeMoveSteps(float deltaTime);
     void ClearMoveRemainder();
@@ -36,9 +37,12 @@ public:
 public:
     inline int GetHp() const { return _hp; }
     inline bool IsDead() const { return _hp <= 0; }
+    inline bool IsFullHp() const { return _hp == _maxHp; }
 
     inline Facing GetFacing() const { return _facing; }
     inline void SetFacing(Facing facing) { _facing = facing; }
+
+    Craft::Vector2 GetFacingDirection() const;
 
     inline bool IsKnockback() const { return _remainKnockbackSteps > 0; }
     inline Craft::Vector2 GetKnockbackDirection() const { return _knockbackDirection; }
@@ -62,6 +66,7 @@ private:
     Craft::Vector2 _knockbackDirection = Craft::Vector2::Zero;
     int _remainKnockbackSteps = 0;
     float _knockbackRemainder = 0.f;
-    float _remainInvincibleTime = 0.f;
+
+    Timer _invincibleTimer;
 };
 

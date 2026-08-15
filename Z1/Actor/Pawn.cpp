@@ -16,7 +16,9 @@ Pawn::Pawn(Vector2 position, int maxHp, float moveSpeed)
     , _maxHp(maxHp)
     , _hp(maxHp)
     , _moveSpeed(moveSpeed)
+    , _invincibleTimer(InvincibleTime)
 {
+    _invincibleTimer.Complete();
 }
 
 Pawn::~Pawn()
@@ -26,17 +28,16 @@ Pawn::~Pawn()
 void Pawn::Tick(float deltaTime)
 {
     Super::Tick(deltaTime);
-
-    _remainInvincibleTime = std::max(0.f, _remainInvincibleTime - deltaTime);
+    _invincibleTimer.Tick(deltaTime);
 }
 
 void Pawn::Draw()
 {
     // TODO: 추후 SpriteRendererComponent에 SetVisible()을...?
-    if (_remainInvincibleTime > 0.f)
+    if (!_invincibleTimer.TimeOver())
     {
         // 일단 임시로 숨겨진 프레임에선 Draw를 호출 안하도록 수정
-        const int phase = (int)(_remainInvincibleTime / BlinkInterval);
+        const int phase = (int)(_invincibleTimer.ElapsedTime() / BlinkInterval);
         if (phase % 2 == 0)
         {
             return;
@@ -46,27 +47,31 @@ void Pawn::Draw()
     Super::Draw();
 }
 
-void Pawn::TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer)
+int Pawn::TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer)
 {
     if (amount <= 0 || IsDead())
     {
-        return;
+        return 0;
     }
 
-    if (_remainInvincibleTime > 0.f)
+    if (!_invincibleTimer.TimeOver())
     {
-        return;
+        return 0;
     }
 
-    _hp = std::max<int>(0, _hp - amount);
+    int actualDamage = std::min<int>(amount, _hp);
+    _hp -= actualDamage;
+
     if (IsDead())
     {
         OnDeath(instigator);
-        return;
+        return actualDamage;
     }
 
-    _remainInvincibleTime = InvincibleTime;
+    _invincibleTimer.Reset();
     Knockback(instigator, causer);
+
+    return actualDamage;
 }
 
 int Pawn::ConsumeMoveSteps(float deltaTime)
@@ -115,6 +120,18 @@ void Pawn::StopKnockback()
     _knockbackDirection = Vector2::Zero;
     _remainKnockbackSteps = 0;
     _knockbackRemainder = 0.f;
+}
+
+Craft::Vector2 Pawn::GetFacingDirection() const
+{
+    switch (GetFacing())
+    {
+    case Facing::Up:    return Vector2::Up;
+    case Facing::Right: return Vector2::Right;
+    case Facing::Down:  return Vector2::Up * -1;
+    case Facing::Left:  return Vector2::Right * -1;
+    default: return Vector2::Zero;
+    }
 }
 
 void Pawn::Knockback(const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer)

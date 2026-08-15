@@ -11,6 +11,7 @@
 #include <Actor/Enemy.h>
 #include <Math/MathUtility.h>
 #include <set>
+#include <Actor/Projectile.h>
 
 using namespace Craft;
 using FilePath = std::filesystem::path;
@@ -123,21 +124,32 @@ void OverworldLevel::Tick(float deltaTime)
             _player->CancelAttack();    // 이동 시 공격 중단
             UpdatePlayerMovement(deltaTime, movementInputDirection);
         }
-        else if (_player->HasSword() && Input::Get().GetKeyDown(VK_SPACE) && !_player->IsAttacking())
+        else if (_player->HasSword() && Input::Get().GetKeyDown('A') && !_player->IsAttacking())
         {
-            Vector2 offset = Vector2::Zero;
-            switch (_player->GetFacing())
-            {
-            case Facing::Up:    offset = Vector2::Up; break;
-            case Facing::Down:  offset = Vector2::Up * -1; break;
-            case Facing::Left:  offset = Vector2::Right * -1; break;
-            case Facing::Right: offset = Vector2::Right; break;
-            default:break;
-            }
+            Vector2 direction = _player->GetFacingDirection();
 
-            auto attack = SpawnActor<SwordAttack>(offset, _player, 1);
+            auto attack = SpawnActor<SwordAttack>(direction, _player, 1);
             attack->AttachTo(_player, false);
             _player->SetActiveAttack(attack);
+
+            if (_player->IsFullHp())
+            {
+                ProjectileSpec swordBeam
+                {
+                    .type = ProjectileType::SwordBeam,
+                    .faction = ProjectileFaction::Player,
+                    .damage = 1,
+                    .speed = 40.f,
+                    .lifetime = 1.5f,
+                    .direction = direction,
+                    .boxSize = Vector2::One,
+                    .image = "*",
+                    .color = Color::White,
+                    .sortingOrder = 11
+                };
+
+                SpawnProjectile(_player->GetWorldPosition() + direction, swordBeam, _player);
+            }
         }
     }
 
@@ -173,6 +185,29 @@ void OverworldLevel::EndPlay()
     _bgmStarted = false;
 }
 
+bool OverworldLevel::CanProjectileOccupy(Craft::Vector2 destination, const Projectile& projectile)
+{
+    const auto box = projectile.GetComponent<BoxComponent>();
+    if (!box)
+    {
+        return false;
+    }
+
+    const Vector2 boxPos = destination + box->GetOffset();
+    return _map.CanOccupyWorldRect(boxPos, box->GetSize(), MapTileSize);
+}
+
+std::shared_ptr<Projectile> OverworldLevel::SpawnProjectile(Craft::Vector2 position, const ProjectileSpec& spec, const std::shared_ptr<Pawn>& instigator)
+{
+    auto projectile = SpawnActor<Projectile>(position, spec, instigator);
+    if (projectile)
+    {
+        _roomProjectiles.emplace_back(projectile);
+    }
+
+    return projectile;
+}
+
 bool OverworldLevel::LoadMap()
 {
     const FilePath basePath = "../Content/Z1/Maps/Overworld";
@@ -200,10 +235,11 @@ bool OverworldLevel::TryChangeRoom(RoomCoordinate room)
     }
 
     DestroyRoomEnemies();   // 원래 Room 적 날리고
+    DestroyRoomProjectiles();
 
     _currentRoom = room;
-    BuildRoomSprite();
 
+    BuildRoomSprite();
     SpawnRoomEnemies();     // 새로운 Room 적 생성하고
     
     return true;
@@ -454,4 +490,17 @@ void OverworldLevel::UpdateEnemyMovement(float deltaTime)
             enemy->MoveBy(delta);
         }
     }
+}
+
+void OverworldLevel::DestroyRoomProjectiles()
+{
+    for (const auto& projectile : _roomProjectiles)
+    {
+        if (projectile)
+        {
+            projectile->Destroy();
+        }
+    }
+
+    _roomProjectiles.clear();
 }

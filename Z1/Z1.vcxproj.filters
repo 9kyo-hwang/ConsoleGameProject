@@ -8,7 +8,6 @@
     <ClCompile Include="Level\GameplayLevel.cpp" />
     <ClCompile Include="Level\ClearLevel.cpp" />
     <ClCompile Include="Level\DevelopmentLevel.cpp" />
-    <ClCompile Include="Actor\CollisionTestActor.cpp" />
     <ClCompile Include="Actor\Player.cpp" />
     <ClCompile Include="Level\OverworldLevel.cpp" />
     <ClCompile Include="Actor\SwordAttack.cpp" />
@@ -16,6 +15,7 @@
     <ClCompile Include="Actor\Pawn.cpp" />
     <ClCompile Include="Actor\Enemy.cpp" />
     <ClCompile Include="Level\EnemySpawner.cpp" />
+    <ClCompile Include="Actor\Projectile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -24,7 +24,6 @@
     <ClInclude Include="Level\GameplayLevel.h" />
     <ClInclude Include="Level\ClearLevel.h" />
     <ClInclude Include="Level\DevelopmentLevel.h" />
-    <ClInclude Include="Actor\CollisionTestActor.h" />
     <ClInclude Include="Actor\Player.h" />
     <ClInclude Include="Level\OverworldLevel.h" />
     <ClInclude Include="Actor\SwordAttack.h" />
@@ -33,5 +32,7 @@
     <ClInclude Include="Actor\Enemy.h" />
     <ClInclude Include="Level\EnemySpawner.h" />
     <ClInclude Include="Level\Room.h" />
+    <ClInclude Include="Actor\Projectile.h" />
+    <ClInclude Include="Util\Timer.h" />
   </ItemGroup>
 </Project>

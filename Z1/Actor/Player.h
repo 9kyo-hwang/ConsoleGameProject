@@ -9,6 +9,7 @@ namespace Craft
 }
 
 class SwordAttack;
+class Projectile;
 
 class Player : public Pawn
 {
@@ -24,6 +25,7 @@ public:
 
     inline Craft::Vector2 GetMovementInputDirection() const { return _moveInput; }
 
+    bool Shieldable(const Projectile& projectile) const;
     bool IsAttacking() const;
     void SetActiveAttack(const std::shared_ptr<SwordAttack>& attack) { _activeAttack = attack; }
     void CancelAttack();
