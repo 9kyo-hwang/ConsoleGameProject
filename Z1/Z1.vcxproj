@@ -124,6 +124,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClCompile Include="Actor\SwordAttack.cpp" />
     <ClCompile Include="Actor\Pawn.cpp" />
     <ClCompile Include="Actor\Projectile.cpp" />
+    <ClCompile Include="Actor\Octorok.cpp" />
     <ClCompile Include="World\OverworldMap.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -133,6 +134,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Actor\Enemy.h" />
+    <ClInclude Include="Actor\EnemyTypes.h" />
     <ClInclude Include="Level\EnemySpawner.h" />
     <ClInclude Include="Level\DevelopmentLevel.h" />
     <ClInclude Include="Level\ClearLevel.h" />
@@ -144,6 +146,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClInclude Include="Actor\Pawn.h" />
     <ClInclude Include="Level\Room.h" />
     <ClInclude Include="Actor\Projectile.h" />
+    <ClInclude Include="Actor\Octorok.h" />
     <ClInclude Include="Util\Timer.h" />
     <ClInclude Include="World\OverworldMap.h" />
     <ClInclude Include="pch.h" />

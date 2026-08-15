@@ -194,6 +194,11 @@ bool OverworldLevel::CanProjectileOccupy(Craft::Vector2 destination, const Proje
     }
 
     const Vector2 boxPos = destination + box->GetOffset();
+    if (!IsInsideCurrentRoom(boxPos, box->GetSize()))
+    {
+        return false;
+    }
+
     return _map.CanOccupyWorldRect(boxPos, box->GetSize(), MapTileSize);
 }
 
@@ -206,6 +211,18 @@ std::shared_ptr<Projectile> OverworldLevel::SpawnProjectile(Craft::Vector2 posit
     }
 
     return projectile;
+}
+
+std::shared_ptr<Enemy> OverworldLevel::SpawnEnemy(const EnemySpawnData& spawn)
+{
+    // SpawnActor<Octorok>, ... maxHp는 제거됨
+    switch (spawn.kind)
+    {
+    case EnemyKind::Octorok: return SpawnActor<Octorok>(spawn.worldPosition, spawn.variant);
+    case EnemyKind::Moblin:
+    default:
+        return nullptr;
+    }
 }
 
 bool OverworldLevel::LoadMap()
@@ -333,6 +350,14 @@ bool OverworldLevel::CanMoveTo(const Craft::Vector2& destination, const Pawn& mo
     }
 
     const Vector2 moverPosition = destination + moverBox->GetOffset();
+    if (mover.IsA<Enemy>())
+    {
+        if (!IsInsideCurrentRoom(moverPosition, moverBox->GetSize()))
+        {
+            return false;
+        }
+    }
+
     if (!_map.CanOccupyWorldRect(moverPosition, moverBox->GetSize(), MapTileSize))
     {
         return false;
@@ -425,7 +450,11 @@ void OverworldLevel::SpawnRoomEnemies()
 
     for (const auto& spawn : spawnPlan)
     {
-        _roomEnemies.push_back(SpawnActor<Enemy>(spawn.worldPosition, spawn.maxHp));
+        if (auto enemy = SpawnEnemy(spawn))
+        {
+            _roomEnemies.emplace_back(enemy);
+        }
+        //_roomEnemies.push_back(SpawnActor<Enemy>(spawn.worldPosition, spawn.maxHp));
     }
 }
 
@@ -470,6 +499,16 @@ void OverworldLevel::UpdateEnemyMovement(float deltaTime)
             continue;
         }
 
+        enemy->Think(deltaTime, *_player);
+        
+        EnemyAttackRequest request;
+        if (enemy->ConsumeAttackRequest(request))
+        {
+            SpawnProjectile(enemy->GetWorldPosition() + request.spawnOffset, request.projectile, enemy);
+        }
+
+        const Vector2 delta = enemy->GetDesiredMove();
+
         if (UpdatePawnKnockback(*enemy, deltaTime))
         {
             continue;
@@ -478,12 +517,13 @@ void OverworldLevel::UpdateEnemyMovement(float deltaTime)
         const int moveSteps = enemy->ConsumeMoveSteps(deltaTime);
         for (int i = 0; i < moveSteps; ++i)
         {
-            const Vector2 delta = enemy->GetChaseDelta(_player->GetWorldPosition());
+            //const Vector2 delta = enemy->GetChaseDelta(_player->GetWorldPosition());
             const Vector2 candidate = enemy->GetWorldPosition() + delta;
 
             if (!CanMoveTo(candidate, *enemy))
             {
                 enemy->ClearMoveRemainder();
+                enemy->OnMoveBlocked();
                 break;
             }
 
@@ -503,4 +543,28 @@ void OverworldLevel::DestroyRoomProjectiles()
     }
 
     _roomProjectiles.clear();
+}
+
+bool OverworldLevel::IsInsideCurrentRoom(Craft::Vector2 boxPosition, Craft::Vector2 boxSize)
+{
+    if (boxSize.x <= 0 || boxSize.y <= 0) return false;
+
+    const Vector2 origin = GetRoomWorldOrigin(_currentRoom);
+
+    const Vector2 roomSize{ RoomTileWidth * MapTileSize.x, RoomTileHeight * MapTileSize.y };
+
+    const int left = boxPosition.x;
+    const int top = boxPosition.y;
+    const int right = left + boxSize.x - 1;
+    const int bottom = top + boxSize.y - 1;
+
+    const int roomLeft = origin.x;
+    const int roomTop = origin.y;
+    const int roomRight = roomLeft + roomSize.x - 1;
+    const int roomBottom = roomTop + roomSize.y - 1;
+
+    return left >= roomLeft &&
+        top >= roomTop &&
+        right <= roomRight &&
+        bottom <= roomBottom;
 }

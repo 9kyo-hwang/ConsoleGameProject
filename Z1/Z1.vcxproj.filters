@@ -16,6 +16,7 @@
     <ClCompile Include="Actor\Enemy.cpp" />
     <ClCompile Include="Level\EnemySpawner.cpp" />
     <ClCompile Include="Actor\Projectile.cpp" />
+    <ClCompile Include="Actor\Octorok.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -34,5 +35,7 @@
     <ClInclude Include="Level\Room.h" />
     <ClInclude Include="Actor\Projectile.h" />
     <ClInclude Include="Util\Timer.h" />
+    <ClInclude Include="Actor\EnemyTypes.h" />
+    <ClInclude Include="Actor\Octorok.h" />
   </ItemGroup>
 </Project>

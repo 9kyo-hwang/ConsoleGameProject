@@ -49,7 +49,12 @@ std::vector<EnemySpawnData> EnemySpawner::BuildSpawnPlan(RoomCoordinate room, co
         }
 
         selected.emplace(worldPosition);
-        data.emplace_back(worldPosition, 2);
+        data.push_back(EnemySpawnData
+            {
+                .kind = EnemyKind::Octorok,
+                .variant = EnemyVariant::Red,
+                .worldPosition = worldPosition
+            });
     }
 
     return data;

@@ -5,10 +5,10 @@
 
 using namespace Craft;
 
-Enemy::Enemy(Vector2 position, int maxHp)
-    : Super(position, maxHp, 8.f)
+Enemy::Enemy(Craft::Vector2 position, int maxHp, float moveSpeed, const std::string& image, Craft::Color color)
+    : Super(position, maxHp, moveSpeed)
 {
-    AddComponent<SpriteRendererComponent>("E", Color::Red, 11);
+    AddComponent<SpriteRendererComponent>(image, color, 11);
     AddComponent<BoxComponent>(Vector2::One);
 }
 
@@ -16,14 +16,23 @@ Enemy::~Enemy()
 {
 }
 
-void Enemy::BeginPlay()
+void Enemy::Think(float deltaTime, const Player& player)
 {
-    Super::BeginPlay();
+    // 기본은 Player 추적
+    desiredMove = GetChaseDelta(player.GetWorldPosition());
 }
 
-void Enemy::Tick(float deltaTime)
+bool Enemy::ConsumeAttackRequest(EnemyAttackRequest& outRequest)
 {
-    Super::Tick(deltaTime);
+    if (!_attackRequest.has_value())
+    {
+        return false;
+    }
+
+    outRequest = std::move(*_attackRequest);
+    _attackRequest.reset();
+
+    return true;
 }
 
 int Enemy::TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer)
@@ -47,4 +56,12 @@ void Enemy::OnDeath(const std::shared_ptr<Pawn>& instigator)
     // TODO: 사망 이펙트 + 사운드 처리
 
     Destroy();
+}
+
+void Enemy::RequestAttack(const EnemyAttackRequest& request)
+{
+    if (!_attackRequest.has_value())
+    {
+        _attackRequest = request;
+    }
 }

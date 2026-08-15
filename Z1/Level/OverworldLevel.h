@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <Level/Room.h>
 #include <Level/EnemySpawner.h>
+#include <Actor/Octorok.h>
 
 namespace Craft
 {
@@ -30,6 +31,7 @@ public:
 
     bool CanProjectileOccupy(Craft::Vector2 destination, const Projectile& projectile);
     std::shared_ptr<Projectile> SpawnProjectile(Craft::Vector2 position, const ProjectileSpec& spec, const std::shared_ptr<Pawn>& instigator);
+    std::shared_ptr<Enemy> SpawnEnemy(const EnemySpawnData& spawn);
 
 private:
     bool LoadMap();
@@ -49,6 +51,8 @@ private:
     void UpdateEnemyMovement(float deltaTime);
 
     void DestroyRoomProjectiles();
+
+    bool IsInsideCurrentRoom(Craft::Vector2 boxPosition, Craft::Vector2 boxSize);
 
 private:
     inline static constexpr RoomCoordinate StartRoom{ 7, 7 };

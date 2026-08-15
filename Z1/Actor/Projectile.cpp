@@ -46,6 +46,12 @@ void Projectile::Tick(float deltaTime)
         return;
     }
 
+    if (!level->CanProjectileOccupy(GetWorldPosition(), *this))
+    {
+        Destroy();
+        return;
+    }
+
     // 한 프레임에 이동하는 칸 수만큼 검사
     const int moveSteps = ConsumeMoveSteps(deltaTime);
     for (int step = 0; step < moveSteps;++step)
