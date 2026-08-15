@@ -84,6 +84,7 @@ void Player::CancelAttack()
 
 void Player::OnDeath(const std::shared_ptr<Pawn>& damageInstigator)
 {
+    CancelAttack();
     // TODO: 사망 연출(?) -> 게임 오버 표시 -> Restart or Quit 선택 레벨
 }
 

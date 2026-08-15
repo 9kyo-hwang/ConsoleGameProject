@@ -36,6 +36,7 @@ public:
     
 public:
     inline int GetHp() const { return _hp; }
+    inline int GetMaxHp() const { return _maxHp; }
     inline bool IsDead() const { return _hp <= 0; }
     inline bool IsFullHp() const { return _hp == _maxHp; }
 

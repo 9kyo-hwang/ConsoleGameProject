@@ -7,7 +7,7 @@ using namespace Craft;
 
 namespace
 {
-    int GetMaxHp(EnemyVariant variant)
+    int MaxHp(EnemyVariant variant)
     {
         switch (variant)
         {
@@ -27,7 +27,7 @@ namespace
 }
 
 Octorok::Octorok(Craft::Vector2 position, EnemyVariant variant)
-    : Super(position, GetMaxHp(variant), 8.f, "O", GetColor(variant))
+    : Super(position, MaxHp(variant), 8.f, "O", GetColor(variant))
     , _variant(variant)
     , _rotateTimer(0.75f)
     , _attackTimer(1.5f)

@@ -14,6 +14,7 @@ enum class State
     Overworld,
     Gameplay,
     Clear,
+    GameOver,
     Development,
     END
 };

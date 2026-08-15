@@ -12,6 +12,7 @@
 #include <Math/MathUtility.h>
 #include <set>
 #include <Actor/Projectile.h>
+#include <Game/Game.h>
 
 using namespace Craft;
 using FilePath = std::filesystem::path;
@@ -99,7 +100,7 @@ void OverworldLevel::BeginPlay()
     }
 
     // 월드 좌표
-    _player = SpawnActor<Player>(GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize, 6);
+    _player = SpawnActor<Player>(GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize, 1);
 
     if (!_bgmStarted)
     {
@@ -114,6 +115,13 @@ void OverworldLevel::Tick(float deltaTime)
 
     // TODO: 나중에 PlayerContoller 같은 걸로 다 이관시켜야 하나?
     if (!_player) return;
+
+    if (_player->IsDead())
+    {
+        Game& game = dynamic_cast<Game&>(Engine::Get());
+        game.ChangeLevel(State::GameOver);
+        return;
+    }
 
     const bool playerWasKnockback = UpdatePawnKnockback(*_player, deltaTime);
     if (!playerWasKnockback)
@@ -175,6 +183,12 @@ void OverworldLevel::Draw()
     Level::Draw();
 
     renderer.Submit("[Overworld Level]", Vector2::Zero);
+
+    if (_player)
+    {
+        const std::string hp = "[HP " + std::to_string(_player->GetHp()) + "/" + std::to_string(_player->GetMaxHp()) + "]";
+        renderer.Submit(hp, Vector2(2, 1));
+    }
 }
 
 void OverworldLevel::EndPlay()
