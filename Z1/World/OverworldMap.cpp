@@ -179,7 +179,6 @@ bool OverworldMap::ParseTileMap(const FilePath& path, Grid& output, std::string&
     }
 
     return true;
-
 }
 
 bool OverworldMap::ParseBlockingMap(const FilePath& path, Grid& output, std::string& errorMessage)

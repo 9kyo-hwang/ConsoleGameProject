@@ -12,6 +12,7 @@ enum class State
 {
     Title,
     Overworld,
+    SwordCave,
     Gameplay,
     Clear,
     GameOver,
@@ -25,10 +26,15 @@ public:
     Game();
     ~Game() override = default;
 
+    void StartNewGame();
     void ChangeLevel(State state);
+
+    inline bool HasSword() const { return _hasSword; }
+    void SetHasSword(bool value) { _hasSword = value; }
 
 private:
     State _state = State::Title;
     std::vector<std::shared_ptr<Craft::Level>> _levels{};
+    bool _hasSword = false;
 };
 

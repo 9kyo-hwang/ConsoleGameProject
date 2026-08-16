@@ -41,6 +41,6 @@ private:
     std::shared_ptr<Craft::SpriteRendererComponent> _renderer;
     std::weak_ptr<SwordAttack> _activeAttack;
 
-    bool _hasSword = true;  // TEMP
+    bool _hasSword = false;  // TEMP
     Craft::Vector2 _moveInput = Craft::Vector2::Zero;
 };

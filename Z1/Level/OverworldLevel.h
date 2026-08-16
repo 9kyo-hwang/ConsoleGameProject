@@ -19,6 +19,12 @@ class Enemy;
 class Projectile;
 struct ProjectileSpec;
 
+enum class EntranceType
+{
+    SwordCave,
+    // Dungeon1, ...
+};
+
 class OverworldLevel : public Craft::Level
 {
 public:
@@ -55,6 +61,9 @@ private:
     bool IsInsideCurrentRoom(Craft::Vector2 boxPosition, Craft::Vector2 boxSize);
 
     void TakeContactDamageToPlayer();
+
+    std::optional<EntranceType> ResolveEntrance(Craft::Vector2 destination, const Pawn& mover);
+    bool TryEnterEntrance(Craft::Vector2 destination);
 
 private:
     inline static constexpr RoomCoordinate StartRoom{ 7, 7 };

@@ -33,7 +33,9 @@ namespace
     const Vector2 MapTileSize(10, 5);
     const Vector2 RoomScreenOffset(0, 3);
 
-    const Vector2 EnemyBoxSize(1, 1);
+    constexpr TileId EntryMarkerTileId = 0x12;
+    constexpr int StartSwordCaveLocalX = 4; // 스타팅 룸에서 동굴 입구 논리 좌표
+    constexpr int StartSwordCaveLocalY = 1;
 
     std::shared_ptr<const Sprite> MakeTileSprite(char glyph, Color color)
     {
@@ -124,8 +126,19 @@ void OverworldLevel::BeginPlay()
         LoadMap();
     }
 
-    if (!_loaded || _player)
+    if (!_loaded)
     {
+        return;
+    }
+
+    if (_player)
+    {
+        Game& game = dynamic_cast<Game&>(Engine::Get());
+        if (game.HasSword())
+        {
+            _player->EquipSword();
+        }
+
         return;
     }
 
@@ -219,6 +232,9 @@ void OverworldLevel::Draw()
     {
         const std::string hp = "[HP " + std::to_string(_player->GetHp()) + "/" + std::to_string(_player->GetMaxHp()) + "]";
         renderer.Submit(hp, Vector2(2, 1));
+
+        const std::string sword = _player->HasSword() ? "[SWORD]" : "[NO SWORD]";
+        renderer.Submit(sword, Vector2(20, 1));
     }
 }
 
@@ -522,6 +538,11 @@ void OverworldLevel::UpdatePlayerMovement(float deltaTime, const Vector2& delta)
     for (int i = 0; i < moveSteps; ++i)
     {
         const Vector2 candidate = _player->GetWorldPosition() + delta;
+        if (TryEnterEntrance(candidate))    // 0x12가 기본적으로 Block이라 먼저 검사
+        {
+            _player->ClearMoveRemainder();
+            break;
+        }
 
         if (!CanMoveTo(candidate, *_player))
         {
@@ -634,4 +655,91 @@ void OverworldLevel::TakeContactDamageToPlayer()
             _player->TakeDamage(1, enemy, enemy);
         }
     }
+}
+
+/*
+* TileId가 0x12인지 검사
+* Room 좌표 확인
+* Room 내부 타일 좌표 확인
+* (7, 7) Room의 (4, 1) Tile이면 SwordCave
+*/
+std::optional<EntranceType> OverworldLevel::ResolveEntrance(Vector2 destination, const Pawn& mover)
+{
+    auto box = mover.GetComponent<BoxComponent>();
+    if (!box) return std::nullopt;
+
+    Vector2 boxPos = destination + box->GetOffset();
+    Vector2 boxSize = box->GetSize();
+
+    int left = boxPos.x;
+    int top = boxPos.y;
+    int right = left + boxSize.x - 1;
+    int bottom = top + boxSize.y - 1;
+
+    int mapWidth = OverworldMap::Width * MapTileSize.x;
+    int mapHeight = OverworldMap::Height * MapTileSize.y;
+
+    if (left < 0 || top < 0 || right >= mapWidth || bottom >= mapHeight)
+    {
+        return std::nullopt;
+    }
+
+    int minTileX = left / MapTileSize.x;
+    int minTileY = top / MapTileSize.y;
+    int maxTileX = right / MapTileSize.x;
+    int maxTileY = bottom / MapTileSize.y;
+
+    for (int tileY = minTileY; tileY <= maxTileY; ++tileY)
+    {
+        for (int tileX = minTileX; tileX <= maxTileX; ++tileX)
+        {
+            if (_map.GetTileId(tileX, tileY) != EntryMarkerTileId)
+            {
+                continue;
+            }
+
+            int roomX = tileX / RoomTileWidth;
+            int roomY = tileY / RoomTileHeight;
+            RoomCoordinate room{ roomX, roomY };
+
+            int localX = tileX % RoomTileWidth;
+            int localY = tileY % RoomTileHeight;
+
+            if (room == StartRoom &&
+                localX == StartSwordCaveLocalX &&
+                localY == StartSwordCaveLocalY)
+            {
+                return EntranceType::SwordCave;
+            }
+
+            // 분류되지 않은 0x12
+        }
+    }
+
+    return std::nullopt;
+}
+
+bool OverworldLevel::TryEnterEntrance(Vector2 destination)
+{
+    if (!_player) return false;
+
+    auto entrance = ResolveEntrance(destination, *_player);
+    if (!entrance) return false;
+
+    switch (*entrance)
+    {
+    case EntranceType::SwordCave:
+    {
+        Game& game = dynamic_cast<Game&>(Engine::Get());
+
+        game.SetHasSword(_player->HasSword());
+        game.ChangeLevel(State::SwordCave);
+
+        _player->ClearMoveRemainder();
+
+        return true;
+    }
+    }
+
+    return false;
 }

@@ -6,17 +6,31 @@
 #include <Level/ClearLevel.h>
 #include <Level/GameOverLevel.h>
 #include <Level/DevelopmentLevel.h>
+#include <Level/CaveLevel.h>
 
 Game::Game()
 {
-    _levels.emplace_back(std::make_shared<TitleLevel>());
-    _levels.emplace_back(std::make_shared<OverworldLevel>());
-    _levels.emplace_back(std::make_shared<GameplayLevel>());
-    _levels.emplace_back(std::make_shared<ClearLevel>());
-    _levels.emplace_back(std::make_shared<GameOverLevel>());
-    _levels.emplace_back(std::make_shared<DevelopmentLevel>());
+    _levels.resize((size_t)State::END);
+
+    _levels[(int)State::Title] = (std::make_shared<TitleLevel>());
+    _levels[(int)State::Overworld] = (std::make_shared<OverworldLevel>());
+    _levels[(int)State::SwordCave] = (std::make_shared<CaveLevel>());
+    _levels[(int)State::Gameplay] = (std::make_shared<GameplayLevel>());
+    _levels[(int)State::Clear] = (std::make_shared<ClearLevel>());
+    _levels[(int)State::GameOver] = (std::make_shared<GameOverLevel>());
+    _levels[(int)State::Development] = (std::make_shared<DevelopmentLevel>());
 
     SetSubLevel(_levels[(int)_state]);
+}
+
+void Game::StartNewGame()
+{
+    _hasSword = false;
+
+    _levels[(int)State::Overworld] = std::make_shared<OverworldLevel>();
+    _levels[(int)State::SwordCave] = std::make_shared<CaveLevel>();
+
+    ChangeLevel(State::Overworld);
 }
 
 void Game::ChangeLevel(State state)
@@ -26,11 +40,11 @@ void Game::ChangeLevel(State state)
         return;
     }
 
-    if (state == State::Overworld)
-    {
-        // 사망한 캐릭터를 새로 생성해야 함
-        _levels[(int)State::Overworld] = std::make_shared<OverworldLevel>();
-    }
+    //if (state == State::Overworld)
+    //{
+    //    // 사망한 캐릭터를 새로 생성해야 함
+    //    _levels[(int)State::Overworld] = std::make_shared<OverworldLevel>();
+    //}
 
     _state = state;
     SetSubLevel(_levels[(int)state]);

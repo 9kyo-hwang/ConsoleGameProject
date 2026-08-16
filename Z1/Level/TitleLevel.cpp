@@ -35,23 +35,23 @@ void TitleLevel::Tick(float deltaTime)
 {
     Level::Tick(deltaTime);
 
-    if (Input::Get().GetKeyDown('1'))
-    {
-        Game& game = dynamic_cast<Game&>(Engine::Get());
-        game.ChangeLevel(State::Title);
-    }
+    //if (Input::Get().GetKeyDown('1'))
+    //{
+    //    Game& game = dynamic_cast<Game&>(Engine::Get());
+    //    game.ChangeLevel(State::Title);
+    //}
 
     if (Input::Get().GetKeyDown('2'))
     {
         Game& game = dynamic_cast<Game&>(Engine::Get());
-        game.ChangeLevel(State::Overworld);
+        game.StartNewGame();
     }
 
-    if (Input::Get().GetKeyDown('3'))
-    {
-        Game& game = dynamic_cast<Game&>(Engine::Get());
-        game.ChangeLevel(State::Clear);
-    }
+    //if (Input::Get().GetKeyDown('3'))
+    //{
+    //    Game& game = dynamic_cast<Game&>(Engine::Get());
+    //    game.ChangeLevel(State::Clear);
+    //}
 }
 
 void TitleLevel::Draw()

@@ -113,6 +113,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Actor\Enemy.cpp" />
+    <ClCompile Include="Level\CaveLevel.cpp" />
     <ClCompile Include="Level\GameOverLevel.cpp" />
     <ClCompile Include="Level\EnemySpawner.cpp" />
     <ClCompile Include="Level\DevelopmentLevel.cpp" />
@@ -136,6 +137,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
   <ItemGroup>
     <ClInclude Include="Actor\Enemy.h" />
     <ClInclude Include="Actor\EnemyTypes.h" />
+    <ClInclude Include="Level\CaveLevel.h" />
     <ClInclude Include="Level\GameOverLevel.h" />
     <ClInclude Include="Level\EnemySpawner.h" />
     <ClInclude Include="Level\DevelopmentLevel.h" />
