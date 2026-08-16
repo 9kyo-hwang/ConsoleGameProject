@@ -79,6 +79,36 @@ namespace
 
         return !(lhsRight < rhsPos.x || rhsRight < lhsPos.x || lhsBottom < rhsPos.y || rhsBottom < lhsPos.y);
     }
+
+    bool IsInContact(const Pawn& lhs, const Pawn& rhs)
+    {
+        const std::shared_ptr<BoxComponent>& lhsBox = lhs.GetComponent<BoxComponent>();
+        const std::shared_ptr<BoxComponent>& rhsBox = rhs.GetComponent<BoxComponent>();
+
+        if (!lhsBox || !rhsBox) return false;
+
+        const Vector2 lhsPos = lhs.GetWorldPosition() + lhsBox->GetOffset();
+        const Vector2 rhsPos = rhs.GetWorldPosition() + rhsBox->GetOffset();
+        const Vector2 lhsSize = lhsBox->GetSize();
+        const Vector2 rhsSize = rhsBox->GetSize();
+
+        const int lhsLeft     = lhsPos.x;
+        const int lhsTop      = lhsPos.y;
+        const int lhsRight    = lhsLeft + lhsSize.x - 1;
+        const int lhsBottom   = lhsTop + lhsSize.y - 1;
+
+        const int rhsLeft     = rhsPos.x;
+        const int rhsTop      = rhsPos.y;
+        const int rhsRight    = rhsLeft + rhsSize.x - 1;
+        const int rhsBottom   = rhsTop + rhsSize.y - 1;
+
+        const bool xOverlap = lhsLeft <= rhsRight && rhsLeft <= lhsRight;
+        const bool yOverlap = lhsTop <= rhsBottom && rhsTop <= lhsBottom;
+        const bool xAdjacent = lhsRight + 1 >= rhsLeft && rhsRight + 1 >= lhsLeft;
+        const bool yAdjacent = lhsBottom + 1 >= rhsTop && rhsBottom + 1 >= lhsTop;
+
+        return xAdjacent && yOverlap || yAdjacent && xOverlap;
+    }
 }
 
 OverworldLevel::OverworldLevel()
@@ -100,7 +130,7 @@ void OverworldLevel::BeginPlay()
     }
 
     // 월드 좌표
-    _player = SpawnActor<Player>(GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize, 1);
+    _player = SpawnActor<Player>(GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize, 4);
 
     if (!_bgmStarted)
     {
@@ -162,6 +192,7 @@ void OverworldLevel::Tick(float deltaTime)
     }
 
     UpdateEnemyMovement(deltaTime);
+    TakeContactDamageToPlayer();
 }
 
 void OverworldLevel::Draw()
@@ -581,4 +612,26 @@ bool OverworldLevel::IsInsideCurrentRoom(Craft::Vector2 boxPosition, Craft::Vect
         top >= roomTop &&
         right <= roomRight &&
         bottom <= roomBottom;
+}
+
+void OverworldLevel::TakeContactDamageToPlayer()
+{
+    if (!_player || _player->IsDead())
+    {
+        return;
+    }
+
+    for (const auto& enemy : _roomEnemies)
+    {
+        if (!enemy || !enemy->IsActive() || enemy->IsDead())
+        {
+            continue;
+        }
+
+        if (IsInContact(*_player, *enemy))
+        {
+            // TODO: 추후 보스는 접촉 피해를 다르게 주고 싶으면 GetContactDamage() 같은 가상 함수 추가
+            _player->TakeDamage(1, enemy, enemy);
+        }
+    }
 }

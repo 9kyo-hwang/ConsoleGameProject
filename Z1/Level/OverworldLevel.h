@@ -54,6 +54,8 @@ private:
 
     bool IsInsideCurrentRoom(Craft::Vector2 boxPosition, Craft::Vector2 boxSize);
 
+    void TakeContactDamageToPlayer();
+
 private:
     inline static constexpr RoomCoordinate StartRoom{ 7, 7 };
 
