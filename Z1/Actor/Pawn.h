@@ -27,6 +27,8 @@ public:
 
     virtual int TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer);
 
+    void RestoreFullHealth();
+
     int ConsumeMoveSteps(float deltaTime);
     void ClearMoveRemainder();
     void MoveBy(const Craft::Vector2& delta);

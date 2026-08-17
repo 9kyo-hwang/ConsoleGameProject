@@ -7,6 +7,7 @@
 #include <Level/GameOverLevel.h>
 #include <Level/DevelopmentLevel.h>
 #include <Level/CaveLevel.h>
+#include <Level/DungeonLevel.h>
 
 Game::Game()
 {
@@ -15,6 +16,7 @@ Game::Game()
     _levels[(int)State::Title] = (std::make_shared<TitleLevel>());
     _levels[(int)State::Overworld] = (std::make_shared<OverworldLevel>());
     _levels[(int)State::SwordCave] = (std::make_shared<CaveLevel>());
+    _levels[(int)State::Dungeon1] = (std::make_shared<DungeonLevel>());
     _levels[(int)State::Gameplay] = (std::make_shared<GameplayLevel>());
     _levels[(int)State::Clear] = (std::make_shared<ClearLevel>());
     _levels[(int)State::GameOver] = (std::make_shared<GameOverLevel>());
@@ -29,6 +31,7 @@ void Game::StartNewGame()
 
     _levels[(int)State::Overworld] = std::make_shared<OverworldLevel>();
     _levels[(int)State::SwordCave] = std::make_shared<CaveLevel>();
+    _levels[(int)State::Dungeon1] = std::make_shared<DungeonLevel>();
 
     ChangeLevel(State::Overworld);
 }

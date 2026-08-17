@@ -330,20 +330,18 @@ bool OverworldLevel::TryChangeRoom(RoomCoordinate room)
 void OverworldLevel::BuildRoomSprite()
 {
     // 렌더러가 1:1로만 그리게 변경되어 Room Sprite를 처음부터 (16, 11)의 (5, 3)배 한 걸로 만들어야 함
-    const int roomTileWidth  = RoomTileWidth;
-    const int roomTileHeight = RoomTileHeight;
 
-    const Vector2 spriteSize(roomTileWidth * MapTileSize.x, roomTileHeight * MapTileSize.y);
+    const Vector2 spriteSize(RoomTileWidth * MapTileSize.x, RoomTileHeight * MapTileSize.y);
     std::vector<SpriteCell> roomCells(spriteSize.x * spriteSize.y, SpriteCell());
 
     // 현재 Room의 Map 기준 (x, y) 좌표
-    const int mapTileOriginX = _currentRoom.x * roomTileWidth;
-    const int mapTileOriginY = _currentRoom.y * roomTileHeight;
+    const int mapTileOriginX = _currentRoom.x * RoomTileWidth;
+    const int mapTileOriginY = _currentRoom.y * RoomTileHeight;
 
     // Room에 속하는 Tile 순회
-    for (int roomTileY = 0; roomTileY < roomTileHeight; ++roomTileY)
+    for (int roomTileY = 0; roomTileY < RoomTileHeight; ++roomTileY)
     {
-        for (int roomTileX = 0; roomTileX < roomTileWidth; ++roomTileX)
+        for (int roomTileX = 0; roomTileX < RoomTileWidth; ++roomTileX)
         {
             const int mapTileX = mapTileOriginX + roomTileX;
             const int mapTileY = mapTileOriginY + roomTileY;

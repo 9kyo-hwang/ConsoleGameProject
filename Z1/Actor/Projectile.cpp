@@ -5,6 +5,7 @@
 #include <Component/BoxComponent.h>
 
 #include <Level/OverworldLevel.h>
+#include <Level/DungeonLevel.h>
 #include <Actor/Pawn.h>
 #include <Actor/Player.h>
 #include <Actor/Enemy.h>
@@ -39,14 +40,7 @@ void Projectile::Tick(float deltaTime)
         return;
     }
 
-    auto level = std::dynamic_pointer_cast<OverworldLevel>(GetOwner());
-    if (!level)
-    {
-        Destroy();
-        return;
-    }
-
-    if (!level->CanProjectileOccupy(GetWorldPosition(), *this))
+    if (!CanOccupy(GetWorldPosition()))
     {
         Destroy();
         return;
@@ -57,7 +51,7 @@ void Projectile::Tick(float deltaTime)
     for (int step = 0; step < moveSteps;++step)
     {
         const Vector2 next = GetWorldPosition() + _direction;
-        if (!level->CanProjectileOccupy(next, *this))
+        if (!CanOccupy(next))
         {
             Destroy();
             return;
@@ -65,6 +59,31 @@ void Projectile::Tick(float deltaTime)
 
         SetPosition(next);
     }
+}
+
+bool Projectile::CanOccupy(Vector2 destination) const
+{
+    const auto owner = GetOwner();
+
+    if (auto overworld =
+        std::dynamic_pointer_cast<OverworldLevel>(owner))
+    {
+        return overworld->CanProjectileOccupy(
+            destination,
+            *this
+        );
+    }
+
+    if (auto dungeon =
+        std::dynamic_pointer_cast<DungeonLevel>(owner))
+    {
+        return dungeon->CanProjectileOccupy(
+            destination,
+            *this
+        );
+    }
+
+    return false;
 }
 
 void Projectile::OnCollision(const std::shared_ptr<Craft::Actor>& other)

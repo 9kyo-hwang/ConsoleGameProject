@@ -12,6 +12,8 @@
     <ClCompile Include="Level\OverworldLevel.cpp" />
     <ClCompile Include="Actor\SwordAttack.cpp" />
     <ClCompile Include="World\OverworldMap.cpp" />
+    <ClCompile Include="Level\DungeonLevel.cpp" />
+    <ClCompile Include="World\DungeonMap.cpp" />
     <ClCompile Include="Actor\Pawn.cpp" />
     <ClCompile Include="Actor\Enemy.cpp" />
     <ClCompile Include="Level\EnemySpawner.cpp" />
@@ -31,6 +33,8 @@
     <ClInclude Include="Level\OverworldLevel.h" />
     <ClInclude Include="Actor\SwordAttack.h" />
     <ClInclude Include="World\OverworldMap.h" />
+    <ClInclude Include="Level\DungeonLevel.h" />
+    <ClInclude Include="World\DungeonMap.h" />
     <ClInclude Include="Actor\Pawn.h" />
     <ClInclude Include="Actor\Enemy.h" />
     <ClInclude Include="Level\EnemySpawner.h" />

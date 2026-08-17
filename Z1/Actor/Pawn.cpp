@@ -74,6 +74,11 @@ int Pawn::TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const 
     return actualDamage;
 }
 
+void Pawn::RestoreFullHealth()
+{
+    _hp = _maxHp;
+}
+
 int Pawn::ConsumeMoveSteps(float deltaTime)
 {
     _moveRemainder += _moveSpeed * deltaTime;

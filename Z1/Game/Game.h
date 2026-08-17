@@ -13,6 +13,7 @@ enum class State
     Title,
     Overworld,
     SwordCave,
+    Dungeon1,
     Gameplay,
     Clear,
     GameOver,
