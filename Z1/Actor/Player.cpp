@@ -59,7 +59,23 @@ bool Player::Shieldable(const Projectile& projectile) const
         return false;
     }
 
-    return GetFacingDirection() == projectile.Direction() * -1;
+    const Vector2 shieldDirection =
+        projectile.Direction() * -1;
+
+    if (shieldDirection.x != 0 &&
+        std::abs(shieldDirection.x) >= std::abs(shieldDirection.y))
+    {
+        return GetFacingDirection() ==
+            Vector2(shieldDirection.x > 0 ? 1 : -1, 0);
+    }
+
+    if (shieldDirection.y != 0)
+    {
+        return GetFacingDirection() ==
+            Vector2(0, shieldDirection.y > 0 ? 1 : -1);
+    }
+
+    return false;
 }
 
 bool Player::IsAttacking() const

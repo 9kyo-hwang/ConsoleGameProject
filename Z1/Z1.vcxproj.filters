@@ -16,6 +16,7 @@
     <ClCompile Include="World\DungeonMap.cpp" />
     <ClCompile Include="Actor\Pawn.cpp" />
     <ClCompile Include="Actor\Enemy.cpp" />
+    <ClCompile Include="Actor\Aquamentus.cpp" />
     <ClCompile Include="Level\EnemySpawner.cpp" />
     <ClCompile Include="Actor\Projectile.cpp" />
     <ClCompile Include="Actor\Octorok.cpp" />
@@ -37,6 +38,7 @@
     <ClInclude Include="World\DungeonMap.h" />
     <ClInclude Include="Actor\Pawn.h" />
     <ClInclude Include="Actor\Enemy.h" />
+    <ClInclude Include="Actor\Aquamentus.h" />
     <ClInclude Include="Level\EnemySpawner.h" />
     <ClInclude Include="Level\Room.h" />
     <ClInclude Include="Actor\Projectile.h" />

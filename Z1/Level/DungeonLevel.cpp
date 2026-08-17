@@ -2,6 +2,7 @@
 #include "DungeonLevel.h"
 
 #include <Actor/Enemy.h>
+#include <Actor/Aquamentus.h>
 #include <Actor/Octorok.h>
 #include <Actor/Player.h>
 #include <Actor/Projectile.h>
@@ -572,15 +573,7 @@ void DungeonLevel::SpawnBoss()
     const Vector2 bossWorldPosition =
         _bossTile * MapTileSize;
 
-    // 보스 Actor를 아직 만들지 않았으므로
-    // 현재는 Enemy를 임시 보스로 사용한다.
-    _boss = SpawnActor<Enemy>(
-        bossWorldPosition,
-        6,
-        0.f,
-        "B",
-        Color::Red
-    );
+    _boss = SpawnActor<Aquamentus>(bossWorldPosition);
 
     _roomEnemies.emplace_back(_boss);
 }
@@ -727,11 +720,27 @@ void DungeonLevel::UpdateEnemyMovement(float deltaTime)
 
         if (enemy->ConsumeAttackRequest(request))
         {
-            SpawnProjectile(
-                enemy->GetWorldPosition() + request.spawnOffset,
-                request.projectile,
-                enemy
-            );
+            if (!request.projectiles.empty())
+            {
+                for (const ProjectileSpec& projectile : request.projectiles)
+                {
+                    SpawnProjectile(
+                        enemy->GetWorldPosition() +
+                        request.spawnOffset +
+                        projectile.direction,
+                        projectile,
+                        enemy
+                    );
+                }
+            }
+            else
+            {
+                SpawnProjectile(
+                    enemy->GetWorldPosition() + request.spawnOffset,
+                    request.projectile,
+                    enemy
+                );
+            }
         }
 
         const Vector2 delta =
@@ -1014,7 +1023,7 @@ void DungeonLevel::TakeContactDamageToPlayer()
         if (IsInContact(*_player, *enemy))
         {
             _player->TakeDamage(
-                1,
+                enemy->GetContactDamage(),
                 enemy,
                 enemy
             );

@@ -55,7 +55,12 @@ public:
     inline ProjectileFaction Faction() const { return _spec.faction; }
     inline Craft::Vector2 Direction() const { return _spec.direction; }
     inline int Damage() const { return _spec.damage; }
-    inline bool Shieldable() const { return _spec.type == ProjectileType::Rock || _spec.type == ProjectileType::Spaer; }
+    inline bool Shieldable() const
+    {
+        return _spec.type == ProjectileType::Rock ||
+               _spec.type == ProjectileType::Spaer ||
+               _spec.type == ProjectileType::Fireball;
+    }
 
 protected:
     bool CanHit(const std::shared_ptr<Pawn>& target) const;

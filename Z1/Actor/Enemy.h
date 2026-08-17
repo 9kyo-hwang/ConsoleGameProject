@@ -5,11 +5,13 @@
 #include <Actor/Player.h>
 
 #include <optional>
+#include <vector>
 
 struct EnemyAttackRequest
 {
     ProjectileSpec projectile;
     Craft::Vector2 spawnOffset = Craft::Vector2::Zero;
+    std::vector<ProjectileSpec> projectiles;
 };
 
 class Enemy : public Pawn
@@ -22,6 +24,7 @@ public:
     virtual void Think(float deltaTime, const Player& player);  // 어떻게 움직일 것인가
     virtual Craft::Vector2 GetDesiredMove() const { return desiredMove; }
     virtual void OnMoveBlocked() {}
+    virtual int GetContactDamage() const { return 1; }
 
     bool ConsumeAttackRequest(EnemyAttackRequest& outRequest);
 

@@ -676,8 +676,7 @@ void OverworldLevel::TakeContactDamageToPlayer()
 
         if (IsInContact(*_player, *enemy))
         {
-            // TODO: 추후 보스는 접촉 피해를 다르게 주고 싶으면 GetContactDamage() 같은 가상 함수 추가
-            _player->TakeDamage(1, enemy, enemy);
+            _player->TakeDamage(enemy->GetContactDamage(), enemy, enemy);
         }
     }
 }
