@@ -22,7 +22,7 @@ struct ProjectileSpec;
 enum class EntranceType
 {
     SwordCave,
-    // Dungeon1, ...
+    Dungeon1
 };
 
 class OverworldLevel : public Craft::Level

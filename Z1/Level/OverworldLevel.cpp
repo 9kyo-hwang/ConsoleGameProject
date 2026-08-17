@@ -37,6 +37,10 @@ namespace
     constexpr int StartSwordCaveLocalX = 4; // 스타팅 룸에서 동굴 입구 논리 좌표
     constexpr int StartSwordCaveLocalY = 1;
 
+    constexpr RoomCoordinate Dungeon1EntranceRoom{ 7, 3 };
+    constexpr int Dungeon1EntranceLocalX = 7;
+    constexpr int Dungeon1EntranceLocalY = 4;
+
     std::shared_ptr<const Sprite> MakeTileSprite(char glyph, Color color)
     {
         std::vector<SpriteCell> cells
@@ -659,7 +663,8 @@ void OverworldLevel::TakeContactDamageToPlayer()
 * TileId가 0x12인지 검사
 * Room 좌표 확인
 * Room 내부 타일 좌표 확인
-* (7, 7) Room의 (4, 1) Tile이면 SwordCave
+ * (7, 7) Room의 (4, 1) Tile이면 SwordCave
+ * (7, 3) Room의 (7, 4) Tile이면 Dungeon1
 */
 std::optional<EntranceType> OverworldLevel::ResolveEntrance(Vector2 destination, const Pawn& mover)
 {
@@ -710,7 +715,12 @@ std::optional<EntranceType> OverworldLevel::ResolveEntrance(Vector2 destination,
                 return EntranceType::SwordCave;
             }
 
-            // 분류되지 않은 0x12
+            if (room == Dungeon1EntranceRoom &&
+                localX == Dungeon1EntranceLocalX &&
+                localY == Dungeon1EntranceLocalY)
+            {
+                return EntranceType::Dungeon1;
+            }
         }
     }
 
@@ -732,6 +742,18 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
 
         game.SetHasSword(_player->HasSword());
         game.ChangeLevel(State::SwordCave);
+
+        _player->ClearMoveRemainder();
+
+        return true;
+    }
+
+    case EntranceType::Dungeon1:
+    {
+        Game& game = dynamic_cast<Game&>(Engine::Get());
+
+        game.SetHasSword(_player->HasSword());
+        game.ChangeLevel(State::Dungeon1);
 
         _player->ClearMoveRemainder();
 
