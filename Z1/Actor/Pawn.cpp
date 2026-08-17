@@ -74,6 +74,11 @@ int Pawn::TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const 
     return actualDamage;
 }
 
+void Pawn::SetHealth(int health)
+{
+    _hp = std::max(0, std::min(health, _maxHp));
+}
+
 void Pawn::RestoreFullHealth()
 {
     _hp = _maxHp;

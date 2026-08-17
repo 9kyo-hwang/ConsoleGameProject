@@ -56,8 +56,11 @@ namespace
         static const TileSpriteMap sprites
         {
             {0x02, MakeTileSprite('.', Color::White)},
+            {0x0E, MakeTileSprite('.', Color::Gray)},
             {0x12, MakeTileSprite(' ', Color::White)},
             {0x14, MakeTileSprite('=', Color::Blue)},
+            {0x15, MakeTileSprite('T', Color::DarkRed)},
+            {0x1B, MakeTileSprite('T', Color::Green)},
             {0x28, MakeTileSprite('#', Color::Yellow)},
             {0x29, MakeTileSprite('#', Color::Yellow)},
             {0x2A, MakeTileSprite('#', Color::Yellow)},
@@ -65,12 +68,15 @@ namespace
             {0x3D, MakeTileSprite('#', Color::Yellow)},
             {0x3E, MakeTileSprite('#', Color::Yellow)},
             {0x30, MakeTileSprite('T', Color::Green)},
+            {0x40, MakeTileSprite('.', Color::DarkYellow)},
             {0x42, MakeTileSprite('T', Color::Green)},
             {0x43, MakeTileSprite('T', Color::Green)},
             {0x44, MakeTileSprite('T', Color::Green)},
             {0x50, MakeTileSprite('~', Color::Blue)},
             {0x51, MakeTileSprite('~', Color::Blue)},
             {0x52, MakeTileSprite('~', Color::Blue)},
+            {0x91, MakeTileSprite('=', Color::DarkRed)},
+            {0x97, MakeTileSprite('=', Color::Green)},
         };
 
         return sprites;
@@ -135,9 +141,22 @@ void OverworldLevel::BeginPlay()
         return;
     }
 
+    Game& game = dynamic_cast<Game&>(Engine::Get());
+
+    if (!_bgmStarted)
+    {
+        Engine::Get().PlayBGM("Z1/02. Overworld of Hyrule.wav");
+        _bgmStarted = true;
+    }
+
     if (_player)
     {
-        Game& game = dynamic_cast<Game&>(Engine::Get());
+        if (_needsPlayerSync)
+        {
+            _player->SetHealth(game.GetPlayerHp());
+            _needsPlayerSync = false;
+        }
+
         if (game.HasSword())
         {
             _player->EquipSword();
@@ -147,13 +166,9 @@ void OverworldLevel::BeginPlay()
     }
 
     // 월드 좌표
-    _player = SpawnActor<Player>(GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize, 4);
-
-    if (!_bgmStarted)
-    {
-        Engine::Get().PlayBGM("Z1/02. Overworld of Hyrule.wav");
-        _bgmStarted = true;
-    }
+    _player = SpawnActor<Player>(GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize, 10);
+    _player->SetHealth(game.GetPlayerHp());
+    _needsPlayerSync = false;
 }
 
 void OverworldLevel::Tick(float deltaTime)
@@ -230,21 +245,29 @@ void OverworldLevel::Draw()
 
     Level::Draw();
 
-    renderer.Submit("[Overworld Level]", Vector2::Zero);
+    renderer.Submit("[Overworld]", Vector2(2, 1));
 
     if (_player)
     {
         const std::string hp = "[HP " + std::to_string(_player->GetHp()) + "/" + std::to_string(_player->GetMaxHp()) + "]";
-        renderer.Submit(hp, Vector2(2, 1));
+        renderer.Submit(hp, Vector2(16, 1));
 
         const std::string sword = _player->HasSword() ? "[SWORD]" : "[NO SWORD]";
-        renderer.Submit(sword, Vector2(20, 1));
+        renderer.Submit(sword, Vector2(30, 1));
     }
 }
 
 void OverworldLevel::EndPlay()
 {
     Level::EndPlay();
+
+    if (_player)
+    {
+        Game& game = dynamic_cast<Game&>(Engine::Get());
+        game.SetPlayerHp(_player->GetHp());
+    }
+
+    _needsPlayerSync = true;
 
     Engine::Get().StopBGM();
     _bgmStarted = false;
@@ -740,6 +763,7 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
     {
         Game& game = dynamic_cast<Game&>(Engine::Get());
 
+        game.SetPlayerHp(_player->GetHp());
         game.SetHasSword(_player->HasSword());
         game.ChangeLevel(State::SwordCave);
 
@@ -752,6 +776,7 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
     {
         Game& game = dynamic_cast<Game&>(Engine::Get());
 
+        game.SetPlayerHp(_player->GetHp());
         game.SetHasSword(_player->HasSword());
         game.ChangeLevel(State::Dungeon1);
 

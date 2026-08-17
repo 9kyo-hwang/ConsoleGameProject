@@ -24,11 +24,30 @@ void CaveLevel::BeginPlay()
 {
     Level::BeginPlay();
 
-    if (!_loaded || _player) return;
+    if (!_loaded) return;
 
     Game& game = dynamic_cast<Game&>(Engine::Get());
+
+    if (_player)
+    {
+        if (_needsPlayerSync)
+        {
+            _player->SetHealth(game.GetPlayerHp());
+            _needsPlayerSync = false;
+        }
+
+        if (game.HasSword())
+        {
+            _player->EquipSword();
+        }
+
+        return;
+    }
+
     Vector2 spawnPosition(_playerPosition.x * TilePixelWidth, _playerPosition.y * TilePixelHeight);
-    _player = SpawnActor<Player>(spawnPosition, 4);
+    _player = SpawnActor<Player>(spawnPosition, 10);
+    _player->SetHealth(game.GetPlayerHp());
+    _needsPlayerSync = false;
 
     // game??
     if (game.HasSword())
@@ -37,6 +56,19 @@ void CaveLevel::BeginPlay()
         _swordCollected = true;
         BuildRoomSprite();  // S 없이 새롭게 그리기. 근데 그냥 Sword를 액터처럼 해서 destroy하는 게 안낫나?
     }
+}
+
+void CaveLevel::EndPlay()
+{
+    Level::EndPlay();
+
+    if (_player)
+    {
+        Game& game = dynamic_cast<Game&>(Engine::Get());
+        game.SetPlayerHp(_player->GetHp());
+    }
+
+    _needsPlayerSync = true;
 }
 
 void CaveLevel::Tick(float deltaTime)
@@ -72,10 +104,10 @@ void CaveLevel::Draw()
     if (_player)
     {
         const std::string hp = "[HP " + std::to_string(_player->GetHp()) + "/" + std::to_string(_player->GetMaxHp()) + "]";
-        renderer.Submit(hp, Vector2(2, 1));
+        renderer.Submit(hp, Vector2(16, 1));
 
         const std::string sword = _player->HasSword() ? "[SWORD]" : "[NO SWORD]";
-        renderer.Submit(sword, Vector2(20, 1));
+        renderer.Submit(sword, Vector2(30, 1));
     }
 }
 
@@ -327,6 +359,7 @@ bool CaveLevel::TryExitCave(Vector2 destination, Vector2 moveDelta)
     }
 
     Game& game = dynamic_cast<Game&>(Engine::Get());
+    game.SetPlayerHp(_player->GetHp());
     game.SetHasSword(_player->HasSword());
     game.ChangeLevel(State::Overworld);
 

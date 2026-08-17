@@ -28,6 +28,7 @@ Game::Game()
 void Game::StartNewGame()
 {
     _hasSword = false;
+    _playerHp = 10;
 
     _levels[(int)State::Overworld] = std::make_shared<OverworldLevel>();
     _levels[(int)State::SwordCave] = std::make_shared<CaveLevel>();

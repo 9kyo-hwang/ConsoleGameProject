@@ -22,6 +22,7 @@ public:
     void BeginPlay() override;
     void Tick(float deltaTime) override;
     void Draw() override;
+    void EndPlay() override;
 
     bool CanProjectileOccupy(
         Craft::Vector2 destination,
@@ -49,6 +50,11 @@ private:
     void UpdatePlayerMovement(
         float deltaTime,
         const Craft::Vector2& delta
+    );
+
+    bool TryExitDungeon(
+        const Craft::Vector2& destination,
+        const Craft::Vector2& moveDelta
     );
 
     void UpdateEnemyMovement(float deltaTime);
@@ -96,6 +102,8 @@ private:
     static constexpr int PlayerSpawnTileY = 8;
 
     bool _loaded = false;
+    bool _bgmStarted = false;
+    bool _needsPlayerSync = true;
 
     DungeonMap _map;
     std::shared_ptr<const Craft::Sprite> _roomSprite;

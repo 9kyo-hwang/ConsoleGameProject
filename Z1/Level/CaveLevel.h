@@ -14,6 +14,7 @@ public:
     void BeginPlay() override;
     void Tick(float deltaTime) override;
     void Draw() override;
+    void EndPlay() override;
 
 private:
     bool LoadMap();
@@ -47,5 +48,6 @@ private:
 
     bool _loaded = false;
     bool _swordCollected = false;
+    bool _needsPlayerSync = true;
 };
 

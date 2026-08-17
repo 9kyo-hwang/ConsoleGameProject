@@ -121,17 +121,41 @@ void DungeonLevel::BeginPlay()
 {
     Level::BeginPlay();
 
-    if (!_loaded || _player)
+    if (!_loaded)
     {
         return;
     }
 
     Game& game = dynamic_cast<Game&>(Engine::Get());
 
+    if (!_bgmStarted)
+    {
+        Engine::Get().PlayBGM("Z1/03. Dungeon Theme.wav");
+        _bgmStarted = true;
+    }
+
+    if (_player)
+    {
+        if (_needsPlayerSync)
+        {
+            _player->SetHealth(game.GetPlayerHp());
+            _needsPlayerSync = false;
+        }
+
+        if (game.HasSword())
+        {
+            _player->EquipSword();
+        }
+
+        return;
+    }
+
     const Vector2 spawnPosition =
         Vector2(PlayerSpawnTileX, PlayerSpawnTileY) * MapTileSize;
 
-    _player = SpawnActor<Player>(spawnPosition, 4);
+    _player = SpawnActor<Player>(spawnPosition, 10);
+    _player->SetHealth(game.GetPlayerHp());
+    _needsPlayerSync = false;
 
     if (game.HasSword())
     {
@@ -139,6 +163,22 @@ void DungeonLevel::BeginPlay()
     }
 
     SpawnRoomEnemies();
+}
+
+void DungeonLevel::EndPlay()
+{
+    Level::EndPlay();
+
+    if (_player)
+    {
+        Game& game = dynamic_cast<Game&>(Engine::Get());
+        game.SetPlayerHp(_player->GetHp());
+    }
+
+    _needsPlayerSync = true;
+
+    Engine::Get().StopBGM();
+    _bgmStarted = false;
 }
 
 void DungeonLevel::Tick(float deltaTime)
@@ -250,14 +290,14 @@ void DungeonLevel::Draw()
             std::to_string(_player->GetMaxHp()) +
             "]";
 
-        renderer.Submit(hp, Vector2(2, 1));
+        renderer.Submit(hp, Vector2(16, 1));
 
         const std::string sword =
             _player->HasSword()
             ? "[SWORD]"
             : "[NO SWORD]";
 
-        renderer.Submit(sword, Vector2(20, 1));
+        renderer.Submit(sword, Vector2(30, 1));
     }
 }
 
@@ -576,6 +616,64 @@ void DungeonLevel::DestroyRoomProjectiles()
     _roomProjectiles.clear();
 }
 
+bool DungeonLevel::TryExitDungeon(
+    const Vector2& destination,
+    const Vector2& moveDelta)
+{
+    if (!_player ||
+        moveDelta != Vector2::Up * -1)
+    {
+        return false;
+    }
+
+    const auto box = _player->GetComponent<BoxComponent>();
+    if (!box)
+    {
+        return false;
+    }
+
+    const Vector2 boxPosition =
+        destination + box->GetOffset();
+
+    const Vector2 boxSize =
+        box->GetSize();
+
+    const int left = boxPosition.x;
+    const int right = left + boxSize.x - 1;
+    const int bottom = boxPosition.y + boxSize.y - 1;
+
+    constexpr int ExitTileX = 7;
+    constexpr int ExitTileWidth = 2;
+
+    const int exitLeft =
+        ExitTileX * MapTileSize.x;
+
+    const int exitRight =
+        (ExitTileX + ExitTileWidth) * MapTileSize.x - 1;
+
+    const int dungeonBottom =
+        DungeonMap::Height * MapTileSize.y;
+
+    const bool overlapsExitWidth =
+        left <= exitRight && right >= exitLeft;
+
+    const bool reachesDungeonBoundary =
+        bottom >= dungeonBottom;
+
+    if (!overlapsExitWidth ||
+        !reachesDungeonBoundary)
+    {
+        return false;
+    }
+
+    Game& game = dynamic_cast<Game&>(Engine::Get());
+    game.SetPlayerHp(_player->GetHp());
+    game.SetHasSword(_player->HasSword());
+    game.ChangeLevel(State::Overworld);
+
+    return true;
+}
+
 void DungeonLevel::UpdatePlayerMovement(
     float deltaTime,
     const Vector2& delta)
@@ -587,6 +685,12 @@ void DungeonLevel::UpdatePlayerMovement(
     {
         const Vector2 candidate =
             _player->GetWorldPosition() + delta;
+
+        if (TryExitDungeon(candidate, delta))
+        {
+            _player->ClearMoveRemainder();
+            return;
+        }
 
         if (!CanMoveTo(candidate, *_player))
         {
@@ -959,7 +1063,23 @@ void DungeonLevel::TryCollectItems()
         return;
     }
 
+    const RoomCoordinate playerRoom =
+        GetRoomCoordinate(_player->GetWorldPosition());
+
+    const RoomCoordinate heartRoom
+    {
+        _heartTile.x / RoomTileWidth,
+        _heartTile.y / RoomTileHeight
+    };
+
+    const RoomCoordinate triforceRoom
+    {
+        _triforceTile.x / RoomTileWidth,
+        _triforceTile.y / RoomTileHeight
+    };
+
     if (!_heartCollected &&
+        playerRoom == heartRoom &&
         IsPlayerOnTile(_heartTile))
     {
         _player->RestoreFullHealth();
@@ -968,6 +1088,7 @@ void DungeonLevel::TryCollectItems()
     }
 
     if (!_triforceCollected &&
+        playerRoom == triforceRoom &&
         IsPlayerOnTile(_triforceTile))
     {
         _triforceCollected = true;

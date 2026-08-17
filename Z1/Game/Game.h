@@ -33,9 +33,13 @@ public:
     inline bool HasSword() const { return _hasSword; }
     void SetHasSword(bool value) { _hasSword = value; }
 
+    inline int GetPlayerHp() const { return _playerHp; }
+    void SetPlayerHp(int value) { _playerHp = std::max(0, value); }
+
 private:
     State _state = State::Title;
     std::vector<std::shared_ptr<Craft::Level>> _levels{};
     bool _hasSword = false;
+    int _playerHp = 10;
 };
 
