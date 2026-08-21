@@ -41,6 +41,17 @@ namespace
     constexpr int Dungeon1EntranceLocalX = 7;
     constexpr int Dungeon1EntranceLocalY = 4;
 
+    bool IsAccessibleRoom(RoomCoordinate room)
+    {
+        return room == RoomCoordinate{ 7, 7 } ||
+               room == RoomCoordinate{ 7, 6 } ||
+               room == RoomCoordinate{ 8, 6 } ||
+               room == RoomCoordinate{ 8, 5 } ||
+               room == RoomCoordinate{ 8, 4 } ||
+               room == RoomCoordinate{ 8, 3 } ||
+               room == Dungeon1EntranceRoom;
+    }
+
     std::shared_ptr<const Sprite> MakeTileSprite(char glyph, Color color)
     {
         std::vector<SpriteCell> cells
@@ -697,6 +708,16 @@ bool OverworldLevel::UpdatePawnKnockback(Pawn& pawn, float deltaTime)
             break;
         }
 
+        if (pawn.IsA<Player>() &&
+            !IsAccessibleRoom(GetRoomCoordinateAtLeadingEdge(
+                destination,
+                pawn,
+                direction)))
+        {
+            pawn.StopKnockback();
+            break;
+        }
+
         pawn.MoveBy(direction);
 
         if (pawn.IsA<Player>())
@@ -774,6 +795,13 @@ void OverworldLevel::UpdatePlayerMovement(float deltaTime, const Vector2& delta)
             *_player,
             delta
         );
+
+        if (!IsAccessibleRoom(nextRoom))
+        {
+            _player->ClearMoveRemainder();
+            break;
+        }
+
         _player->MoveBy(delta); // 적 Spawn할 때 Player 유무를 검사하기 때문에, 먼저 이동시킴
         TryChangeRoom(nextRoom);
     }
@@ -978,6 +1006,11 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
 
     case EntranceType::Dungeon1:
     {
+        if (!_player->HasSword())
+        {
+            return false;
+        }
+
         Game& game = dynamic_cast<Game&>(Engine::Get());
 
         game.SetPlayerHp(_player->GetHp());

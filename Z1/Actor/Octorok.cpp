@@ -118,7 +118,7 @@ void Octorok::Think(float deltaTime, const Player&)
     }
 }
 
-Craft::Vector2 Octorok::GetRandomDirection() const
+Vector2 Octorok::GetRandomDirection() const
 {
     switch (FMath::RandRange(0, 3))
     {
