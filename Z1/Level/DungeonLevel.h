@@ -93,7 +93,7 @@ private:
     void UpdateBossState();
     void TryCollectItems();
 
-    bool IsPlayerOnTile(
+    bool IsPlayerOverlappingTile(
         const Craft::Vector2& tile
     ) const;
 

@@ -1182,7 +1182,7 @@ void DungeonLevel::UpdateBossState()
     BuildRoomSprite();
 }
 
-bool DungeonLevel::IsPlayerOnTile(
+bool DungeonLevel::IsPlayerOverlappingTile(
     const Vector2& tile) const
 {
     if (!_player)
@@ -1190,17 +1190,26 @@ bool DungeonLevel::IsPlayerOnTile(
         return false;
     }
 
-    const Vector2 position =
-        _player->GetWorldPosition();
+    const auto playerBox =
+        _player->GetComponent<BoxComponent>();
 
-    const int tileX =
-        position.x / MapTileSize.x;
+    if (!playerBox)
+    {
+        return false;
+    }
 
-    const int tileY =
-        position.y / MapTileSize.y;
+    const Vector2 playerPosition =
+        _player->GetWorldPosition() + playerBox->GetOffset();
 
-    return tileX == tile.x &&
-           tileY == tile.y;
+    const Vector2 itemPosition =
+        tile * MapTileSize;
+
+    return Overlaps(
+        playerPosition,
+        playerBox->GetSize(),
+        itemPosition,
+        MapTileSize
+    );
 }
 
 void DungeonLevel::TryCollectItems()
@@ -1210,33 +1219,17 @@ void DungeonLevel::TryCollectItems()
         return;
     }
 
-    const RoomCoordinate playerRoom =
-        GetRoomCoordinate(_player->GetWorldPosition());
-
-    const RoomCoordinate heartRoom
-    {
-        _heartTile.x / RoomTileWidth,
-        _heartTile.y / RoomTileHeight
-    };
-
-    const RoomCoordinate triforceRoom
-    {
-        _triforceTile.x / RoomTileWidth,
-        _triforceTile.y / RoomTileHeight
-    };
-
     if (!_heartCollected &&
-        playerRoom == heartRoom &&
-        IsPlayerOnTile(_heartTile))
+        IsPlayerOverlappingTile(_heartTile))
     {
         _player->RestoreFullHealth();
+        Engine::Get().PlayOneShot("Z1/07. Collect Item.wav");
         _heartCollected = true;
         BuildRoomSprite();
     }
 
     if (!_triforceCollected &&
-        playerRoom == triforceRoom &&
-        IsPlayerOnTile(_triforceTile))
+        IsPlayerOverlappingTile(_triforceTile))
     {
         _triforceCollected = true;
         _clearPending = true;
