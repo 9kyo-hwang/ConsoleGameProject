@@ -79,10 +79,19 @@ Visual Studio의 프로젝트 디렉터리에서 실행하면 저장소 루트�
 - 생명주기 변경: 프레임 중 spawn/destroy에서 순회 무효화나 파괴 Actor의 추가 이벤트가 없는지 확인
 - 렌더링 변경: Sprite 투명 셀, X/Y 화면 경계 clipping, sorting order, buffer swap 확인
 - 충돌 변경: 2D Box 크기/offset, 빠른 탄환, 파괴된 Actor, Component 없는 Actor 확인
+- Z1 실행: 타이틀의 `Press Enter To Play` 안내 뒤 `Enter` 키로 새 게임을 시작하고, 방향키로 이동하며 HUD에 HP·검 보유 상태가 표시되는지 확인
 - Z1 Overworld 변경: `Content/Z1/Maps/Overworld`를 출력 Content 경로에서도 읽는지, Room `(7, 7)` 배경과 플레이어가 보이는지 확인
-- Z1 Overworld 변경: BlockingMap의 막힌 타일·Room 바깥으로 이동할 수 없고, 이동 가능한 타일에서는 플레이어 Box 크기만큼 정상 이동하는지 확인
-- Z1 Room/Enemy 변경: 시작 Room에는 적이 없고, 다른 Room은 같은 좌표·시드에서 같은 계획으로 스폰되며 Room 전환 시 이전 적이 제거되는지 확인
-- Z1 전투 변경: 이동 중 검 공격 취소, 공격당 한 번의 피해, 적 사망, 벽을 통과하지 않는 넉백, 무적 시간 중 중복 피해 방지와 깜빡임을 확인
+- Z1 Overworld 변경: BlockingMap의 막힌 타일·Map 바깥으로 이동할 수 없고, 이동 가능한 타일에서는 플레이어 Box 크기만큼 정상 이동하는지 확인
+- Z1 Overworld 변경: Room 전환 뒤 Player Box/Sprite가 새 Room 안에 완전히 보이는지, `(7,7) → (7,6) → (8,6) → (8,5) → (8,4) → (8,3) → (7,3)` 이외의 Room 경계는 넘을 수 없는지, 넉백으로도 제한 밖에 나가지 않는지 확인
+- Z1 Room/Enemy 변경: 시작 Room에는 적이 없고, 다른 Room은 같은 좌표·시드에서 같은 계획으로 스폰되며 Room 전환 시 이전 적과 투사체가 제거되는지 확인
+- Z1 동굴/던전 변경: 오버월드 `(7, 7)`의 검 동굴에서 Player Box가 검 타일에 닿을 때 검을 얻고 다시 나올 수 있는지, 검 없이 `(7, 3)`의 Dungeon 1 입구에 들어갈 수 없고 검 획득 후에는 던전 입구와 던전 출구가 정상 전환되는지 확인
+- Z1 던전 변경: Room 전환 뒤 Player Box/Sprite가 새 Room 안에 완전히 보이고, 넉백 전환에도 같은 위치 보정이 적용되는지 확인
+- Z1 전투 변경: `A` 검 공격이 이동 시 취소되고 공격당 한 번만 피해를 주는지, 풀 HP 검기와 Octorok 돌·Moblin 창·Aquamentus 화염구가 발사자 Box 가장자리에서 생성되는지 확인
+- Z1 전투 변경: Player·Octorok·Moblin·Tektite의 8×5 Sprite와 Box가 함께 움직이는지, Tektite가 대기와 대각선 도약을 반복하며 BlockingMap 지형은 넘고 Player에 닿아 피해를 주는지, 피격된 Player의 넉백이 겹친 Tektite에 막히지 않는지 확인
+- Z1 전투 변경: 투사체가 벽·Room 경계를 통과하지 않는지, 적 투사체가 맞는 방향의 Player 방패에 막히는지, 적 사망 이펙트가 보이는지 확인
+- Z1 피해/클리어 변경: 벽을 통과하지 않는 넉백, 무적 시간 중 중복 피해 방지와 깜빡임, HP 0의 Game Over 전환, 보스 처치 후 Player Box가 하트·트라이포스 Sprite 영역에 닿을 때의 하트 회복과 Clear 전환을 확인
+- Z1 사운드 변경: 검 획득, 검·검기 공격, 방패 방어, Player/일반 적/보스의 피격·사망 효과음과 Title·Overworld·Dungeon·Game Over·Clear BGM 전환을 확인
+- Z1 사운드 변경: 트라이포스 획득 후 Zelda Is Rescued 팬파레가 끝난 뒤 Clear Level의 Ending Theme으로 전환되는지 확인
 - 런타임 데이터 변경: 프로젝트 디렉터리와 출력 디렉터리 양쪽 실행 경로 확인
 
 자동 테스트 프로젝트는 아직 없다. 문서만 바꾼 경우에는 Markdown 링크와 코드 식별자가 현재 트리와 맞는지 확인하고, 코드나 프로젝트 설정을 바꾼 경우에는 관련 실행 파일을 직접 구동해 확인한다.

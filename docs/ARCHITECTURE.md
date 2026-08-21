@@ -26,7 +26,7 @@ flowchart LR
 | `CraftEngine` | DLL/import library | 루프, Level/Actor/Component, 입력, 렌더링, 충돌, 수학, RTTI, SoundSystem 파사드 |
 | `ShootingGame` | EXE | 플레이어·총구·엔진 이펙트 계층, 적 스폰, 탄환, 점수와 게임 오버 |
 | `SokobanGame` | EXE | 맵 로드, 이동·박스 밀기, 클리어 판정, 게임/메뉴 Level 전환 |
-| `Z1` | EXE | Zelda형 Title/Gameplay/Clear Level과 향후 Room·전투 콘텐츠 |
+| `Z1` | EXE | Zelda형 오버월드·동굴·Dungeon 1, 플레이어/적 전투와 보스 클리어 콘텐츠 |
 
 콘텐츠는 `CraftEngine.lib`에 링크하고 CraftEngine이 다시 `SoundSystem.lib`에 링크한다. 실행 시에는 두 DLL이 각 게임 EXE 옆에 있어야 한다.
 
@@ -44,7 +44,7 @@ flowchart LR
 
 ## 엔진 시작과 프레임 흐름
 
-`Engine` 생성자는 설정을 읽고 난수, `Input`, `Renderer`, `CollisionSystem`, `Sound`를 초기화한다. `ShootingGame`과 Z1은 `AddNewLevel<T>()`로 다음 Level을 예약하고, `SokobanGame`의 파생 `Game`은 gameplay/menu Level을 만들어 `mainLevel`을 직접 선택한다.
+`Engine` 생성자는 설정을 읽고 난수, `Input`, `Renderer`, `CollisionSystem`, `Sound`를 초기화한다. `ShootingGame`은 `AddNewLevel<T>()`로 다음 Level을 예약하고, Z1의 파생 `Game`은 미리 생성한 Level 목록에서 상태에 맞는 Level을 `SetSubLevel`로 예약한다. `SokobanGame`의 파생 `Game`은 gameplay/menu Level을 만들어 `mainLevel`을 직접 선택한다.
 
 한 번의 갱신 프레임 순서는 다음과 같다.
 
@@ -137,17 +137,23 @@ SoundSystem의 전역 `Sound` 클래스는 WAV를 경로별로 캐시한다. 원
 
 ### Z1
 
-Z1의 `Game`은 Title, Overworld, Gameplay, Clear, Development Level을 예약 전환한다. 실제 지상 필드는 `OverworldLevel`이 담당한다. `OverworldMap`은 `Content/Z1/Maps/Overworld`의 256×88 TileId·Blocking 맵을 각각 검증하고, 같은 좌표의 `TileId`와 `walkable`을 하나의 2차원 Cell 그리드에 보관한다. 별도 로더, 중간 맵 데이터, Room 데이터 객체는 없으며 Room은 전체 Map에서 현재 화면에 표시할 16×11 논리 타일 구간을 뜻한다.
+Z1의 `Game`은 `Title`, `Overworld`, `SwordCave`, `Dungeon1`, `Clear`, `GameOver`, `Development` 상태를 보유한다. 실제 진행은 타이틀에서 `Enter` 키로 새 게임을 시작해 오버월드에서 검을 얻고 Dungeon 1을 클리어하는 흐름이다. 새 게임 시작 시 오버월드·동굴·던전 Level을 다시 만들어 HP 20과 검 미소지 상태로 초기화한다. Level 전환 전후에는 `Game`이 플레이어 HP와 검 보유 여부를 보관·복원한다. `Development`는 별도 수동 확인용 장면으로 남아 있다.
 
-`OverworldLevel`은 별도 Catalog 클래스 없이 `TileId`와 `Sprite`의 `unordered_map`을 소유한다. 현재 등록된 1×1 문자 Sprite의 첫 셀을 Z1 전용 `MapTileSize (10, 5)`만큼 반복해 현재 Room의 실제 160×55 콘솔 Sprite를 만들고, Renderer는 이를 확대 없이 그린다. 향후 타일별 ASCII 아트를 적용할 때는 같은 map의 다중 셀 Sprite를 Room 배경에 복사한다. Player를 포함한 Actor는 각자 제작한 Sprite 크기와 Box를 사용하므로 Map 타일 크기에 종속되지 않는다.
+`OverworldMap`은 `Content/Z1/Maps/Overworld`의 256×88 TileId·Blocking 맵을 각각 검증하고, 같은 좌표의 `TileId`와 `walkable`을 하나의 2차원 Cell 그리드에 보관한다. 별도 중간 맵 데이터나 Room 객체는 없으며 Room은 전체 Map에서 현재 화면에 표시할 16×11 논리 타일 구간을 뜻한다. `OverworldLevel`은 `TileId`와 `Sprite`의 `unordered_map`으로 1×1 문자 타일을 Z1 전용 `MapTileSize (10, 5)`만큼 반복해 Room당 160×55 콘솔 배경 Sprite를 만든다. Actor는 각자 Sprite 크기와 Box를 가지므로 Map 타일 크기에 종속되지 않는다. Player·Octorok·Moblin·Tektite는 좌우 공통 여백을 제거한 8×5 Sprite와 같은 크기의 Box를 사용한다.
 
-Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 후보의 Box가 겹치는 모든 타일을 `OverworldMap::CanOccupyWorldRect`로 검사하고, 후보 월드 좌표가 다른 160×55 Room 영역에 들어가면 `OverworldMap::GetTileId(x, y)`로 새 16×11 구간을 직접 조회해 배경 캐시를 다시 만든다. `OverworldLevel`은 현재 Room의 월드 원점을 Renderer View의 `worldOrigin`으로 설정하고 화면 `(0, 3)`부터 표시한다. Actor 위치는 Room 전환 때 변환하거나 재설정하지 않는다.
+Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 후보의 Box가 겹치는 모든 타일을 `OverworldMap::CanOccupyWorldRect`로 검사하고, 앞쪽 Box 경계가 다른 Room에 들어가면 현재 Room 배경 캐시와 Renderer View 원점을 바꾼다. 이때 Player Box가 새 Room 안에 온전히 들어가도록 이동 방향의 Room 경계에 위치를 보정한다. 현재 접근 가능한 Room은 `(7,7) → (7,6) → (8,6) → (8,5) → (8,4) → (8,3) → (7,3)` 경로로 제한한다. 시작 Room `(7, 7)`의 `(4, 1)` 입구는 `SwordCave`로, Room `(7, 3)`의 `(7, 4)` 입구는 검 보유 시에만 `Dungeon1`으로 전환한다. 입구는 Block 타일이므로 일반 지형 이동 검사보다 먼저 판정한다.
 
-`Pawn`은 Player와 Enemy가 공유하는 HP, facing, 셀 단위 이동 누산, 피해·사망, 넉백과 피격 무적 상태를 담당한다. Player는 매 Tick 현재 이동 입력과 마지막 facing을 분리해 갱신하고, Enemy는 현재 Player를 향하는 축 방향을 선택한다. 실제 지형·Pawn 점유 판정과 이동 적용은 `OverworldLevel::CanMoveTo` 및 각 업데이트 함수가 담당한다. Player는 Enemy와 겹칠 수 없지만 Enemy끼리는 서로 통과한다.
+`CaveLevel`은 16×11 문자 맵을 읽어 검과 출구 위치를 찾는다. Player Box가 검의 10×5 타일 영역과 겹치면 `Game`과 Player에 검 보유 상태를 기록하고 배경에서 검을 제거한다. 출구를 통해 오버월드로 돌아갈 수 있다.
 
-`EnemySpawner`는 시작 Room `(7, 7)`을 제외한 Room 좌표와 월드 시드로 결정적인 스폰 계획을 만든다. Room을 나가면 기존 Enemy를 파괴하고 새 Room의 통행 가능한 임의 위치에 다시 생성한다. `SwordAttack`은 Player에 attach되는 짧은 수명의 Actor이며 Enemy 충돌 시 공격자·피해 원인을 함께 전달해 한 번만 피해를 준다. 살아남은 Pawn은 공격 방향 반대로 밀려나고 짧은 무적 시간 동안 깜빡인다. 현재 Enemy는 추적 이동만 하며 Enemy 공격과 구체 적 타입 분화는 아직 구현되지 않았다.
+`Pawn`은 Player와 Enemy가 공유하는 HP, facing, 셀 단위 이동 누산, 피해·사망, 넉백과 피격 무적 상태를 담당한다. Player는 방향키로 이동하며 마지막 방향을 유지한다. 검 보유 후 `A` 키를 누르면 Player에 attach한 짧은 수명의 `SwordAttack`을 만들고, HP가 가득 차 있으면 같은 방향으로 검기도 발사한다. 피해를 입은 Pawn은 공격 반대 방향으로 밀려나고 짧은 무적 시간 동안 깜빡인다. HP가 0이면 오버월드와 던전은 잠시 뒤 `GameOver`로 전환한다.
 
-`DevelopmentLevel`과 `CollisionTestActor`는 Sprite·2D Box 충돌을 수동으로 확인하는 별도 장면이다.
+적은 `Enemy`를 기반으로 한다. 오버월드의 일반 적은 Octorok, Moblin, Tektite다. Octorok은 일정 주기로 방향을 바꾸고 바라보는 방향으로 돌을 발사하며, Moblin은 더 느리게 Player를 추적하다 창을 던진다. Tektite는 투사체 없이 잠시 멈춘 뒤 Player 방향으로 대각선 도약하며, 오버월드의 BlockingMap 지형은 넘을 수 있지만 현재 Room 경계는 넘지 못한다. Tektite만 Player와 겹쳐 접촉 피해를 줄 수 있으며, 피격된 Player는 그 겹침에서 빠져나오는 넉백 이동을 허용한다. 던전의 일반 적은 Octorok이다. Player는 공격 중이 아닐 때 돌·창·화염구에 대해 바라보는 방향이 맞으면 방패 판정을 적용한다. 투사체는 발사자의 Box 가장자리에서 생성되고 지형·현재 Room 경계에 닿거나 유효 대상에 피해를 주면 파괴된다. 피격과 사망 시에는 `CombatEffect`가 잠시 표시된다.
+
+`EnemySpawner`는 시작 Room `(7, 7)`을 제외한 오버월드 Room 좌표와 월드 시드로 결정적인 스폰 계획을 만든다. Room을 나가면 기존 Enemy와 투사체를 파괴하고 새 Room의 통행 가능한 위치에 다시 생성한다. Player와 Octorok·Moblin은 서로 겹칠 수 없지만 Tektite는 접촉 피해를 위해 Player와 겹칠 수 있고, Enemy끼리는 서로 통과한다.
+
+`DungeonLevel`은 `Content/Z1/Maps/Dungeons/Level1.txt`의 5×1 Room을 읽고 Death Mountain Dungeon BGM을 재생한다. Room 전환 시에는 Player Box가 새 Room 안에 온전히 들어가도록 경계 위치를 보정한다. 앞의 세 Room에는 Octorok을 임의 배치하고, 보스 Room에는 Aquamentus를 하나 생성한다. Aquamentus는 수평 이동이 막히면 방향을 바꾸며 Player 쪽으로 세 갈래 화염구를 발사한다. 보스 처치 뒤 표시되는 하트와 트라이포스는 Player Box가 각 Sprite 영역과 겹치면 획득한다. 하트는 HP를 전부 회복한다. 트라이포스 획득 시 Zelda Is Rescued 팬파레를 재생하고 플레이어 입력을 잠시 멈춘 뒤 `Clear`로 전환하며, Clear 화면에서는 Ending Theme을 재생한다. 던전 입구 출구로 오버월드에 되돌아갈 수도 있다.
+
+`DevelopmentLevel`은 Sprite·2D Box 충돌을 수동으로 확인하는 별도 장면이다.
 
 ## 현재 경계와 확장 시점
 
