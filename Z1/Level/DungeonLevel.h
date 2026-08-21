@@ -79,6 +79,12 @@ private:
         const Craft::Vector2& worldPosition
     ) const;
 
+    RoomCoordinate GetRoomCoordinateAtLeadingEdge(
+        const Craft::Vector2& destination,
+        const Pawn& pawn,
+        const Craft::Vector2& direction
+    ) const;
+
     Craft::Vector2 GetRoomWorldOrigin(
         RoomCoordinate room
     ) const;

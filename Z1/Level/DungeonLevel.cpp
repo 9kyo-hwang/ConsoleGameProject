@@ -18,6 +18,7 @@
 #include <Render/Renderer.h>
 #include <Render/Sprite.h>
 
+#include <array>
 #include <filesystem>
 #include <set>
 
@@ -28,6 +29,88 @@ namespace
 {
     const Vector2 MapTileSize(10, 5);
     const Vector2 RoomScreenOffset(0, 3);
+
+    void DrawHeartSprite(
+        std::vector<SpriteCell>& cells,
+        int spriteWidth,
+        int tileX,
+        int tileY)
+    {
+        const std::array<std::string, 5> art
+        {
+            "  ++  @@  ",
+            " +@@@@@@@ ",
+            "  @@@@@@  ",
+            "   @@@@   ",
+            "    @@    "
+        };
+
+        for (int y = 0; y < static_cast<int>(art.size()); ++y)
+        {
+            for (int x = 0; x < static_cast<int>(art[y].size()); ++x)
+            {
+                const char glyph = art[y][x];
+                if (glyph == ' ')
+                {
+                    continue;
+                }
+
+                const Color color = glyph == '+'
+                    ? Color::White
+                    : Color::Red;
+
+                const int destX = tileX * MapTileSize.x + x;
+                const int destY = tileY * MapTileSize.y + y;
+
+                cells[destY * spriteWidth + destX] = SpriteCell(
+                    glyph,
+                    static_cast<WORD>(color),
+                    false
+                );
+            }
+        }
+    }
+
+    void DrawTriforceSprite(
+        std::vector<SpriteCell>& cells,
+        int spriteWidth,
+        int tileX,
+        int tileY)
+    {
+        const std::array<std::string, 5> art
+        {
+            "    /\\    ",
+            "   /@@\\   ",
+            "  /@@@@\\  ",
+            " /@@/\\@@\\ ",
+            "          "
+        };
+
+        for (int y = 0; y < static_cast<int>(art.size()); ++y)
+        {
+            for (int x = 0; x < static_cast<int>(art[y].size()); ++x)
+            {
+                const char glyph = art[y][x];
+                if (glyph == ' ')
+                {
+                    continue;
+                }
+
+                const Color color = glyph == '@'
+                    ? Color::Yellow
+                    : Color::DarkYellow;
+
+                const int destX = tileX * MapTileSize.x + x;
+                const int destY = tileY * MapTileSize.y + y;
+
+                cells[destY * spriteWidth + destX] = SpriteCell(
+                    glyph,
+                    static_cast<WORD>(color),
+                    false
+                );
+            }
+        }
+    }
 
     bool Overlaps(
         const Vector2& lhsPosition,
@@ -457,23 +540,6 @@ void DungeonLevel::BuildRoomSprite()
                     false
                 );
             }
-            else if (tile == 'H' && !_heartCollected)
-            {
-                visual = SpriteCell(
-                    'H',
-                    (WORD)Color::Green,
-                    false
-                );
-            }
-            else if (tile == 'T' && !_triforceCollected)
-            {
-                visual = SpriteCell(
-                    'T',
-                    (WORD)Color::Yellow,
-                    false
-                );
-            }
-
             for (int offsetY = 0;
                  offsetY < MapTileSize.y;
                  ++offsetY)
@@ -493,6 +559,25 @@ void DungeonLevel::BuildRoomSprite()
 
                     cells[index] = visual;
                 }
+            }
+
+            if (tile == 'H' && !_heartCollected)
+            {
+                DrawHeartSprite(
+                    cells,
+                    spriteSize.x,
+                    localX,
+                    localY
+                );
+            }
+            else if (tile == 'T' && !_triforceCollected)
+            {
+                DrawTriforceSprite(
+                    cells,
+                    spriteSize.x,
+                    localX,
+                    localY
+                );
             }
         }
     }
@@ -538,7 +623,7 @@ void DungeonLevel::SpawnRoomEnemies()
 
         if (!_map.CanOccupyWorldRect(
                 worldPosition,
-                Vector2::One,
+                Vector2(10, 5),
                 MapTileSize))
         {
             continue;
@@ -704,7 +789,11 @@ void DungeonLevel::UpdatePlayerMovement(
         }
 
         const RoomCoordinate nextRoom =
-            GetRoomCoordinate(candidate);
+            GetRoomCoordinateAtLeadingEdge(
+                candidate,
+                *_player,
+                delta
+            );
 
         _player->MoveBy(delta);
 
@@ -814,7 +903,11 @@ bool DungeonLevel::UpdatePawnKnockback(
         if (pawn.IsA<Player>())
         {
             TryChangeRoom(
-                GetRoomCoordinate(pawn.GetWorldPosition())
+                GetRoomCoordinateAtLeadingEdge(
+                    pawn.GetWorldPosition(),
+                    pawn,
+                    direction
+                )
             );
         }
     }
@@ -956,6 +1049,32 @@ RoomCoordinate DungeonLevel::GetRoomCoordinate(
         worldPosition.x / roomWorldWidth,
         worldPosition.y / roomWorldHeight
     );
+}
+
+RoomCoordinate DungeonLevel::GetRoomCoordinateAtLeadingEdge(
+    const Vector2& destination,
+    const Pawn& pawn,
+    const Vector2& direction) const
+{
+    const auto box = pawn.GetComponent<BoxComponent>();
+    if (!box)
+    {
+        return GetRoomCoordinate(destination);
+    }
+
+    Vector2 probePosition = destination + box->GetOffset();
+    const Vector2 boxSize = box->GetSize();
+
+    if (direction.x > 0)
+    {
+        probePosition.x += boxSize.x - 1;
+    }
+    else if (direction.y > 0)
+    {
+        probePosition.y += boxSize.y - 1;
+    }
+
+    return GetRoomCoordinate(probePosition);
 }
 
 Vector2 DungeonLevel::GetRoomWorldOrigin(

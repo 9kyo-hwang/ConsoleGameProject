@@ -429,6 +429,32 @@ RoomCoordinate OverworldLevel::GetRoomCoordinate(const Vector2& worldPosition) c
     return RoomCoordinate(worldPosition.x / roomCellWidth, worldPosition.y / roomCellHeight);
 }
 
+RoomCoordinate OverworldLevel::GetRoomCoordinateAtLeadingEdge(
+    const Vector2& destination,
+    const Pawn& pawn,
+    const Vector2& direction) const
+{
+    const auto box = pawn.GetComponent<BoxComponent>();
+    if (!box)
+    {
+        return GetRoomCoordinate(destination);
+    }
+
+    Vector2 probePosition = destination + box->GetOffset();
+    const Vector2 boxSize = box->GetSize();
+
+    if (direction.x > 0)
+    {
+        probePosition.x += boxSize.x - 1;
+    }
+    else if (direction.y > 0)
+    {
+        probePosition.y += boxSize.y - 1;
+    }
+
+    return GetRoomCoordinate(probePosition);
+}
+
 // Map 기준 Room의 좌상단 셀 좌표
 Vector2 OverworldLevel::GetRoomWorldOrigin(RoomCoordinate room) const
 {
@@ -523,7 +549,11 @@ bool OverworldLevel::UpdatePawnKnockback(Pawn& pawn, float deltaTime)
 
         if (pawn.IsA<Player>())
         {
-            TryChangeRoom(GetRoomCoordinate(pawn.GetWorldPosition()));
+            TryChangeRoom(GetRoomCoordinateAtLeadingEdge(
+                pawn.GetWorldPosition(),
+                pawn,
+                direction
+            ));
         }
     }
 
@@ -587,7 +617,11 @@ void OverworldLevel::UpdatePlayerMovement(float deltaTime, const Vector2& delta)
             break;
         }
 
-        const RoomCoordinate nextRoom = GetRoomCoordinate(candidate);
+        const RoomCoordinate nextRoom = GetRoomCoordinateAtLeadingEdge(
+            candidate,
+            *_player,
+            delta
+        );
         _player->MoveBy(delta); // 적 Spawn할 때 Player 유무를 검사하기 때문에, 먼저 이동시킴
         TryChangeRoom(nextRoom);
     }

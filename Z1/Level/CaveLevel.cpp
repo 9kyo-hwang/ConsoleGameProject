@@ -6,9 +6,63 @@
 #include <Render/Renderer.h>
 #include <Game/Game.h>
 #include <Component/BoxComponent.h>
+#include <array>
 
 using namespace Craft;
 using FilePath = std::filesystem::path;
+
+namespace
+{
+    constexpr int ItemTileWidth = 10;
+    constexpr int ItemTileHeight = 5;
+
+    void DrawSwordSprite(
+        std::vector<SpriteCell>& cells,
+        int spriteWidth,
+        int tileX,
+        int tileY)
+    {
+        const std::array<std::string, 5> art
+        {
+            "    /\\    ",
+            "    ||    ",
+            "  ==++==  ",
+            "    ||    ",
+            "    oo    "
+        };
+
+        for (int y = 0; y < static_cast<int>(art.size()); ++y)
+        {
+            for (int x = 0; x < static_cast<int>(art[y].size()); ++x)
+            {
+                const char glyph = art[y][x];
+                if (glyph == ' ')
+                {
+                    continue;
+                }
+
+                Color color = Color::White;
+                if (glyph == '=' || glyph == '+')
+                {
+                    color = Color::Yellow;
+                }
+                else if (glyph == 'o')
+                {
+                    color = Color::DarkYellow;
+                }
+
+                const int destX = tileX * ItemTileWidth + x;
+                const int destY = tileY * ItemTileHeight + y;
+
+                cells[destY * spriteWidth + destX] = SpriteCell(
+                    glyph,
+                    static_cast<WORD>(color),
+                    false
+                );
+            }
+        }
+    }
+}
 
 void CaveLevel::OnInitialized()
 {
@@ -198,10 +252,6 @@ void CaveLevel::BuildRoomSprite()
             {
                 visual = SpriteCell(symbol, (WORD)Color::DarkRed, false);
             }
-            else if (symbol == 'S' && !_swordCollected)
-            {
-                visual = SpriteCell(symbol, (WORD)Color::Yellow, false);
-            }
             else
             {
                 visual = SpriteCell(' ', (WORD)Color::Black, false);
@@ -216,6 +266,11 @@ void CaveLevel::BuildRoomSprite()
 
                     cells[y * spriteSize.x + x] = visual;
                 }
+            }
+
+            if (symbol == 'S' && !_swordCollected)
+            {
+                DrawSwordSprite(cells, spriteSize.x, tileX, tileY);
             }
         }
     }

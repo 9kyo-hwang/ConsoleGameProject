@@ -6,11 +6,13 @@
 #include <Actor/SwordAttack.h>
 #include <Core/Input.h>
 #include <Actor/Projectile.h>
+#include <array>
+#include <Render/Sprite.h>
 
 using namespace Craft;
 
 Player::Player(Craft::Vector2 position, int maxHp)
-    : Super(position, maxHp, 30.f)
+    : Super(position, maxHp, 20.f)
 {
     // 렌더러에서 스케일에 비례하게 박스 크기를 늘리지 않도록 변경되어
     // 명시적으로 박스 크기를 렌더 스케일로 지정
@@ -106,10 +108,48 @@ void Player::OnDeath(const std::shared_ptr<Pawn>& damageInstigator)
 
 std::shared_ptr<const Craft::Sprite> Player::CreateSprite()
 {
-    std::vector<SpriteCell> cells
+    const std::array<std::string, 5> art
     {
-        SpriteCell('v', (WORD)Color::White, false),
+        "    /\\    ",
+        "   /@@\\   ",
+        " <######> ",
+        "  /####\\  ",
+        "    ||    "
     };
 
-    return std::make_shared<const Sprite>(Vector2::One, std::move(cells));
+    std::vector<SpriteCell> cells;
+    cells.reserve(50);
+
+    for (const std::string& row : art)
+    {
+        for (const char glyph : row)
+        {
+            Color color = Color::Green;
+            if (glyph == '@')
+            {
+                color = Color::White;
+            }
+            else if (glyph == '/' || glyph == '\\' ||
+                     glyph == '<' || glyph == '>')
+            {
+                color = Color::DarkGreen;
+            }
+            else if (glyph == '|')
+            {
+                color = Color::DarkYellow;
+            }
+
+            cells.emplace_back(SpriteCell
+            {
+                glyph,
+                static_cast<WORD>(color),
+                glyph == ' '
+            });
+        }
+    }
+
+    return std::make_shared<const Sprite>(
+        Vector2(10, 5),
+        std::move(cells)
+    );
 }

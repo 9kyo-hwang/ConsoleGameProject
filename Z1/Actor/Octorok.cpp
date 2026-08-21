@@ -2,6 +2,10 @@
 #include "Octorok.h"
 
 #include <Math/MathUtility.h>
+#include <array>
+#include <Component/BoxComponent.h>
+#include <Component/SpriteRendererComponent.h>
+#include <Render/Sprite.h>
 
 using namespace Craft;
 
@@ -14,6 +18,8 @@ namespace
         case EnemyVariant::Red: return 1;
         case EnemyVariant::Blue: return 2;
         }
+
+        return 1;
     }
 
     Color GetColor(EnemyVariant variant)
@@ -23,6 +29,52 @@ namespace
         case EnemyVariant::Red: return Color::Red;
         case EnemyVariant::Blue: return Color::Blue;
         }
+
+        return Color::Red;
+    }
+
+    std::shared_ptr<const Sprite> CreateOctorokSprite(Color bodyColor)
+    {
+        const std::array<std::string, 5> art
+        {
+            "    /\\    ",
+            " /######\\ ",
+            " <##@@##> ",
+            " \\######/ ",
+            "  /####\\  "
+        };
+
+        std::vector<SpriteCell> cells;
+        cells.reserve(50);
+
+        for (const std::string& row : art)
+        {
+            for (const char glyph : row)
+            {
+                Color color = bodyColor;
+                if (glyph == '@')
+                {
+                    color = Color::Yellow;
+                }
+                else if (glyph == '/' || glyph == '\\' ||
+                         glyph == '<' || glyph == '>')
+                {
+                    color = Color::DarkYellow;
+                }
+
+                cells.emplace_back(SpriteCell
+                {
+                    glyph,
+                    static_cast<WORD>(color),
+                    glyph == ' '
+                });
+            }
+        }
+
+        return std::make_shared<const Sprite>(
+            Vector2(10, 5),
+            std::move(cells)
+        );
     }
 }
 
@@ -32,6 +84,17 @@ Octorok::Octorok(Craft::Vector2 position, EnemyVariant variant)
     , _rotateTimer(0.75f)
     , _attackTimer(1.5f)
 {
+    if (const auto renderer = GetComponent<SpriteRendererComponent>())
+    {
+        renderer->SetSprite(CreateOctorokSprite(GetColor(variant)));
+        renderer->SetSortingOrder(11);
+    }
+
+    if (const auto box = GetComponent<BoxComponent>())
+    {
+        box->SetSize(Vector2(10, 5));
+    }
+
     Rotate();
 }
 
@@ -64,6 +127,8 @@ Craft::Vector2 Octorok::GetRandomDirection() const
     case 2: return Vector2::Up * -1;
     case 3: return Vector2::Right * -1;
     }
+
+    return Vector2::Right;
 }
 
 void Octorok::Rotate()

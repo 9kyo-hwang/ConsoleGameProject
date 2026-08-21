@@ -29,7 +29,7 @@ std::vector<EnemySpawnData> EnemySpawner::BuildSpawnPlan(RoomCoordinate room, co
         const Vector2 worldPosition = roomOrigin + Vector2(x, y) * mapTileSize;
 
         // 적이 배치될 수 없는 위치면 pass
-        if (!map.CanOccupyWorldRect(worldPosition, Vector2::One, mapTileSize))  // TODO: 적 크기에 맞게 수정
+        if (!map.CanOccupyWorldRect(worldPosition, Vector2(10, 5), mapTileSize))
         {
             continue;
         }

@@ -46,6 +46,11 @@ private:
     void BuildRoomSprite();
     
     RoomCoordinate GetRoomCoordinate(const Craft::Vector2& mapPosition) const;
+    RoomCoordinate GetRoomCoordinateAtLeadingEdge(
+        const Craft::Vector2& destination,
+        const Pawn& pawn,
+        const Craft::Vector2& direction
+    ) const;
     Craft::Vector2 GetRoomWorldOrigin(RoomCoordinate room) const;
 
     bool CanMoveTo(const Craft::Vector2& destination, const Pawn& mover);
