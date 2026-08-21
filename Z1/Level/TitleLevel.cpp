@@ -35,23 +35,11 @@ void TitleLevel::Tick(float deltaTime)
 {
     Level::Tick(deltaTime);
 
-    //if (Input::Get().GetKeyDown('1'))
-    //{
-    //    Game& game = dynamic_cast<Game&>(Engine::Get());
-    //    game.ChangeLevel(State::Title);
-    //}
-
-    if (Input::Get().GetKeyDown('2'))
+    if (Input::Get().GetKeyDown(VK_RETURN))
     {
         Game& game = dynamic_cast<Game&>(Engine::Get());
         game.StartNewGame();
     }
-
-    //if (Input::Get().GetKeyDown('3'))
-    //{
-    //    Game& game = dynamic_cast<Game&>(Engine::Get());
-    //    game.ChangeLevel(State::Clear);
-    //}
 }
 
 void TitleLevel::Draw()
@@ -60,7 +48,18 @@ void TitleLevel::Draw()
 
     if (!_titleSprite) return;
 
-    Renderer::Get().Submit(_titleSprite, Vector2(0, 3));
+    const Vector2 titlePosition(0, 3);
+    const std::string startText = "Press Enter To Play";
+
+    Renderer::Get().Submit(_titleSprite, titlePosition);
+    Renderer::Get().Submit(
+        startText,
+        Vector2(
+            titlePosition.x +
+                (_titleSprite->GetSize().x - (int)startText.size()) / 2,
+            titlePosition.y + _titleSprite->GetSize().y + 2
+        )
+    );
 }
 
 void TitleLevel::EndPlay()
