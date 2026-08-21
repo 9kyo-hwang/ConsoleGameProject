@@ -37,15 +37,15 @@ namespace
     {
         const std::array<std::string, 5> art
         {
-            "    /\\    ",
-            " /######\\ ",
-            " <##@@##> ",
-            " \\######/ ",
-            "  /####\\  "
+            "   /\\   ",
+            "/######\\",
+            "<##@@##>",
+            "\\######/",
+            " /####\\ "
         };
 
         std::vector<SpriteCell> cells;
-        cells.reserve(50);
+        cells.reserve(40);
 
         for (const std::string& row : art)
         {
@@ -72,7 +72,7 @@ namespace
         }
 
         return std::make_shared<const Sprite>(
-            Vector2(10, 5),
+            Vector2(8, 5),
             std::move(cells)
         );
     }
@@ -92,7 +92,7 @@ Octorok::Octorok(Craft::Vector2 position, EnemyVariant variant)
 
     if (const auto box = GetComponent<BoxComponent>())
     {
-        box->SetSize(Vector2(10, 5));
+        box->SetSize(Vector2(8, 5));
     }
 
     Rotate();

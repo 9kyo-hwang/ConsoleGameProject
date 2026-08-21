@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <Level/Level.h>
 #include <Level/Room.h>
@@ -117,7 +117,7 @@ private:
     bool _bgmStarted = false;
     bool _needsPlayerSync = true;
     bool _gameOverPending = false;
-    Timer _gameOverTimer{ 0.4f };
+    Timer _gameOverTimer{ 2.7f };
     bool _clearPending = false;
     Timer _clearTimer{ 6.0f };
 

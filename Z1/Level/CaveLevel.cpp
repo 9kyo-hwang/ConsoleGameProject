@@ -16,6 +16,23 @@ namespace
     constexpr int ItemTileWidth = 10;
     constexpr int ItemTileHeight = 5;
 
+    bool Overlaps(
+        const Vector2& lhsPosition,
+        const Vector2& lhsSize,
+        const Vector2& rhsPosition,
+        const Vector2& rhsSize)
+    {
+        const int lhsRight = lhsPosition.x + lhsSize.x - 1;
+        const int lhsBottom = lhsPosition.y + lhsSize.y - 1;
+        const int rhsRight = rhsPosition.x + rhsSize.x - 1;
+        const int rhsBottom = rhsPosition.y + rhsSize.y - 1;
+
+        return !(lhsRight < rhsPosition.x ||
+                 rhsRight < lhsPosition.x ||
+                 lhsBottom < rhsPosition.y ||
+                 rhsBottom < lhsPosition.y);
+    }
+
     void DrawSwordSprite(
         std::vector<SpriteCell>& cells,
         int spriteWidth,
@@ -316,14 +333,26 @@ bool CaveLevel::CanMoveTo(Craft::Vector2 destination) const
     return true;
 }
 
-// Player가 특정 tile 위에 있는지(추후 Sprite 교체되면 box 활용)
+// Player Box가 특정 타일과 겹치는지 검사
 bool CaveLevel::IsOnTile(Craft::Vector2 tile) const
 {
-    Vector2 position = _player->GetWorldPosition();
-    int tileX = position.x / TilePixelWidth;
-    int tileY = position.y / TilePixelHeight;
+    if (!_player)
+    {
+        return false;
+    }
 
-    return tileX == tile.x && tileY == tile.y;
+    const auto box = _player->GetComponent<BoxComponent>();
+    if (!box)
+    {
+        return false;
+    }
+
+    return Overlaps(
+        _player->GetWorldPosition() + box->GetOffset(),
+        box->GetSize(),
+        tile * Vector2(TilePixelWidth, ItemTileHeight),
+        Vector2(ItemTileWidth, ItemTileHeight)
+    );
 }
 
 bool CaveLevel::UpdatePlayerMovement(float deltaTime)

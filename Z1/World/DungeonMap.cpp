@@ -53,6 +53,7 @@ bool DungeonMap::Load(const FilePath& path, std::string& errorMessage)
         return false;
     }
 
+    _loaded = true;
     return true;
 }
 

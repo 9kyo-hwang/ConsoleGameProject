@@ -128,15 +128,15 @@ std::shared_ptr<const Craft::Sprite> Player::CreateSprite()
 {
     const std::array<std::string, 5> art
     {
-        "    /\\    ",
-        "   /@@\\   ",
-        " <######> ",
-        "  /####\\  ",
-        "    ||    "
+        "   /\\   ",
+        "  /@@\\  ",
+        "<######>",
+        " /####\\ ",
+        "   ||   "
     };
 
     std::vector<SpriteCell> cells;
-    cells.reserve(50);
+    cells.reserve(40);
 
     for (const std::string& row : art)
     {
@@ -167,7 +167,7 @@ std::shared_ptr<const Craft::Sprite> Player::CreateSprite()
     }
 
     return std::make_shared<const Sprite>(
-        Vector2(10, 5),
+        Vector2(8, 5),
         std::move(cells)
     );
 }

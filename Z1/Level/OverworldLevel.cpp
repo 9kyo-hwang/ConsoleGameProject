@@ -677,7 +677,10 @@ void OverworldLevel::SnapPlayerIntoRoom(
     _player->SetPosition(position);
 }
 
-bool OverworldLevel::CanMoveTo(const Craft::Vector2& destination, const Pawn& mover)
+bool OverworldLevel::CanMoveTo(
+    const Craft::Vector2& destination,
+    const Pawn& mover,
+    bool allowContactEscape)
 {
     const auto& moverBox = mover.GetComponent<BoxComponent>();
     if (!moverBox)
@@ -721,7 +724,7 @@ bool OverworldLevel::CanMoveTo(const Craft::Vector2& destination, const Pawn& mo
             return Overlaps(moverPosition, moverBox->GetSize(), otherPosition, otherBox->GetSize());
         };
 
-    if (IsOverlapping(_player))
+    if (IsOverlapping(_player) && !mover.IsA<Tektite>())
     {
         return false;
     }
@@ -735,7 +738,24 @@ bool OverworldLevel::CanMoveTo(const Craft::Vector2& destination, const Pawn& mo
     {
         if (IsOverlapping(enemy))
         {
-            return false;
+            const auto enemyBox =
+                enemy->GetComponent<BoxComponent>();
+
+            const bool isEscapingContact =
+                mover.IsA<Player>() &&
+                allowContactEscape &&
+                enemyBox &&
+                Overlaps(
+                    mover.GetWorldPosition() + moverBox->GetOffset(),
+                    moverBox->GetSize(),
+                    enemy->GetWorldPosition() + enemyBox->GetOffset(),
+                    enemyBox->GetSize()
+                );
+
+            if (!isEscapingContact)
+            {
+                return false;
+            }
         }
     }
 
@@ -755,7 +775,7 @@ bool OverworldLevel::UpdatePawnKnockback(Pawn& pawn, float deltaTime)
     for (int i = 0; i < steps; ++i)
     {
         const Vector2 destination = pawn.GetWorldPosition() + direction;
-        if (!CanMoveTo(destination, pawn))
+        if (!CanMoveTo(destination, pawn, pawn.IsA<Player>()))
         {
             pawn.StopKnockback();
             break;

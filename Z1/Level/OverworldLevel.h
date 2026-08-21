@@ -57,7 +57,11 @@ private:
         const Craft::Vector2& direction
     );
 
-    bool CanMoveTo(const Craft::Vector2& destination, const Pawn& mover);
+    bool CanMoveTo(
+        const Craft::Vector2& destination,
+        const Pawn& mover,
+        bool allowContactEscape = false
+    );
     bool UpdatePawnKnockback(Pawn& pawn, float deltaTime);
 
     void SpawnRoomEnemies();
