@@ -193,8 +193,20 @@ void DungeonLevel::Tick(float deltaTime)
 
     if (_player->IsDead())
     {
-        Game& game = dynamic_cast<Game&>(Engine::Get());
-        game.ChangeLevel(State::GameOver);
+        if (!_gameOverPending)
+        {
+            _gameOverPending = true;
+            _gameOverTimer.Reset();
+            return;
+        }
+
+        _gameOverTimer.Tick(deltaTime);
+        if (_gameOverTimer.TimeOver())
+        {
+            Game& game = dynamic_cast<Game&>(Engine::Get());
+            game.ChangeLevel(State::GameOver);
+        }
+
         return;
     }
 

@@ -1,6 +1,10 @@
 ﻿#include "pch.h"
 #include "Pawn.h"
 
+#include <Actor/CombatEffect.h>
+#include <Component/BoxComponent.h>
+#include <Level/Level.h>
+
 using namespace Craft;
 
 namespace 
@@ -9,6 +13,41 @@ namespace
     constexpr float KnockbackSpeed = 40.f;  // 초당 밀려날 속도  
     constexpr float InvincibleTime = 0.75f;  // 피격 무적 시간
     constexpr float BlinkInterval = 0.08f;  // 깜빡임 간격
+
+    void SpawnDamageEffect(
+        Pawn& pawn,
+        CombatEffectType type,
+        Color color,
+        float duration
+    )
+    {
+        const auto level = pawn.GetOwner();
+        if (!level)
+        {
+            return;
+        }
+
+        Vector2 effectPosition = pawn.GetWorldPosition();
+        if (const auto box = pawn.GetComponent<BoxComponent>())
+        {
+            const Vector2 boxPosition =
+                effectPosition + box->GetOffset();
+
+            const Vector2 boxSize = box->GetSize();
+
+            effectPosition = boxPosition + Vector2(
+                std::max(0, (boxSize.x - 3) / 2),
+                std::max(0, (boxSize.y - 3) / 2)
+            );
+        }
+
+        level->SpawnActor<CombatEffect>(
+            effectPosition,
+            CreateCombatEffectSprite(type, Vector2::Zero, color),
+            duration,
+            20
+        );
+    }
 }
 
 Pawn::Pawn(Vector2 position, int maxHp, float moveSpeed)
@@ -64,9 +103,23 @@ int Pawn::TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const 
 
     if (IsDead())
     {
+        SpawnDamageEffect(
+            *this,
+            CombatEffectType::Death,
+            Color::Red,
+            0.35f
+        );
+
         OnDeath(instigator);
         return actualDamage;
     }
+
+    SpawnDamageEffect(
+        *this,
+        CombatEffectType::Hit,
+        Color::Yellow,
+        0.18f
+    );
 
     _invincibleTimer.Reset();
     Knockback(instigator, causer);

@@ -3,6 +3,7 @@
 #include <Level/Level.h>
 #include <Level/Room.h>
 #include <World/DungeonMap.h>
+#include <Util/Timer.h>
 
 namespace Craft
 {
@@ -104,6 +105,8 @@ private:
     bool _loaded = false;
     bool _bgmStarted = false;
     bool _needsPlayerSync = true;
+    bool _gameOverPending = false;
+    Timer _gameOverTimer{ 0.4f };
 
     DungeonMap _map;
     std::shared_ptr<const Craft::Sprite> _roomSprite;
