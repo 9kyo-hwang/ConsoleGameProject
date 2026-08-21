@@ -2,6 +2,8 @@
 #include <Actor/Actor.h>
 #include <Util/Timer.h>
 
+class CellStepComponent;
+
 enum class Facing
 {
     Up = 0,
@@ -53,7 +55,7 @@ public:
 
 protected:
     virtual void OnDeath(const std::shared_ptr<Pawn>& instigator) {}
-    inline void SetMoveSpeed(float moveSpeed) { _moveSpeed = moveSpeed; }
+    void SetMoveSpeed(float moveSpeed);
 
 private:
     void Knockback(const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer);
@@ -64,8 +66,7 @@ private:
     int _maxHp = 0;
     int _hp = 0;
     
-    float _moveSpeed = 20.f;    // 초당 셀 20칸
-    float _moveRemainder = 0.f;
+    std::shared_ptr<CellStepComponent> _cellStep;
 
     Craft::Vector2 _knockbackDirection = Craft::Vector2::Zero;
     int _remainKnockbackSteps = 0;

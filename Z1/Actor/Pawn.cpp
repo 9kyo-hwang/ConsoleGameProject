@@ -2,6 +2,7 @@
 #include "Pawn.h"
 
 #include <Actor/CombatEffect.h>
+#include <Component/CellStepComponent.h>
 #include <Component/BoxComponent.h>
 #include <Level/Level.h>
 
@@ -54,7 +55,7 @@ Pawn::Pawn(Vector2 position, int maxHp, float moveSpeed)
     : Super(position)
     , _maxHp(maxHp)
     , _hp(maxHp)
-    , _moveSpeed(moveSpeed)
+    , _cellStep(AddComponent<CellStepComponent>(moveSpeed))
     , _invincibleTimer(InvincibleTime)
 {
     _invincibleTimer.Complete();
@@ -139,17 +140,17 @@ void Pawn::RestoreFullHealth()
 
 int Pawn::ConsumeMoveSteps(float deltaTime)
 {
-    _moveRemainder += _moveSpeed * deltaTime;
-
-    const int steps = (int)_moveRemainder;
-    _moveRemainder -= steps;
-
-    return steps;
+    return _cellStep->ConsumeCellSteps(deltaTime);
 }
 
 void Pawn::ClearMoveRemainder()
 {
-    _moveRemainder = 0.f;
+    _cellStep->ResetRemainder();
+}
+
+void Pawn::SetMoveSpeed(float moveSpeed)
+{
+    _cellStep->SetCellsPerSecond(moveSpeed);
 }
 
 void Pawn::MoveBy(const Craft::Vector2& delta)

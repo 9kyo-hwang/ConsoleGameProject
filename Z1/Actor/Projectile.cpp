@@ -3,6 +3,7 @@
 
 #include <Component/SpriteRendererComponent.h>
 #include <Component/BoxComponent.h>
+#include <Component/CellStepComponent.h>
 
 #include <Level/OverworldLevel.h>
 #include <Level/DungeonLevel.h>
@@ -69,12 +70,15 @@ Projectile::Projectile(Craft::Vector2 position, const ProjectileSpec& spec, cons
     , _spec(spec)
     , _instigator(instigator)
     , _direction(spec.direction)
+    , _cellStep(AddComponent<CellStepComponent>(spec.speed))
     , _timer(spec.lifetime)
     , _hasHit(false)
 {
     AddComponent<SpriteRendererComponent>(_spec.image, _spec.color, _spec.sortingOrder);
     AddComponent<BoxComponent>(_spec.boxSize);
 }
+
+Projectile::~Projectile() = default;
 
 void Projectile::Tick(float deltaTime)
 {
@@ -178,17 +182,12 @@ void Projectile::OnCollision(const std::shared_ptr<Craft::Actor>& other)
 
 int Projectile::ConsumeMoveSteps(float deltaTime)
 {
-    _moveRemainder += _spec.speed * deltaTime;
-
-    const int steps = (int)_moveRemainder;
-    _moveRemainder -= steps;
-
-    return steps;
+    return _cellStep->ConsumeCellSteps(deltaTime);
 }
 
 void Projectile::ClearMoveRemainder()
 {
-    _moveRemainder = 0.f;
+    _cellStep->ResetRemainder();
 }
 
 bool Projectile::CanHit(const std::shared_ptr<Pawn>& target) const

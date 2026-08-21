@@ -4,6 +4,7 @@
 #include <Util/Timer.h>
 
 class Pawn;
+class CellStepComponent;
 
 enum class ProjectileType
 {
@@ -48,6 +49,7 @@ class Projectile : public Craft::Actor
 
 public:
     Projectile(Craft::Vector2 position, const ProjectileSpec& spec, const std::shared_ptr<Pawn>& instigator);
+    ~Projectile() override;
 
     void Tick(float deltaTime) override;
     void OnCollision(const std::shared_ptr<Craft::Actor>& other) override;
@@ -79,7 +81,7 @@ private:
 
     Craft::Vector2 _direction;
 
-    float _moveRemainder;
+    std::shared_ptr<CellStepComponent> _cellStep;
     Timer _timer;
 
     bool _hasHit;
