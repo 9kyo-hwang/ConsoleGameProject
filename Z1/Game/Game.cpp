@@ -2,7 +2,6 @@
 #include "Game.h"
 #include <Level/TitleLevel.h>
 #include <Level/OverworldLevel.h>
-#include <Level/GameplayLevel.h>
 #include <Level/ClearLevel.h>
 #include <Level/GameOverLevel.h>
 #include <Level/DevelopmentLevel.h>
@@ -17,7 +16,6 @@ Game::Game()
     _levels[(int)State::Overworld] = (std::make_shared<OverworldLevel>());
     _levels[(int)State::SwordCave] = (std::make_shared<CaveLevel>());
     _levels[(int)State::Dungeon1] = (std::make_shared<DungeonLevel>());
-    _levels[(int)State::Gameplay] = (std::make_shared<GameplayLevel>());
     _levels[(int)State::Clear] = (std::make_shared<ClearLevel>());
     _levels[(int)State::GameOver] = (std::make_shared<GameOverLevel>());
     _levels[(int)State::Development] = (std::make_shared<DevelopmentLevel>());
@@ -28,7 +26,7 @@ Game::Game()
 void Game::StartNewGame()
 {
     _hasSword = false;
-    _playerHp = 10;
+    _playerHp = PlayerMaxHp;
 
     _levels[(int)State::Overworld] = std::make_shared<OverworldLevel>();
     _levels[(int)State::SwordCave] = std::make_shared<CaveLevel>();

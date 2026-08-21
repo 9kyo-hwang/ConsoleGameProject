@@ -19,6 +19,11 @@ public:
     Player(Craft::Vector2 position, int maxHp);
 
     void Tick(float deltaTime) override;
+    int TakeDamage(
+        int amount,
+        const std::shared_ptr<Pawn>& instigator,
+        const std::shared_ptr<Craft::Actor>& causer
+    ) override;
 
     inline bool HasSword() const { return _hasSword; }
     void EquipSword() { _hasSword = true; } // TODO: 확장

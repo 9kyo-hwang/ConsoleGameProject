@@ -214,7 +214,7 @@ void DungeonLevel::BeginPlay()
 
     if (!_bgmStarted)
     {
-        Engine::Get().PlayBGM("Z1/03. Dungeon Theme.wav");
+        Engine::Get().PlayBGM("Z1/12. Death Mountain Dungeon.wav");
         _bgmStarted = true;
     }
 
@@ -237,7 +237,7 @@ void DungeonLevel::BeginPlay()
     const Vector2 spawnPosition =
         Vector2(PlayerSpawnTileX, PlayerSpawnTileY) * MapTileSize;
 
-    _player = SpawnActor<Player>(spawnPosition, 10);
+    _player = SpawnActor<Player>(spawnPosition, Game::PlayerMaxHp);
     _player->SetHealth(game.GetPlayerHp());
     _needsPlayerSync = false;
 
@@ -271,6 +271,18 @@ void DungeonLevel::Tick(float deltaTime)
 
     if (!_player)
     {
+        return;
+    }
+
+    if (_clearPending)
+    {
+        _clearTimer.Tick(deltaTime);
+        if (_clearTimer.TimeOver())
+        {
+            Game& game = dynamic_cast<Game&>(Engine::Get());
+            game.ChangeLevel(State::Clear);
+        }
+
         return;
     }
 
@@ -322,7 +334,14 @@ void DungeonLevel::Tick(float deltaTime)
             attack->AttachTo(_player, false);
             _player->SetActiveAttack(attack);
 
-            if (_player->IsFullHp())
+            const bool canShootSwordBeam = _player->IsFullHp();
+            Engine::Get().PlayOneShot(
+                canShootSwordBeam
+                ? "Z1/LOZ_Sword_Combined.wav"
+                : "Z1/LOZ_Sword_Slash.wav"
+            );
+
+            if (canShootSwordBeam)
             {
                 ProjectileSpec swordBeam
                 {
@@ -671,6 +690,7 @@ void DungeonLevel::SpawnBoss()
         _bossTile * MapTileSize;
 
     _boss = SpawnActor<Aquamentus>(bossWorldPosition);
+    Engine::Get().PlayOneShot("Z1/LOZ_Boss_Scream1.wav");
 
     _roomEnemies.emplace_back(_boss);
 }
@@ -1219,10 +1239,10 @@ void DungeonLevel::TryCollectItems()
         IsPlayerOnTile(_triforceTile))
     {
         _triforceCollected = true;
+        _clearPending = true;
+        _clearTimer.Reset();
 
-        Game& game =
-            dynamic_cast<Game&>(Engine::Get());
-
-        game.ChangeLevel(State::Clear);
+        Engine::Get().StopBGM();
+        Engine::Get().PlayOneShot("Z1/14. Zelda Is Rescued.wav");
     }
 }

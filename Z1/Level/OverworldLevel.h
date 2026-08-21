@@ -86,7 +86,7 @@ private:
     bool _bgmStarted = false;
     bool _needsPlayerSync = true;
     bool _gameOverPending = false;
-    Timer _gameOverTimer{ 0.4f };
+    Timer _gameOverTimer{ 2.7f };
 
     EnemySpawner _enemySpawner;
     std::vector<std::shared_ptr<Enemy>> _roomEnemies;   // 현재 룸에 생성된 적 별도 보관

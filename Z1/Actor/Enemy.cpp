@@ -2,6 +2,7 @@
 #include "Enemy.h"
 #include <Component/SpriteRendererComponent.h>
 #include <Component/BoxComponent.h>
+#include <Engine/Engine.h>
 
 using namespace Craft;
 
@@ -37,7 +38,19 @@ bool Enemy::ConsumeAttackRequest(EnemyAttackRequest& outRequest)
 
 int Enemy::TakeDamage(int amount, const std::shared_ptr<Pawn>& instigator, const std::shared_ptr<Craft::Actor>& causer)
 {
-    return Super::TakeDamage(amount, instigator, causer);
+    const int actualDamage =
+        Super::TakeDamage(amount, instigator, causer);
+
+    if (actualDamage > 0)
+    {
+        Engine::Get().PlayOneShot(
+            IsDead()
+            ? "Z1/LOZ_Enemy_Die.wav"
+            : "Z1/LOZ_Enemy_Hit.wav"
+        );
+    }
+
+    return actualDamage;
 }
 
 Vector2 Enemy::GetChaseDelta(const Vector2& target) const
@@ -53,8 +66,6 @@ Vector2 Enemy::GetChaseDelta(const Vector2& target) const
 
 void Enemy::OnDeath(const std::shared_ptr<Pawn>& instigator)
 {
-    // TODO: 사망 이펙트 + 사운드 처리
-
     Destroy();
 }
 

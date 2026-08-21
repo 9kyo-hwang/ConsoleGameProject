@@ -7,6 +7,7 @@
 #include <Core/Input.h>
 #include <Actor/Projectile.h>
 #include <array>
+#include <Engine/Engine.h>
 #include <Render/Sprite.h>
 
 using namespace Craft;
@@ -47,6 +48,23 @@ void Player::Tick(float deltaTime)
         SetFacing(Facing::Right);
         _moveInput = Vector2::Right;
     }
+}
+
+int Player::TakeDamage(
+    int amount,
+    const std::shared_ptr<Pawn>& instigator,
+    const std::shared_ptr<Craft::Actor>& causer
+)
+{
+    const int actualDamage =
+        Super::TakeDamage(amount, instigator, causer);
+
+    if (actualDamage > 0 && !IsDead())
+    {
+        Engine::Get().PlayOneShot("Z1/LOZ_Link_Hurt.wav");
+    }
+
+    return actualDamage;
 }
 
 bool Player::Shieldable(const Projectile& projectile) const
@@ -103,7 +121,7 @@ void Player::CancelAttack()
 void Player::OnDeath(const std::shared_ptr<Pawn>& damageInstigator)
 {
     CancelAttack();
-    // TODO: 사망 연출(?) -> 게임 오버 표시 -> Restart or Quit 선택 레벨
+    Engine::Get().PlayOneShot("Z1/LOZ_Link_Die.wav");
 }
 
 std::shared_ptr<const Craft::Sprite> Player::CreateSprite()

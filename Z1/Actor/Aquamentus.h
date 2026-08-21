@@ -12,6 +12,11 @@ public:
 
     void Think(float deltaTime, const Player& player) override;
     void OnMoveBlocked() override;
+    int TakeDamage(
+        int amount,
+        const std::shared_ptr<Pawn>& instigator,
+        const std::shared_ptr<Craft::Actor>& causer
+    ) override;
     int GetContactDamage() const override { return 2; }
 
 private:

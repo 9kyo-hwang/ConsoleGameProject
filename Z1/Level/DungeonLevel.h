@@ -113,6 +113,8 @@ private:
     bool _needsPlayerSync = true;
     bool _gameOverPending = false;
     Timer _gameOverTimer{ 0.4f };
+    bool _clearPending = false;
+    Timer _clearTimer{ 6.0f };
 
     DungeonMap _map;
     std::shared_ptr<const Craft::Sprite> _roomSprite;

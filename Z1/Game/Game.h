@@ -14,7 +14,6 @@ enum class State
     Overworld,
     SwordCave,
     Dungeon1,
-    Gameplay,
     Clear,
     GameOver,
     Development,
@@ -24,6 +23,8 @@ enum class State
 class Game : public Craft::Engine
 {
 public:
+    inline static constexpr int PlayerMaxHp = 20;
+
     Game();
     ~Game() override = default;
 
@@ -34,12 +35,15 @@ public:
     void SetHasSword(bool value) { _hasSword = value; }
 
     inline int GetPlayerHp() const { return _playerHp; }
-    void SetPlayerHp(int value) { _playerHp = std::max(0, value); }
+    void SetPlayerHp(int value)
+    {
+        _playerHp = std::clamp(value, 0, PlayerMaxHp);
+    }
 
 private:
     State _state = State::Title;
     std::vector<std::shared_ptr<Craft::Level>> _levels{};
     bool _hasSword = false;
-    int _playerHp = 10;
+    int _playerHp = PlayerMaxHp;
 };
 

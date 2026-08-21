@@ -4,6 +4,7 @@
 #include <array>
 #include <Component/BoxComponent.h>
 #include <Component/SpriteRendererComponent.h>
+#include <Engine/Engine.h>
 #include <Render/Sprite.h>
 
 using namespace Craft;
@@ -88,6 +89,27 @@ void Aquamentus::Think(float deltaTime, const Player& player)
 void Aquamentus::OnMoveBlocked()
 {
     _moveDirection = _moveDirection * -1;
+}
+
+int Aquamentus::TakeDamage(
+    int amount,
+    const std::shared_ptr<Pawn>& instigator,
+    const std::shared_ptr<Craft::Actor>& causer
+)
+{
+    const int actualDamage =
+        Pawn::TakeDamage(amount, instigator, causer);
+
+    if (actualDamage > 0)
+    {
+        Engine::Get().PlayOneShot(
+            IsDead()
+            ? "Z1/LOZ_Enemy_Die.wav"
+            : "Z1/LOZ_Boss_Hit.wav"
+        );
+    }
+
+    return actualDamage;
 }
 
 void Aquamentus::RequestFireballAttack(const Player& player)

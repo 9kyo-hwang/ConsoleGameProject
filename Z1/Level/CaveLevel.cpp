@@ -99,7 +99,7 @@ void CaveLevel::BeginPlay()
     }
 
     Vector2 spawnPosition(_playerPosition.x * TilePixelWidth, _playerPosition.y * TilePixelHeight);
-    _player = SpawnActor<Player>(spawnPosition, 10);
+    _player = SpawnActor<Player>(spawnPosition, Game::PlayerMaxHp);
     _player->SetHealth(game.GetPlayerHp());
     _needsPlayerSync = false;
 
@@ -375,6 +375,7 @@ bool CaveLevel::TryCollectSword()
 
     game.SetHasSword(true);
     _player->EquipSword();
+    Engine::Get().PlayOneShot("Z1/07. Collect Item.wav");
 
     _swordCollected = true;
     BuildRoomSprite();

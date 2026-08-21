@@ -120,7 +120,6 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClCompile Include="Level\EnemySpawner.cpp" />
     <ClCompile Include="Level\DevelopmentLevel.cpp" />
     <ClCompile Include="Level\ClearLevel.cpp" />
-    <ClCompile Include="Level\GameplayLevel.cpp" />
     <ClCompile Include="Game\Game.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Actor\Player.cpp" />
@@ -148,7 +147,6 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClInclude Include="Level\EnemySpawner.h" />
     <ClInclude Include="Level\DevelopmentLevel.h" />
     <ClInclude Include="Level\ClearLevel.h" />
-    <ClInclude Include="Level\GameplayLevel.h" />
     <ClInclude Include="Game\Game.h" />
     <ClInclude Include="Actor\Player.h" />
     <ClInclude Include="Level\OverworldLevel.h" />

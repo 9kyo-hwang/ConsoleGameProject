@@ -9,6 +9,7 @@
 #include <Actor/Pawn.h>
 #include <Actor/Player.h>
 #include <Actor/Enemy.h>
+#include <Engine/Engine.h>
 
 #include <algorithm>
 
@@ -159,6 +160,7 @@ void Projectile::OnCollision(const std::shared_ptr<Craft::Actor>& other)
         {
             if (player->Shieldable(*this))
             {
+                Engine::Get().PlayOneShot("Z1/LOZ_Shield.wav");
                 _hasHit = true;
                 Destroy();
                 return;

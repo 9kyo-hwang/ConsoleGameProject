@@ -304,7 +304,10 @@ void OverworldLevel::BeginPlay()
     }
 
     // 월드 좌표
-    _player = SpawnActor<Player>(GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize, 10);
+    _player = SpawnActor<Player>(
+        GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize,
+        Game::PlayerMaxHp
+    );
     _player->SetHealth(game.GetPlayerHp());
     _needsPlayerSync = false;
 }
@@ -352,7 +355,14 @@ void OverworldLevel::Tick(float deltaTime)
             attack->AttachTo(_player, false);
             _player->SetActiveAttack(attack);
 
-            if (_player->IsFullHp())
+            const bool canShootSwordBeam = _player->IsFullHp();
+            Engine::Get().PlayOneShot(
+                canShootSwordBeam
+                ? "Z1/LOZ_Sword_Combined.wav"
+                : "Z1/LOZ_Sword_Slash.wav"
+            );
+
+            if (canShootSwordBeam)
             {
                 ProjectileSpec swordBeam
                 {
