@@ -339,7 +339,7 @@ void DungeonLevel::Tick(float deltaTime)
                 };
 
                 SpawnProjectile(
-                    _player->GetWorldPosition() + direction,
+                    GetProjectileSpawnPosition(*_player, swordBeam),
                     swordBeam,
                     _player
                 );
@@ -821,24 +821,11 @@ void DungeonLevel::UpdateEnemyMovement(float deltaTime)
 
         if (enemy->ConsumeAttackRequest(request))
         {
-            if (!request.projectiles.empty())
-            {
-                for (const ProjectileSpec& projectile : request.projectiles)
-                {
-                    SpawnProjectile(
-                        enemy->GetWorldPosition() +
-                        request.spawnOffset +
-                        projectile.direction,
-                        projectile,
-                        enemy
-                    );
-                }
-            }
-            else
+            for (const ProjectileSpec& projectile : request.projectiles)
             {
                 SpawnProjectile(
-                    enemy->GetWorldPosition() + request.spawnOffset,
-                    request.projectile,
+                    GetProjectileSpawnPosition(*enemy, projectile),
+                    projectile,
                     enemy
                 );
             }

@@ -230,7 +230,11 @@ void OverworldLevel::Tick(float deltaTime)
                     .sortingOrder = 11
                 };
 
-                SpawnProjectile(_player->GetWorldPosition() + direction, swordBeam, _player);
+                SpawnProjectile(
+                    GetProjectileSpawnPosition(*_player, swordBeam),
+                    swordBeam,
+                    _player
+                );
             }
         }
     }
@@ -641,7 +645,14 @@ void OverworldLevel::UpdateEnemyMovement(float deltaTime)
         EnemyAttackRequest request;
         if (enemy->ConsumeAttackRequest(request))
         {
-            SpawnProjectile(enemy->GetWorldPosition() + request.spawnOffset, request.projectile, enemy);
+            for (const ProjectileSpec& projectile : request.projectiles)
+            {
+                SpawnProjectile(
+                    GetProjectileSpawnPosition(*enemy, projectile),
+                    projectile,
+                    enemy
+                );
+            }
         }
 
         const Vector2 delta = enemy->GetDesiredMove();

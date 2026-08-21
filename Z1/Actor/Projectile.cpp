@@ -10,7 +10,58 @@
 #include <Actor/Player.h>
 #include <Actor/Enemy.h>
 
+#include <algorithm>
+
 using namespace Craft;
+
+Vector2 GetProjectileSpawnPosition(
+    const Pawn& instigator,
+    const ProjectileSpec& spec)
+{
+    const auto box = instigator.GetComponent<BoxComponent>();
+    if (!box)
+    {
+        return instigator.GetWorldPosition() + spec.direction;
+    }
+
+    const Vector2 sourcePosition =
+        instigator.GetWorldPosition() + box->GetOffset();
+
+    const Vector2 sourceSize = box->GetSize();
+    const Vector2 projectileSize(
+        std::max(1, spec.boxSize.x),
+        std::max(1, spec.boxSize.y)
+    );
+
+    const int sourceRight = sourcePosition.x + sourceSize.x - 1;
+    const int sourceBottom = sourcePosition.y + sourceSize.y - 1;
+
+    int spawnX = sourcePosition.x +
+        (sourceSize.x - projectileSize.x) / 2;
+
+    int spawnY = sourcePosition.y +
+        (sourceSize.y - projectileSize.y) / 2;
+
+    if (spec.direction.x > 0)
+    {
+        spawnX = sourceRight + 1;
+    }
+    else if (spec.direction.x < 0)
+    {
+        spawnX = sourcePosition.x - projectileSize.x;
+    }
+
+    if (spec.direction.y > 0)
+    {
+        spawnY = sourceBottom + 1;
+    }
+    else if (spec.direction.y < 0)
+    {
+        spawnY = sourcePosition.y - projectileSize.y;
+    }
+
+    return Vector2(spawnX, spawnY);
+}
 
 Projectile::Projectile(Craft::Vector2 position, const ProjectileSpec& spec, const std::shared_ptr<Pawn>& instigator)
     : Super(position)

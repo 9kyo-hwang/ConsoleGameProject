@@ -117,7 +117,6 @@ void Aquamentus::RequestFireballAttack(const Player& player)
     }
 
     EnemyAttackRequest request;
-    request.spawnOffset = Vector2(2, 2);
     request.projectiles.reserve(directions.size());
 
     for (const Vector2& direction : directions)

@@ -9,8 +9,6 @@
 
 struct EnemyAttackRequest
 {
-    ProjectileSpec projectile;
-    Craft::Vector2 spawnOffset = Craft::Vector2::Zero;
     std::vector<ProjectileSpec> projectiles;
 };
 

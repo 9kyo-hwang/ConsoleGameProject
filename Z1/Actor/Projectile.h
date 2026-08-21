@@ -37,6 +37,11 @@ struct ProjectileSpec
     int sortingOrder = 11;
 };
 
+Craft::Vector2 GetProjectileSpawnPosition(
+    const Pawn& instigator,
+    const ProjectileSpec& spec
+);
+
 class Projectile : public Craft::Actor
 {
     TYPE_DECLARATIONS(Projectile, Craft::Actor)

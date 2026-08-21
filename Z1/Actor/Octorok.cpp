@@ -142,7 +142,7 @@ void Octorok::RequestRockAttack()
 
     EnemyAttackRequest request;
 
-    request.projectile = ProjectileSpec
+    request.projectiles.emplace_back(ProjectileSpec
     {
         .type = ProjectileType::Rock,
         .faction = ProjectileFaction::Enemy,
@@ -154,9 +154,7 @@ void Octorok::RequestRockAttack()
         .image = "o",
         .color = Color::DarkYellow,
         .sortingOrder = 12
-    };
-
-    request.spawnOffset = _direction;
+    });
 
     RequestAttack(request);
 }
