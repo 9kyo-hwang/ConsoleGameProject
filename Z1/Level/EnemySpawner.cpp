@@ -49,11 +49,17 @@ std::vector<EnemySpawnData> EnemySpawner::BuildSpawnPlan(RoomCoordinate room, co
         }
 
         selected.emplace(worldPosition);
+
+        EnemyKind kind = EnemyKind::Octorok;
+        switch (FMath::RandRange(0, 2))
+        {
+        case 1: kind = EnemyKind::Moblin; break;
+        case 2: kind = EnemyKind::Tektite; break;
+        }
+
         data.push_back(EnemySpawnData
             {
-                .kind = FMath::RandRange(0, 1) == 0
-                    ? EnemyKind::Octorok
-                    : EnemyKind::Moblin,
+                .kind = kind,
                 .variant = EnemyVariant::Red,
                 .worldPosition = worldPosition
             });

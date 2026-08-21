@@ -13,6 +13,7 @@
 #include <set>
 #include <Actor/Projectile.h>
 #include <Actor/Moblin.h>
+#include <Actor/Tektite.h>
 #include <Game/Game.h>
 
 using namespace Craft;
@@ -484,6 +485,7 @@ std::shared_ptr<Enemy> OverworldLevel::SpawnEnemy(const EnemySpawnData& spawn)
     {
     case EnemyKind::Octorok: return SpawnActor<Octorok>(spawn.worldPosition, spawn.variant);
     case EnemyKind::Moblin: return SpawnActor<Moblin>(spawn.worldPosition, spawn.variant);
+    case EnemyKind::Tektite: return SpawnActor<Tektite>(spawn.worldPosition, spawn.variant);
     default:
         return nullptr;
     }
@@ -692,7 +694,11 @@ bool OverworldLevel::CanMoveTo(const Craft::Vector2& destination, const Pawn& mo
         }
     }
 
-    if (!_map.CanOccupyWorldRect(moverPosition, moverBox->GetSize(), MapTileSize))
+    if (!mover.IsA<Tektite>() &&
+        !_map.CanOccupyWorldRect(
+            moverPosition,
+            moverBox->GetSize(),
+            MapTileSize))
     {
         return false;
     }

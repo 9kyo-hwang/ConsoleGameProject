@@ -4,7 +4,7 @@ enum class EnemyKind
 {
     Octorok,
     Moblin,
-    Tektie,
+    Tektite,
     Peahat,
     Leever,
     Zora
