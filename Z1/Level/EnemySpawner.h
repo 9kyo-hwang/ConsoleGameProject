@@ -12,7 +12,7 @@ struct EnemySpawnData
     EnemyKind kind = EnemyKind::Octorok;
     EnemyVariant variant = EnemyVariant::Red;
 
-    Craft::Vector2 worldPosition;
+    Craft::Vector2 mapCellPosition;
 };
 
 // Not Actor
@@ -23,7 +23,6 @@ public:
         RoomCoordinate room,
         const OverworldMap& map,
         const Craft::Vector2& playerPosition,
-        const Craft::Vector2& mapTileSize,
         uint32_t worldSeed,
         const Craft::Vector2& roomOrigin) const;
 

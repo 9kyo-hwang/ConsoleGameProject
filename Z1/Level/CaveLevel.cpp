@@ -6,6 +6,9 @@
 #include <Render/Renderer.h>
 #include <Game/Game.h>
 #include <Component/BoxComponent.h>
+#include <Util/BoxBounds.h>
+#include <Util/MapPlacement.h>
+#include <World/MapGeometry.h>
 #include <array>
 
 using namespace Craft;
@@ -13,33 +16,13 @@ using FilePath = std::filesystem::path;
 
 namespace
 {
-    constexpr int ItemTileWidth = 10;
-    constexpr int ItemTileHeight = 5;
-
-    bool Overlaps(
-        const Vector2& lhsPosition,
-        const Vector2& lhsSize,
-        const Vector2& rhsPosition,
-        const Vector2& rhsSize)
-    {
-        const int lhsRight = lhsPosition.x + lhsSize.x - 1;
-        const int lhsBottom = lhsPosition.y + lhsSize.y - 1;
-        const int rhsRight = rhsPosition.x + rhsSize.x - 1;
-        const int rhsBottom = rhsPosition.y + rhsSize.y - 1;
-
-        return !(lhsRight < rhsPosition.x ||
-                 rhsRight < lhsPosition.x ||
-                 lhsBottom < rhsPosition.y ||
-                 rhsBottom < lhsPosition.y);
-    }
-
     void DrawSwordSprite(
         std::vector<SpriteCell>& cells,
         int spriteWidth,
         int tileX,
         int tileY)
     {
-        const std::array<std::string, 5> art
+        static const std::array<std::string, 5> art
         {
             "    /\\    ",
             "    ||    ",
@@ -68,8 +51,8 @@ namespace
                     color = Color::DarkYellow;
                 }
 
-                const int destX = tileX * ItemTileWidth + x;
-                const int destY = tileY * ItemTileHeight + y;
+                const int destX = tileX * TileCellSize.x + x;
+                const int destY = tileY * TileCellSize.y + y;
 
                 cells[destY * spriteWidth + destX] = SpriteCell(
                     glyph,
@@ -115,12 +98,11 @@ void CaveLevel::BeginPlay()
         return;
     }
 
-    Vector2 spawnPosition(_playerPosition.x * TilePixelWidth, _playerPosition.y * TilePixelHeight);
+    Vector2 spawnPosition = _playerPosition * TileCellSize;
     _player = SpawnActor<Player>(spawnPosition, Game::PlayerMaxHp);
     _player->SetHealth(game.GetPlayerHp());
     _needsPlayerSync = false;
 
-    // game??
     if (game.HasSword())
     {
         _player->EquipSword();
@@ -196,7 +178,7 @@ bool CaveLevel::LoadMap()
     bool hasSword = false;
 
     std::string line;
-    for (int y = 0; y < RoomHeight; ++y)
+    for (int y = 0; y < RoomTileHeight; ++y)
     {
         if (!std::getline(file, line))
         {
@@ -208,12 +190,12 @@ bool CaveLevel::LoadMap()
             line.pop_back();
         }
 
-        if (line.size() != RoomWidth)
+        if (line.size() != RoomTileWidth)
         {
             return false;
         }
 
-        for (int x = 0; x < RoomWidth; ++x)
+        for (int x = 0; x < RoomTileWidth; ++x)
         {
             char symbol = line[x];
             if (symbol != '#' && symbol != '.' && symbol != 'E' && symbol != 'S')
@@ -221,7 +203,7 @@ bool CaveLevel::LoadMap()
                 return false;
             }
 
-            _grid[y][x] = symbol;
+            _tiles[y][x] = symbol;
 
             if (symbol == 'E')
             {
@@ -256,14 +238,14 @@ bool CaveLevel::LoadMap()
 
 void CaveLevel::BuildRoomSprite()
 {
-    const Vector2 spriteSize(RoomWidth * TilePixelWidth, RoomHeight * TilePixelHeight);
+    const Vector2 spriteSize(RoomTileWidth * TileCellSize.x, RoomTileHeight * TileCellSize.y);
     std::vector<SpriteCell> cells(spriteSize.x * spriteSize.y);
 
-    for (int tileY = 0; tileY < RoomHeight; ++tileY)
+    for (int tileY = 0; tileY < RoomTileHeight; ++tileY)
     {
-        for (int tileX = 0; tileX < RoomWidth; ++tileX)
+        for (int tileX = 0; tileX < RoomTileWidth; ++tileX)
         {
-            char symbol = _grid[tileY][tileX];
+            char symbol = _tiles[tileY][tileX];
             SpriteCell visual;
             if (symbol == '#')
             {
@@ -274,12 +256,12 @@ void CaveLevel::BuildRoomSprite()
                 visual = SpriteCell(' ', (WORD)Color::Black, false);
             }
 
-            for (int offsetY = 0; offsetY < TilePixelHeight; ++offsetY)
+            for (int offsetY = 0; offsetY < TileCellSize.y; ++offsetY)
             {
-                for (int offsetX = 0; offsetX < TilePixelWidth; ++offsetX)
+                for (int offsetX = 0; offsetX < TileCellSize.x; ++offsetX)
                 {
-                    int x = tileX * TilePixelWidth + offsetX;
-                    int y = tileY * TilePixelHeight + offsetY;
+                    int x = tileX * TileCellSize.x + offsetX;
+                    int y = tileY * TileCellSize.y + offsetY;
 
                     cells[y * spriteSize.x + x] = visual;
                 }
@@ -300,41 +282,22 @@ bool CaveLevel::CanMoveTo(Craft::Vector2 destination) const
     auto box = _player->GetComponent<BoxComponent>();
     if (!box) return false;
 
-    Vector2 boxPos = destination + box->GetOffset();
-    Vector2 boxSize = box->GetSize();
-
-    int left = boxPos.x;
-    int top = boxPos.y;
-    int right = left + boxSize.x - 1;
-    int bottom = top + boxSize.y - 1;
-
-    int minTileX = left / TilePixelWidth;
-    int minTileY = top / TilePixelHeight;
-    int maxTileX = right / TilePixelWidth;
-    int maxTileY = bottom / TilePixelHeight;
-
-
-    if (minTileX < 0 || minTileY < 0 || maxTileX >= RoomWidth || maxTileY >= RoomHeight)
-    {
-        return false;
-    }
-
-    for (int tileY = minTileY; tileY <= maxTileY; ++tileY)
-    {
-        for (int tileX = minTileX; tileX <= maxTileX; ++tileX)
+    return CanPlaceBoxOnMap(
+        BoxBounds{
+            destination + box->GetOffset(),
+            box->GetSize()
+        },
+        TileCellSize,
+        Vector2(RoomTileWidth, RoomTileHeight),
+        [this](int x, int y)
         {
-            if (_grid[tileY][tileX] == '#')
-            {
-                return false;
-            }
+            return _tiles[y][x] != '#';
         }
-    }
-
-    return true;
+    );
 }
 
 // Player Box가 특정 타일과 겹치는지 검사
-bool CaveLevel::IsOnTile(Craft::Vector2 tile) const
+bool CaveLevel::IsOnTile(Vector2 tile) const
 {
     if (!_player)
     {
@@ -347,11 +310,14 @@ bool CaveLevel::IsOnTile(Craft::Vector2 tile) const
         return false;
     }
 
-    return Overlaps(
+    return BoxBounds{
         _player->GetWorldPosition() + box->GetOffset(),
-        box->GetSize(),
-        tile * Vector2(TilePixelWidth, ItemTileHeight),
-        Vector2(ItemTileWidth, ItemTileHeight)
+        box->GetSize()
+    }.Overlaps(
+        BoxBounds{
+            tile * TileCellSize,
+            TileCellSize
+        }
     );
 }
 
@@ -392,7 +358,6 @@ bool CaveLevel::TryCollectSword()
     Game& game = dynamic_cast<Game&>(Engine::Get());
     if (game.HasSword())
     {
-        // GAME??
         _swordCollected = true;
         return false;
     }
@@ -430,10 +395,10 @@ bool CaveLevel::TryExitCave(Vector2 destination, Vector2 moveDelta)
     int right = left + boxSize.x - 1;
     int bottom = top + boxSize.y - 1;
 
-    int caveBottom = RoomHeight * TilePixelHeight;
+    int caveBottom = RoomTileHeight * TileCellSize.y;
 
-    int exitLeft = _exitPosition.x * TilePixelWidth;
-    int exitRight = exitLeft + 2 * TilePixelWidth - 1;  // 동굴 구조는 고정이라 2배로 설정
+    int exitLeft = _exitPosition.x * TileCellSize.x;
+    int exitRight = exitLeft + 2 * TileCellSize.x - 1;  // 동굴 구조는 고정이라 2배로 설정
 
     bool overlapsExitWidth = left <= exitRight && right >= exitLeft;
     bool reachesCaveBoundary = bottom >= caveBottom;

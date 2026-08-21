@@ -45,13 +45,13 @@ private:
     bool TryChangeRoom(RoomCoordinate room);
     void BuildRoomSprite();
     
-    RoomCoordinate GetRoomCoordinate(const Craft::Vector2& mapPosition) const;
+    RoomCoordinate GetRoomCoordinate(const Craft::Vector2& mapCellPosition) const;
     RoomCoordinate GetRoomCoordinateAtLeadingEdge(
         const Craft::Vector2& destination,
         const Pawn& pawn,
         const Craft::Vector2& direction
     ) const;
-    Craft::Vector2 GetRoomWorldOrigin(RoomCoordinate room) const;
+    Craft::Vector2 GetRoomCellOrigin(RoomCoordinate room) const;
     void SnapPlayerIntoRoom(
         RoomCoordinate room,
         const Craft::Vector2& direction

@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "DungeonLevel.h"
 
 #include <Actor/Enemy.h>
@@ -14,6 +14,8 @@
 #include <Engine/Engine.h>
 #include <Game/Game.h>
 #include <Math/MathUtility.h>
+#include <Util/BoxBounds.h>
+#include <World/MapGeometry.h>
 
 #include <Render/Renderer.h>
 #include <Render/Sprite.h>
@@ -27,7 +29,6 @@ using FilePath = std::filesystem::path;
 
 namespace
 {
-    const Vector2 MapTileSize(10, 5);
     const Vector2 RoomScreenOffset(0, 3);
 
     void DrawHeartSprite(
@@ -36,10 +37,10 @@ namespace
         int tileX,
         int tileY)
     {
-        const std::array<std::string, 5> art
+        static const std::array<std::string, 5> art
         {
-            "  ++  @@  ",
-            " +@@@@@@@ ",
+            "  @@  @@  ",
+            " @@@@@@@@ ",
             "  @@@@@@  ",
             "   @@@@   ",
             "    @@    "
@@ -59,8 +60,8 @@ namespace
                     ? Color::White
                     : Color::Red;
 
-                const int destX = tileX * MapTileSize.x + x;
-                const int destY = tileY * MapTileSize.y + y;
+                const int destX = tileX * TileCellSize.x + x;
+                const int destY = tileY * TileCellSize.y + y;
 
                 cells[destY * spriteWidth + destX] = SpriteCell(
                     glyph,
@@ -77,7 +78,7 @@ namespace
         int tileX,
         int tileY)
     {
-        const std::array<std::string, 5> art
+        static const std::array<std::string, 5> art
         {
             "    /\\    ",
             "   /@@\\   ",
@@ -100,8 +101,8 @@ namespace
                     ? Color::Yellow
                     : Color::DarkYellow;
 
-                const int destX = tileX * MapTileSize.x + x;
-                const int destY = tileY * MapTileSize.y + y;
+                const int destX = tileX * TileCellSize.x + x;
+                const int destY = tileY * TileCellSize.y + y;
 
                 cells[destY * spriteWidth + destX] = SpriteCell(
                     glyph,
@@ -110,30 +111,6 @@ namespace
                 );
             }
         }
-    }
-
-    bool Overlaps(
-        const Vector2& lhsPosition,
-        const Vector2& lhsSize,
-        const Vector2& rhsPosition,
-        const Vector2& rhsSize)
-    {
-        const int lhsRight =
-            lhsPosition.x + lhsSize.x - 1;
-
-        const int lhsBottom =
-            lhsPosition.y + lhsSize.y - 1;
-
-        const int rhsRight =
-            rhsPosition.x + rhsSize.x - 1;
-
-        const int rhsBottom =
-            rhsPosition.y + rhsSize.y - 1;
-
-        return !(lhsRight < rhsPosition.x ||
-                 rhsRight < lhsPosition.x ||
-                 lhsBottom < rhsPosition.y ||
-                 rhsBottom < lhsPosition.y);
     }
 
     bool IsInContact(const Pawn& lhs, const Pawn& rhs)
@@ -146,41 +123,19 @@ namespace
             return false;
         }
 
-        const Vector2 lhsPosition =
-            lhs.GetWorldPosition() + lhsBox->GetOffset();
+        const BoxBounds lhsBounds
+        {
+            lhs.GetWorldPosition() + lhsBox->GetOffset(),
+            lhsBox->GetSize()
+        };
 
-        const Vector2 rhsPosition =
-            rhs.GetWorldPosition() + rhsBox->GetOffset();
+        const BoxBounds rhsBounds
+        {
+            rhs.GetWorldPosition() + rhsBox->GetOffset(),
+            rhsBox->GetSize()
+        };
 
-        const Vector2 lhsSize = lhsBox->GetSize();
-        const Vector2 rhsSize = rhsBox->GetSize();
-
-        const int lhsLeft = lhsPosition.x;
-        const int lhsTop = lhsPosition.y;
-        const int lhsRight = lhsLeft + lhsSize.x - 1;
-        const int lhsBottom = lhsTop + lhsSize.y - 1;
-
-        const int rhsLeft = rhsPosition.x;
-        const int rhsTop = rhsPosition.y;
-        const int rhsRight = rhsLeft + rhsSize.x - 1;
-        const int rhsBottom = rhsTop + rhsSize.y - 1;
-
-        const bool xOverlap =
-            lhsLeft <= rhsRight && rhsLeft <= lhsRight;
-
-        const bool yOverlap =
-            lhsTop <= rhsBottom && rhsTop <= lhsBottom;
-
-        const bool xAdjacent =
-            lhsRight + 1 >= rhsLeft &&
-            rhsRight + 1 >= lhsLeft;
-
-        const bool yAdjacent =
-            lhsBottom + 1 >= rhsTop &&
-            rhsBottom + 1 >= lhsTop;
-
-        return (xAdjacent && yOverlap) ||
-               (yAdjacent && xOverlap);
+        return lhsBounds.IsSideContact(rhsBounds);
     }
 }
 
@@ -235,7 +190,7 @@ void DungeonLevel::BeginPlay()
     }
 
     const Vector2 spawnPosition =
-        Vector2(PlayerSpawnTileX, PlayerSpawnTileY) * MapTileSize;
+        Vector2(PlayerSpawnTileX, PlayerSpawnTileY) * TileCellSize;
 
     _player = SpawnActor<Player>(spawnPosition, Game::PlayerMaxHp);
     _player->SetHealth(game.GetPlayerHp());
@@ -376,7 +331,7 @@ void DungeonLevel::Draw()
     Renderer& renderer = Renderer::Get();
 
     const Vector2 roomOrigin =
-        GetRoomWorldOrigin(_currentRoom);
+        GetRoomCellOrigin(_currentRoom);
 
     renderer.SetView(roomOrigin, RoomScreenOffset);
 
@@ -508,8 +463,8 @@ void DungeonLevel::BuildRoomSprite()
 {
     const Vector2 spriteSize
     {
-        RoomTileWidth * MapTileSize.x,
-        RoomTileHeight * MapTileSize.y
+        RoomTileWidth * TileCellSize.x,
+        RoomTileHeight * TileCellSize.y
     };
 
     std::vector<SpriteCell> cells(
@@ -560,18 +515,18 @@ void DungeonLevel::BuildRoomSprite()
                 );
             }
             for (int offsetY = 0;
-                 offsetY < MapTileSize.y;
+                 offsetY < TileCellSize.y;
                  ++offsetY)
             {
                 for (int offsetX = 0;
-                     offsetX < MapTileSize.x;
+                     offsetX < TileCellSize.x;
                      ++offsetX)
                 {
                     const int destX =
-                        localX * MapTileSize.x + offsetX;
+                        localX * TileCellSize.x + offsetX;
 
                     const int destY =
-                        localY * MapTileSize.y + offsetY;
+                        localY * TileCellSize.y + offsetY;
 
                     const int index =
                         destY * spriteSize.x + destX;
@@ -622,7 +577,7 @@ void DungeonLevel::SpawnRoomEnemies()
     );
 
     const Vector2 roomOrigin =
-        GetRoomWorldOrigin(_currentRoom);
+        GetRoomCellOrigin(_currentRoom);
 
     std::set<Vector2> selected;
 
@@ -637,32 +592,30 @@ void DungeonLevel::SpawnRoomEnemies()
         const int localY =
             FMath::RandRange(1, RoomTileHeight - 2);
 
-        const Vector2 worldPosition =
-            roomOrigin + Vector2(localX, localY) * MapTileSize;
+        const Vector2 mapCellPosition =
+            roomOrigin + Vector2(localX, localY) * TileCellSize;
 
-        if (!_map.CanOccupyWorldRect(
-                worldPosition,
-                Vector2(10, 5),
-                MapTileSize))
+        if (!_map.CanPlaceBox(
+                BoxBounds{ mapCellPosition, TileCellSize }))
         {
             continue;
         }
 
         const Vector2 distance =
-            worldPosition - _player->GetWorldPosition();
+            mapCellPosition - _player->GetWorldPosition();
 
-        if (std::abs(distance.x) < MapTileSize.x * 2 &&
-            std::abs(distance.y) < MapTileSize.y * 2)
+        if (std::abs(distance.x) < TileCellSize.x * 2 &&
+            std::abs(distance.y) < TileCellSize.y * 2)
         {
             continue;
         }
 
-        if (!selected.emplace(worldPosition).second)
+        if (!selected.emplace(mapCellPosition).second)
         {
             continue;
         }
 
-        if (auto enemy = SpawnEnemy(worldPosition))
+        if (auto enemy = SpawnEnemy(mapCellPosition))
         {
             _roomEnemies.emplace_back(enemy);
         }
@@ -686,10 +639,10 @@ void DungeonLevel::SpawnBoss()
         return;
     }
 
-    const Vector2 bossWorldPosition =
-        _bossTile * MapTileSize;
+    const Vector2 bossMapCellPosition =
+        _bossTile * TileCellSize;
 
-    _boss = SpawnActor<Aquamentus>(bossWorldPosition);
+    _boss = SpawnActor<Aquamentus>(bossMapCellPosition);
     Engine::Get().PlayOneShot("Z1/LOZ_Boss_Scream1.wav");
 
     _roomEnemies.emplace_back(_boss);
@@ -756,13 +709,13 @@ bool DungeonLevel::TryExitDungeon(
     constexpr int ExitTileWidth = 2;
 
     const int exitLeft =
-        ExitTileX * MapTileSize.x;
+        ExitTileX * TileCellSize.x;
 
     const int exitRight =
-        (ExitTileX + ExitTileWidth) * MapTileSize.x - 1;
+        (ExitTileX + ExitTileWidth) * TileCellSize.x - 1;
 
     const int dungeonBottom =
-        DungeonMap::Height * MapTileSize.y;
+        DungeonMap::Height * TileCellSize.y;
 
     const bool overlapsExitWidth =
         left <= exitRight && right >= exitLeft;
@@ -955,10 +908,8 @@ bool DungeonLevel::CanMoveTo(
         return false;
     }
 
-    if (!_map.CanOccupyWorldRect(
-            moverPosition,
-            moverBox->GetSize(),
-            MapTileSize))
+    if (!_map.CanPlaceBox(
+            BoxBounds{ moverPosition, moverBox->GetSize() }))
     {
         return false;
     }
@@ -986,11 +937,8 @@ bool DungeonLevel::CanMoveTo(
                 other->GetWorldPosition() +
                 otherBox->GetOffset();
 
-            return Overlaps(
-                moverPosition,
-                moverBox->GetSize(),
-                otherPosition,
-                otherBox->GetSize()
+            return BoxBounds{ moverPosition, moverBox->GetSize() }.Overlaps(
+                BoxBounds{ otherPosition, otherBox->GetSize() }
             );
         };
 
@@ -1020,51 +968,35 @@ bool DungeonLevel::IsInsideCurrentRoom(
     Vector2 boxPosition,
     Vector2 boxSize) const
 {
-    if (boxSize.x <= 0 || boxSize.y <= 0)
-    {
-        return false;
-    }
-
     const Vector2 roomOrigin =
-        GetRoomWorldOrigin(_currentRoom);
+        GetRoomCellOrigin(_currentRoom);
 
     const Vector2 roomSize
     {
-        RoomTileWidth * MapTileSize.x,
-        RoomTileHeight * MapTileSize.y
+        RoomTileWidth * TileCellSize.x,
+        RoomTileHeight * TileCellSize.y
     };
 
-    const int left = boxPosition.x;
-    const int top = boxPosition.y;
-    const int right = left + boxSize.x - 1;
-    const int bottom = boxPosition.y + boxSize.y - 1;
-
-    const int roomLeft = roomOrigin.x;
-    const int roomTop = roomOrigin.y;
-    const int roomRight = roomLeft + roomSize.x - 1;
-    const int roomBottom = roomTop + roomSize.y - 1;
-
-    return left >= roomLeft &&
-           top >= roomTop &&
-           right <= roomRight &&
-           bottom <= roomBottom;
+    return BoxBounds{ boxPosition, boxSize }.IsInside(
+        BoxBounds{ roomOrigin, roomSize }
+    );
 }
 
 RoomCoordinate DungeonLevel::GetRoomCoordinate(
-    const Vector2& worldPosition) const
+    const Vector2& mapCellPosition) const
 {
-    assert(worldPosition.x >= 0 &&
-           worldPosition.y >= 0);
+    assert(mapCellPosition.x >= 0 &&
+           mapCellPosition.y >= 0);
 
-    const int roomWorldWidth =
-        RoomTileWidth * MapTileSize.x;
+    const int roomCellWidth =
+        RoomTileWidth * TileCellSize.x;
 
-    const int roomWorldHeight =
-        RoomTileHeight * MapTileSize.y;
+    const int roomCellHeight =
+        RoomTileHeight * TileCellSize.y;
 
     return RoomCoordinate(
-        worldPosition.x / roomWorldWidth,
-        worldPosition.y / roomWorldHeight
+        mapCellPosition.x / roomCellWidth,
+        mapCellPosition.y / roomCellHeight
     );
 }
 
@@ -1094,13 +1026,13 @@ RoomCoordinate DungeonLevel::GetRoomCoordinateAtLeadingEdge(
     return GetRoomCoordinate(probePosition);
 }
 
-Vector2 DungeonLevel::GetRoomWorldOrigin(
+Vector2 DungeonLevel::GetRoomCellOrigin(
     RoomCoordinate room) const
 {
     return Vector2
     {
-        room.x * RoomTileWidth * MapTileSize.x,
-        room.y * RoomTileHeight * MapTileSize.y
+        room.x * RoomTileWidth * TileCellSize.x,
+        room.y * RoomTileHeight * TileCellSize.y
     };
 }
 
@@ -1119,11 +1051,11 @@ void DungeonLevel::SnapPlayerIntoRoom(
         return;
     }
 
-    const Vector2 roomOrigin = GetRoomWorldOrigin(room);
+    const Vector2 roomOrigin = GetRoomCellOrigin(room);
     const Vector2 roomSize
     {
-        RoomTileWidth * MapTileSize.x,
-        RoomTileHeight * MapTileSize.y
+        RoomTileWidth * TileCellSize.x,
+        RoomTileHeight * TileCellSize.y
     };
 
     Vector2 position = _player->GetWorldPosition();
@@ -1172,10 +1104,8 @@ bool DungeonLevel::CanProjectileOccupy(
         return false;
     }
 
-    return _map.CanOccupyWorldRect(
-        boxPosition,
-        box->GetSize(),
-        MapTileSize
+    return _map.CanPlaceBox(
+        BoxBounds{ boxPosition, box->GetSize() }
     );
 }
 
@@ -1258,13 +1188,10 @@ bool DungeonLevel::IsPlayerOverlappingTile(
         _player->GetWorldPosition() + playerBox->GetOffset();
 
     const Vector2 itemPosition =
-        tile * MapTileSize;
+        tile * TileCellSize;
 
-    return Overlaps(
-        playerPosition,
-        playerBox->GetSize(),
-        itemPosition,
-        MapTileSize
+    return BoxBounds{ playerPosition, playerBox->GetSize() }.Overlaps(
+        BoxBounds{ itemPosition, TileCellSize }
     );
 }
 

@@ -15,15 +15,17 @@
 #include <Actor/Moblin.h>
 #include <Actor/Tektite.h>
 #include <Game/Game.h>
+#include <Util/BoxBounds.h>
+#include <World/MapGeometry.h>
 
 using namespace Craft;
 using FilePath = std::filesystem::path;
 
 /*
 * Room의 타일 좌표: 16 x 11
-* Actor 위치 및 Box 크기: 월드 Cell 단위
+* Actor 위치 및 Box 크기: Map Cell 단위
 * Room 하나의 실제 월드 크기: (16 x 11) x WorldRenderScale = (80 x 33)
-* RoomOrigin: 월드 Cell 단위
+* RoomOrigin: Map Cell 단위
 * 렌더러에 전달하는 Actor 위치: 콘솔 Cell과 1:1인 월드 좌표
 * 
 * 예: 타일 (7, 4)
@@ -32,7 +34,6 @@ using FilePath = std::filesystem::path;
 
 namespace
 {
-    const Vector2 MapTileSize(10, 5);
     const Vector2 RoomScreenOffset(0, 3);
 
     constexpr TileId EntryMarkerTileId = 0x12;
@@ -233,16 +234,6 @@ namespace
         return sprites;
     }
 
-    bool Overlaps(const Vector2& lhsPos, const Vector2& lhsSize, const Vector2& rhsPos, const Vector2& rhsSize)
-    {
-        const int lhsRight  = lhsPos.x + lhsSize.x - 1;
-        const int lhsBottom = lhsPos.y + lhsSize.y - 1;
-        const int rhsRight  = rhsPos.x + rhsSize.x - 1;
-        const int rhsBottom = rhsPos.y + rhsSize.y - 1;
-
-        return !(lhsRight < rhsPos.x || rhsRight < lhsPos.x || lhsBottom < rhsPos.y || rhsBottom < lhsPos.y);
-    }
-
     bool IsInContact(const Pawn& lhs, const Pawn& rhs)
     {
         const std::shared_ptr<BoxComponent>& lhsBox = lhs.GetComponent<BoxComponent>();
@@ -250,27 +241,19 @@ namespace
 
         if (!lhsBox || !rhsBox) return false;
 
-        const Vector2 lhsPos = lhs.GetWorldPosition() + lhsBox->GetOffset();
-        const Vector2 rhsPos = rhs.GetWorldPosition() + rhsBox->GetOffset();
-        const Vector2 lhsSize = lhsBox->GetSize();
-        const Vector2 rhsSize = rhsBox->GetSize();
+        const BoxBounds lhsBounds
+        {
+            lhs.GetWorldPosition() + lhsBox->GetOffset(),
+            lhsBox->GetSize()
+        };
 
-        const int lhsLeft     = lhsPos.x;
-        const int lhsTop      = lhsPos.y;
-        const int lhsRight    = lhsLeft + lhsSize.x - 1;
-        const int lhsBottom   = lhsTop + lhsSize.y - 1;
+        const BoxBounds rhsBounds
+        {
+            rhs.GetWorldPosition() + rhsBox->GetOffset(),
+            rhsBox->GetSize()
+        };
 
-        const int rhsLeft     = rhsPos.x;
-        const int rhsTop      = rhsPos.y;
-        const int rhsRight    = rhsLeft + rhsSize.x - 1;
-        const int rhsBottom   = rhsTop + rhsSize.y - 1;
-
-        const bool xOverlap = lhsLeft <= rhsRight && rhsLeft <= lhsRight;
-        const bool yOverlap = lhsTop <= rhsBottom && rhsTop <= lhsBottom;
-        const bool xAdjacent = lhsRight + 1 >= rhsLeft && rhsRight + 1 >= lhsLeft;
-        const bool yAdjacent = lhsBottom + 1 >= rhsTop && rhsBottom + 1 >= lhsTop;
-
-        return xAdjacent && yOverlap || yAdjacent && xOverlap;
+        return lhsBounds.IsSideContact(rhsBounds);
     }
 }
 
@@ -318,7 +301,7 @@ void OverworldLevel::BeginPlay()
 
     // 월드 좌표
     _player = SpawnActor<Player>(
-        GetRoomWorldOrigin(_currentRoom) + Vector2(7, 2) * MapTileSize,
+        GetRoomCellOrigin(_currentRoom) + Vector2(7, 2) * TileCellSize,
         Game::PlayerMaxHp
     );
     _player->SetHealth(game.GetPlayerHp());
@@ -408,14 +391,14 @@ void OverworldLevel::Draw()
 {
     Renderer& renderer = Renderer::Get();
 
-    const Vector2 roomWorldOrigin = GetRoomWorldOrigin(_currentRoom);
-    renderer.SetView(roomWorldOrigin, RoomScreenOffset);
+    const Vector2 roomCellOrigin = GetRoomCellOrigin(_currentRoom);
+    renderer.SetView(roomCellOrigin, RoomScreenOffset);
 
     if (_roomSprite)
     {
         renderer.SubmitWorld(
             _roomSprite, 
-            roomWorldOrigin, 
+            roomCellOrigin,
             0
         );
     }
@@ -464,7 +447,7 @@ bool OverworldLevel::CanProjectileOccupy(Craft::Vector2 destination, const Proje
         return false;
     }
 
-    return _map.CanOccupyWorldRect(boxPos, box->GetSize(), MapTileSize);
+    return _map.CanPlaceBox(BoxBounds{ boxPos, box->GetSize() });
 }
 
 std::shared_ptr<Projectile> OverworldLevel::SpawnProjectile(Craft::Vector2 position, const ProjectileSpec& spec, const std::shared_ptr<Pawn>& instigator)
@@ -483,9 +466,9 @@ std::shared_ptr<Enemy> OverworldLevel::SpawnEnemy(const EnemySpawnData& spawn)
     // SpawnActor<Octorok>, ... maxHp는 제거됨
     switch (spawn.kind)
     {
-    case EnemyKind::Octorok: return SpawnActor<Octorok>(spawn.worldPosition, spawn.variant);
-    case EnemyKind::Moblin: return SpawnActor<Moblin>(spawn.worldPosition, spawn.variant);
-    case EnemyKind::Tektite: return SpawnActor<Tektite>(spawn.worldPosition, spawn.variant);
+    case EnemyKind::Octorok: return SpawnActor<Octorok>(spawn.mapCellPosition, spawn.variant);
+    case EnemyKind::Moblin: return SpawnActor<Moblin>(spawn.mapCellPosition, spawn.variant);
+    case EnemyKind::Tektite: return SpawnActor<Tektite>(spawn.mapCellPosition, spawn.variant);
     default:
         return nullptr;
     }
@@ -536,7 +519,7 @@ void OverworldLevel::BuildRoomSprite()
 {
     // 렌더러가 1:1로만 그리게 변경되어 Room Sprite를 처음부터 (16, 11)의 (5, 3)배 한 걸로 만들어야 함
 
-    const Vector2 spriteSize(RoomTileWidth * MapTileSize.x, RoomTileHeight * MapTileSize.y);
+    const Vector2 spriteSize(RoomTileWidth * TileCellSize.x, RoomTileHeight * TileCellSize.y);
     std::vector<SpriteCell> roomCells(spriteSize.x * spriteSize.y, SpriteCell());
 
     // 현재 Room의 Map 기준 (x, y) 좌표
@@ -562,12 +545,12 @@ void OverworldLevel::BuildRoomSprite()
             }
 
             // 타일 크기만큼 반복해서 그리기
-            for (int offsetY = 0; offsetY < MapTileSize.y; ++offsetY)
+            for (int offsetY = 0; offsetY < TileCellSize.y; ++offsetY)
             {
-                for (int offsetX = 0; offsetX < MapTileSize.x; ++offsetX)
+                for (int offsetX = 0; offsetX < TileCellSize.x; ++offsetX)
                 {
-                    const int destX = roomTileX * MapTileSize.x + offsetX;
-                    const int destY = roomTileY * MapTileSize.y + offsetY;
+                    const int destX = roomTileX * TileCellSize.x + offsetX;
+                    const int destY = roomTileY * TileCellSize.y + offsetY;
                     const int destIndex = destY * spriteSize.x + destX;
 
                     roomCells[destIndex] = visual;
@@ -584,15 +567,15 @@ void OverworldLevel::BuildRoomSprite()
 /// </summary>
 /// <param name="mapCellPosition"></param>
 /// <returns></returns>
-RoomCoordinate OverworldLevel::GetRoomCoordinate(const Vector2& worldPosition) const
+RoomCoordinate OverworldLevel::GetRoomCoordinate(const Vector2& mapCellPosition) const
 {
-    assert(worldPosition.x >= 0 && worldPosition.y >= 0);
+    assert(mapCellPosition.x >= 0 && mapCellPosition.y >= 0);
 
     // Room의 셀 단위 가로/세로 길이
-    const int roomCellWidth =  RoomTileWidth * MapTileSize.x;
-    const int roomCellHeight = RoomTileHeight * MapTileSize.y;
+    const int roomCellWidth =  RoomTileWidth * TileCellSize.x;
+    const int roomCellHeight = RoomTileHeight * TileCellSize.y;
 
-    return RoomCoordinate(worldPosition.x / roomCellWidth, worldPosition.y / roomCellHeight);
+    return RoomCoordinate(mapCellPosition.x / roomCellWidth, mapCellPosition.y / roomCellHeight);
 }
 
 RoomCoordinate OverworldLevel::GetRoomCoordinateAtLeadingEdge(
@@ -622,12 +605,12 @@ RoomCoordinate OverworldLevel::GetRoomCoordinateAtLeadingEdge(
 }
 
 // Map 기준 Room의 좌상단 셀 좌표
-Vector2 OverworldLevel::GetRoomWorldOrigin(RoomCoordinate room) const
+Vector2 OverworldLevel::GetRoomCellOrigin(RoomCoordinate room) const
 {
     return Vector2
     {
-        room.x * RoomTileWidth * MapTileSize.x,
-        room.y * RoomTileHeight * MapTileSize.y
+        room.x * RoomTileWidth * TileCellSize.x,
+        room.y * RoomTileHeight * TileCellSize.y
     };
 }
 
@@ -646,11 +629,11 @@ void OverworldLevel::SnapPlayerIntoRoom(
         return;
     }
 
-    const Vector2 roomOrigin = GetRoomWorldOrigin(room);
+    const Vector2 roomOrigin = GetRoomCellOrigin(room);
     const Vector2 roomSize
     {
-        RoomTileWidth * MapTileSize.x,
-        RoomTileHeight * MapTileSize.y
+        RoomTileWidth * TileCellSize.x,
+        RoomTileHeight * TileCellSize.y
     };
 
     Vector2 position = _player->GetWorldPosition();
@@ -698,10 +681,8 @@ bool OverworldLevel::CanMoveTo(
     }
 
     if (!mover.IsA<Tektite>() &&
-        !_map.CanOccupyWorldRect(
-            moverPosition,
-            moverBox->GetSize(),
-            MapTileSize))
+        !_map.CanPlaceBox(
+            BoxBounds{ moverPosition, moverBox->GetSize() }))
     {
         return false;
     }
@@ -721,7 +702,9 @@ bool OverworldLevel::CanMoveTo(
 
             const Vector2 otherPosition = other->GetWorldPosition() + otherBox->GetOffset();
 
-            return Overlaps(moverPosition, moverBox->GetSize(), otherPosition, otherBox->GetSize());
+            return BoxBounds{ moverPosition, moverBox->GetSize() }.Overlaps(
+                BoxBounds{ otherPosition, otherBox->GetSize() }
+            );
         };
 
     if (IsOverlapping(_player) && !mover.IsA<Tektite>())
@@ -745,11 +728,14 @@ bool OverworldLevel::CanMoveTo(
                 mover.IsA<Player>() &&
                 allowContactEscape &&
                 enemyBox &&
-                Overlaps(
+                BoxBounds{
                     mover.GetWorldPosition() + moverBox->GetOffset(),
-                    moverBox->GetSize(),
-                    enemy->GetWorldPosition() + enemyBox->GetOffset(),
-                    enemyBox->GetSize()
+                    moverBox->GetSize()
+                }.Overlaps(
+                    BoxBounds{
+                        enemy->GetWorldPosition() + enemyBox->GetOffset(),
+                        enemyBox->GetSize()
+                    }
                 );
 
             if (!isEscapingContact)
@@ -824,9 +810,8 @@ void OverworldLevel::SpawnRoomEnemies()
         _currentRoom,
         _map,
         _player->GetWorldPosition(),
-        MapTileSize,
         _worldSeed,
-        GetRoomWorldOrigin(_currentRoom)
+        GetRoomCellOrigin(_currentRoom)
     );
 
     for (const auto& spawn : spawnPlan)
@@ -835,7 +820,7 @@ void OverworldLevel::SpawnRoomEnemies()
         {
             _roomEnemies.emplace_back(enemy);
         }
-        //_roomEnemies.push_back(SpawnActor<Enemy>(spawn.worldPosition, spawn.maxHp));
+        //_roomEnemies.push_back(SpawnActor<Enemy>(spawn.mapCellPosition, spawn.maxHp));
     }
 }
 
@@ -956,26 +941,12 @@ void OverworldLevel::DestroyRoomProjectiles()
 
 bool OverworldLevel::IsInsideCurrentRoom(Craft::Vector2 boxPosition, Craft::Vector2 boxSize)
 {
-    if (boxSize.x <= 0 || boxSize.y <= 0) return false;
+    const Vector2 origin = GetRoomCellOrigin(_currentRoom);
+    const Vector2 roomSize{ RoomTileWidth * TileCellSize.x, RoomTileHeight * TileCellSize.y };
 
-    const Vector2 origin = GetRoomWorldOrigin(_currentRoom);
-
-    const Vector2 roomSize{ RoomTileWidth * MapTileSize.x, RoomTileHeight * MapTileSize.y };
-
-    const int left = boxPosition.x;
-    const int top = boxPosition.y;
-    const int right = left + boxSize.x - 1;
-    const int bottom = top + boxSize.y - 1;
-
-    const int roomLeft = origin.x;
-    const int roomTop = origin.y;
-    const int roomRight = roomLeft + roomSize.x - 1;
-    const int roomBottom = roomTop + roomSize.y - 1;
-
-    return left >= roomLeft &&
-        top >= roomTop &&
-        right <= roomRight &&
-        bottom <= roomBottom;
+    return BoxBounds{ boxPosition, boxSize }.IsInside(
+        BoxBounds{ origin, roomSize }
+    );
 }
 
 void OverworldLevel::TakeContactDamageToPlayer()
@@ -1019,18 +990,18 @@ std::optional<EntranceType> OverworldLevel::ResolveEntrance(Vector2 destination,
     int right = left + boxSize.x - 1;
     int bottom = top + boxSize.y - 1;
 
-    int mapWidth = OverworldMap::Width * MapTileSize.x;
-    int mapHeight = OverworldMap::Height * MapTileSize.y;
+    int mapWidth = OverworldMap::Width * TileCellSize.x;
+    int mapHeight = OverworldMap::Height * TileCellSize.y;
 
     if (left < 0 || top < 0 || right >= mapWidth || bottom >= mapHeight)
     {
         return std::nullopt;
     }
 
-    int minTileX = left / MapTileSize.x;
-    int minTileY = top / MapTileSize.y;
-    int maxTileX = right / MapTileSize.x;
-    int maxTileY = bottom / MapTileSize.y;
+    int minTileX = left / TileCellSize.x;
+    int minTileY = top / TileCellSize.y;
+    int maxTileX = right / TileCellSize.x;
+    int maxTileY = bottom / TileCellSize.y;
 
     for (int tileY = minTileY; tileY <= maxTileY; ++tileY)
     {

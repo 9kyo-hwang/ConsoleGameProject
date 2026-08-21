@@ -92,7 +92,7 @@ void Projectile::Tick(float deltaTime)
         return;
     }
 
-    if (!CanOccupy(GetWorldPosition()))
+    if (!CanMoveTo(GetWorldPosition()))
     {
         Destroy();
         return;
@@ -103,7 +103,7 @@ void Projectile::Tick(float deltaTime)
     for (int step = 0; step < moveSteps;++step)
     {
         const Vector2 next = GetWorldPosition() + _direction;
-        if (!CanOccupy(next))
+        if (!CanMoveTo(next))
         {
             Destroy();
             return;
@@ -113,7 +113,7 @@ void Projectile::Tick(float deltaTime)
     }
 }
 
-bool Projectile::CanOccupy(Vector2 destination) const
+bool Projectile::CanMoveTo(Vector2 destination) const
 {
     const auto owner = GetOwner();
 

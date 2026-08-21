@@ -1,5 +1,7 @@
 ﻿#include "pch.h"
 #include "OverworldMap.h"
+#include <Util/MapPlacement.h>
+#include <World/MapGeometry.h>
 #include <fstream>
 
 using namespace Craft;
@@ -42,20 +44,20 @@ bool OverworldMap::Load(const FilePath& tileMapPath, const FilePath& blockingMap
         return true;
     }
 
-    Grid cells{};
-    if (!ParseTileMap(tileMapPath, cells, error))
+    TileMap tiles{};
+    if (!ParseTileMap(tileMapPath, tiles, error))
     {
         _loaded = false;
         return false;
     }
 
-    if (!ParseBlockingMap(blockingMapPath, cells, error))
+    if (!ParseBlockingMap(blockingMapPath, tiles, error))
     {
         _loaded = false;
         return false;
     }
 
-    _cells = std::move(cells);
+    _tiles = std::move(tiles);
     _loaded = true;
     return true;
 }
@@ -63,7 +65,7 @@ bool OverworldMap::Load(const FilePath& tileMapPath, const FilePath& blockingMap
 TileId OverworldMap::GetTileId(int x, int y) const
 {
     if (OutOfBound(x, y)) return InvalidTileId;
-    return _cells[y][x].id;
+    return _tiles[y][x].id;
 }
 
 /// <summary>
@@ -73,54 +75,20 @@ TileId OverworldMap::GetTileId(int x, int y) const
 /// <param name="boxColliderSize">BoxComponent 크기</param>
 /// <param name="tileSize">RenderScale이 적용된 타일 하나의 크기(픽셀)</param>
 /// <returns></returns>
-bool OverworldMap::CanOccupyWorldRect(const Vector2& boxColliderPosition, const Vector2& boxColliderSize, const Vector2& tileSize) const
+bool OverworldMap::CanPlaceBox(const BoxBounds& boxBounds) const
 {
-    if (boxColliderSize.x <= 0 || boxColliderSize.y <= 0)
-    {
-        return false;
-    }
-
-    const int left = boxColliderPosition.x;
-    const int top = boxColliderPosition.y;
-    const int right = left + boxColliderSize.x - 1;
-    const int bottom = top + boxColliderSize.y - 1;
-
-    if (tileSize.x <= 0 || tileSize.y <= 0)
-    {
-        return false;
-    }
-
-    // 셀 개수를 반영한 맵 경계 파악: 셀 개수 x 셀 하나 당 도트 개수(타일 크기)
-    const int mapWidth = Width * tileSize.x;
-    const int mapHeight = Height * tileSize.y;
-
-    if (left < 0 || top < 0 || right >= mapWidth || bottom >= mapHeight)
-    {
-        return false;
-    }
-
-    // 타일의 논리적 좌표(도트 개수만큼 나누기)
-    const int minTileX = left / tileSize.x;
-    const int minTileY = top / tileSize.y;
-    const int maxTileX = right / tileSize.x;
-    const int maxTileY = bottom / tileSize.y;
-
-    // 도트가 속하는 타일 중 하나라도 이동 불가라면
-    for (int y = minTileY; y <= maxTileY; ++y)
-    {
-        for (int x = minTileX; x <= maxTileX; ++x)
+    return CanPlaceBoxOnMap(
+        boxBounds,
+        TileCellSize,
+        Vector2(Width, Height),
+        [this](int x, int y)
         {
-            if (!IsWalkable(x, y))
-            {
-                return false;
-            }
+            return IsWalkable(x, y);
         }
-    }
-
-    return true;
+    );
 }
 
-bool OverworldMap::ParseTileMap(const FilePath& path, Grid& output, std::string& errorMessage)
+bool OverworldMap::ParseTileMap(const FilePath& path, TileMap& output, std::string& errorMessage)
 {
     std::ifstream file(path);
     if (!file.is_open())
@@ -181,7 +149,7 @@ bool OverworldMap::ParseTileMap(const FilePath& path, Grid& output, std::string&
     return true;
 }
 
-bool OverworldMap::ParseBlockingMap(const FilePath& path, Grid& output, std::string& errorMessage)
+bool OverworldMap::ParseBlockingMap(const FilePath& path, TileMap& output, std::string& errorMessage)
 {
     /*
     * 검증
@@ -252,5 +220,5 @@ bool OverworldMap::OutOfBound(int x, int y) const
 bool OverworldMap::IsWalkable(int x, int y) const
 {
     if (OutOfBound(x, y)) return false;
-    return _cells[y][x].walkable;
+    return _tiles[y][x].walkable;
 }

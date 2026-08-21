@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <Level/Level.h>
+#include <Level/Room.h>
 #include <array>
 
 namespace Craft
@@ -28,16 +29,11 @@ private:
     bool TryExitCave(Craft::Vector2 destination, Craft::Vector2 moveDelta);
 
 private:
-    static constexpr int RoomWidth = 16;
-    static constexpr int RoomHeight = 11;
-    static constexpr int TilePixelWidth = 10;
-    static constexpr int TilePixelHeight = 5;
-
-    using RoomRow = std::array<char, RoomWidth>;
-    using RoomGrid = std::array<RoomRow, RoomHeight>;
+    using TileRow = std::array<char, RoomTileWidth>;
+    using TileMap = std::array<TileRow, RoomTileHeight>;
 
 private:
-    RoomGrid _grid{};
+    TileMap _tiles{};
 
     Craft::Vector2 _playerPosition = Craft::Vector2::Zero;
     Craft::Vector2 _swordPosition = Craft::Vector2::Zero;

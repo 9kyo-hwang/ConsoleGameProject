@@ -1,5 +1,7 @@
 ﻿#include "pch.h"
 #include "DungeonMap.h"
+#include <Util/MapPlacement.h>
+#include <World/MapGeometry.h>
 #include <fstream>
 
 using namespace Craft;
@@ -43,7 +45,7 @@ bool DungeonMap::Load(const FilePath& path, std::string& errorMessage)
                 return false;
             }
 
-            _grid[row][col] = symbol;
+            _tiles[row][col] = symbol;
         }
     }
 
@@ -57,63 +59,29 @@ bool DungeonMap::Load(const FilePath& path, std::string& errorMessage)
     return true;
 }
 
-bool DungeonMap::CanOccupyWorldRect(const Vector2& boxColliderPosition, const Vector2& boxColliderSize, const Vector2& tileSize) const
+bool DungeonMap::CanPlaceBox(const BoxBounds& boxBounds) const
 {
-    if (boxColliderSize.x <= 0 || boxColliderSize.y <= 0)
-    {
-        return false;
-    }
-
-    const int left = boxColliderPosition.x;
-    const int top = boxColliderPosition.y;
-    const int right = left + boxColliderSize.x - 1;
-    const int bottom = top + boxColliderSize.y - 1;
-
-    if (tileSize.x <= 0 || tileSize.y <= 0)
-    {
-        return false;
-    }
-
-    // 셀 개수를 반영한 맵 경계 파악: 셀 개수 x 셀 하나 당 도트 개수(타일 크기)
-    const int mapWidth = Width * tileSize.x;
-    const int mapHeight = Height * tileSize.y;
-
-    if (left < 0 || top < 0 || right >= mapWidth || bottom >= mapHeight)
-    {
-        return false;
-    }
-
-    // 타일의 논리적 좌표(도트 개수만큼 나누기)
-    const int minTileX = left / tileSize.x;
-    const int minTileY = top / tileSize.y;
-    const int maxTileX = right / tileSize.x;
-    const int maxTileY = bottom / tileSize.y;
-
-    // 도트가 속하는 타일 중 하나라도 이동 불가라면
-    for (int y = minTileY; y <= maxTileY; ++y)
-    {
-        for (int x = minTileX; x <= maxTileX; ++x)
+    return CanPlaceBoxOnMap(
+        boxBounds,
+        TileCellSize,
+        Vector2(Width, Height),
+        [this](int x, int y)
         {
-            if (!IsWalkable(x, y))
-            {
-                return false;
-            }
+            return IsWalkable(x, y);
         }
-    }
-
-    return true;
+    );
 }
 
 char DungeonMap::GetTile(int x, int y) const
 {
     assert(!(x < 0 || x >= Width || y < 0 || y >= Height));
-    return _grid[y][x];
+    return _tiles[y][x];
 }
 
 bool DungeonMap::IsWalkable(int x, int y) const
 {
     if (x < 0 || x >= Width || y < 0 || y >= Height) return false;
-    const char tile = _grid[y][x];
+    const char tile = _tiles[y][x];
 
     return tile != '#' && tile != 'x';
 }

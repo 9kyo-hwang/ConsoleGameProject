@@ -3,6 +3,7 @@
 #include <Math/Vector2.h>
 #include <array>
 #include <Level/Room.h>
+#include <Util/BoxBounds.h>
 
 class DungeonMap
 {
@@ -17,8 +18,8 @@ public:
     static constexpr int Width = RoomTileWidth * RoomColumns;
     static constexpr int Height = RoomTileHeight * RoomRows;
 
-    using Row = std::array<char, Width>;
-    using Grid = std::array<Row, Height>;
+    using TileRow = std::array<char, Width>;
+    using TileMap = std::array<TileRow, Height>;
 
 public:
     bool Load(
@@ -26,17 +27,13 @@ public:
         std::string& errorMessage
     );
 
-    bool CanOccupyWorldRect(
-        const Craft::Vector2& boxColliderPosition,
-        const Craft::Vector2& boxColliderSize,
-        const Craft::Vector2& tileSize
-    ) const;
+    bool CanPlaceBox(const BoxBounds& boxBounds) const;
 
     char GetTile(int x, int y) const;
     bool IsWalkable(int x, int y) const;
 
 private:
     bool _loaded = false;
-    Grid _grid{};
+    TileMap _tiles{};
 };
 

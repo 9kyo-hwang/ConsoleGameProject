@@ -71,7 +71,7 @@ protected:
     bool CanHit(const std::shared_ptr<Pawn>& target) const;
 
 private:
-    bool CanOccupy(Craft::Vector2 destination) const;
+    bool CanMoveTo(Craft::Vector2 destination) const;
 
 private:
     ProjectileSpec _spec;

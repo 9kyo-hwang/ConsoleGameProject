@@ -76,7 +76,7 @@ private:
     ) const;
 
     RoomCoordinate GetRoomCoordinate(
-        const Craft::Vector2& worldPosition
+        const Craft::Vector2& mapCellPosition
     ) const;
 
     RoomCoordinate GetRoomCoordinateAtLeadingEdge(
@@ -85,7 +85,7 @@ private:
         const Craft::Vector2& direction
     ) const;
 
-    Craft::Vector2 GetRoomWorldOrigin(
+    Craft::Vector2 GetRoomCellOrigin(
         RoomCoordinate room
     ) const;
 

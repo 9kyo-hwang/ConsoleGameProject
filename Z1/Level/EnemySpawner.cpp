@@ -4,6 +4,7 @@
 #include <Math/MathUtility.h>
 #include <set>
 #include <Level/Room.h>
+#include <World/MapGeometry.h>
 
 using namespace Craft;
 
@@ -13,7 +14,7 @@ namespace
     constexpr int MaxSpawnAttempts = 30;
 }
 
-std::vector<EnemySpawnData> EnemySpawner::BuildSpawnPlan(RoomCoordinate room, const OverworldMap& map, const Vector2& playerPosition, const Vector2& mapTileSize, uint32_t worldSeed, const Vector2& roomOrigin) const
+std::vector<EnemySpawnData> EnemySpawner::BuildSpawnPlan(RoomCoordinate room, const OverworldMap& map, const Vector2& playerPosition, uint32_t worldSeed, const Vector2& roomOrigin) const
 {
     FMath::SetRandomSeed(MakeRoomSeed(room, worldSeed));
 
@@ -25,30 +26,30 @@ std::vector<EnemySpawnData> EnemySpawner::BuildSpawnPlan(RoomCoordinate room, co
         const int x = FMath::RandRange(1, RoomTileWidth - 2);
         const int y = FMath::RandRange(1, RoomTileHeight - 2);
 
-        // 월드 셀 좌표로
-        const Vector2 worldPosition = roomOrigin + Vector2(x, y) * mapTileSize;
+        // Map Cell 좌표로
+        const Vector2 mapCellPosition = roomOrigin + Vector2(x, y) * TileCellSize;
 
         // 적이 배치될 수 없는 위치면 pass
-        if (!map.CanOccupyWorldRect(worldPosition, Vector2(10, 5), mapTileSize))
+        if (!map.CanPlaceBox(BoxBounds{ mapCellPosition, TileCellSize }))
         {
             continue;
         }
 
         // 너무 가까워도 pass
-        const Vector2 distance = worldPosition - playerPosition;
-        if (std::abs(distance.x) < mapTileSize.x << 1 &&
-            std::abs(distance.y) < mapTileSize.y << 1)
+        const Vector2 distance = mapCellPosition - playerPosition;
+        if (std::abs(distance.x) < TileCellSize.x << 1 &&
+            std::abs(distance.y) < TileCellSize.y << 1)
         {
             continue;
         }
 
         // 이미 스폰된 위치면 pass
-        if (selected.contains(worldPosition))
+        if (selected.contains(mapCellPosition))
         {
             continue;
         }
 
-        selected.emplace(worldPosition);
+        selected.emplace(mapCellPosition);
 
         EnemyKind kind = EnemyKind::Octorok;
         switch (FMath::RandRange(0, 2))
@@ -61,7 +62,7 @@ std::vector<EnemySpawnData> EnemySpawner::BuildSpawnPlan(RoomCoordinate room, co
             {
                 .kind = kind,
                 .variant = EnemyVariant::Red,
-                .worldPosition = worldPosition
+                .mapCellPosition = mapCellPosition
             });
     }
 

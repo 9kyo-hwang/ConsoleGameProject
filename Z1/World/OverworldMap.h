@@ -3,6 +3,7 @@
 #include <Math/Vector2.h>
 #include <array>
 #include <Level/Room.h>
+#include <Util/BoxBounds.h>
 
 using TileId = std::uint8_t;    // 00, 01, ..., 9c, 9d. 지형 구분 Id
 constexpr TileId InvalidTileId = 0xff;
@@ -29,30 +30,26 @@ public:
 
     TileId GetTileId(int x, int y) const;
     
-    bool CanOccupyWorldRect(
-        const Craft::Vector2& boxColliderPosition,
-        const Craft::Vector2& boxColliderSize,
-        const Craft::Vector2& tileSize
-    ) const;
+    bool CanPlaceBox(const BoxBounds& boxBounds) const;
 
 private:
-    struct Cell
+    struct Tile
     {
         TileId id = InvalidTileId;
         bool walkable = false;
     };
 
-    using Row = std::array<Cell, Width>;
-    using Grid = std::array<Row, Height>;
+    using TileRow = std::array<Tile, Width>;
+    using TileMap = std::array<TileRow, Height>;
 
-    bool ParseTileMap(const FilePath& path, Grid& output, std::string& errorMessage);
-    bool ParseBlockingMap(const FilePath& path, Grid& output, std::string& errorMessage);
+    bool ParseTileMap(const FilePath& path, TileMap& output, std::string& errorMessage);
+    bool ParseBlockingMap(const FilePath& path, TileMap& output, std::string& errorMessage);
 
     bool OutOfBound(int x, int y) const;
     bool IsWalkable(int x, int y) const;
 
 private:
     bool _loaded = false;
-    Grid _cells{};
+    TileMap _tiles{};
 };
 
