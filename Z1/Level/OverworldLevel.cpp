@@ -12,6 +12,7 @@
 #include <Math/MathUtility.h>
 #include <set>
 #include <Actor/Projectile.h>
+#include <Actor/Moblin.h>
 #include <Game/Game.h>
 
 using namespace Craft;
@@ -482,7 +483,7 @@ std::shared_ptr<Enemy> OverworldLevel::SpawnEnemy(const EnemySpawnData& spawn)
     switch (spawn.kind)
     {
     case EnemyKind::Octorok: return SpawnActor<Octorok>(spawn.worldPosition, spawn.variant);
-    case EnemyKind::Moblin:
+    case EnemyKind::Moblin: return SpawnActor<Moblin>(spawn.worldPosition, spawn.variant);
     default:
         return nullptr;
     }
@@ -628,6 +629,52 @@ Vector2 OverworldLevel::GetRoomWorldOrigin(RoomCoordinate room) const
     };
 }
 
+void OverworldLevel::SnapPlayerIntoRoom(
+    RoomCoordinate room,
+    const Vector2& direction)
+{
+    if (!_player)
+    {
+        return;
+    }
+
+    const auto box = _player->GetComponent<BoxComponent>();
+    if (!box)
+    {
+        return;
+    }
+
+    const Vector2 roomOrigin = GetRoomWorldOrigin(room);
+    const Vector2 roomSize
+    {
+        RoomTileWidth * MapTileSize.x,
+        RoomTileHeight * MapTileSize.y
+    };
+
+    Vector2 position = _player->GetWorldPosition();
+    const Vector2 offset = box->GetOffset();
+    const Vector2 size = box->GetSize();
+
+    if (direction.x > 0)
+    {
+        position.x = roomOrigin.x - offset.x;
+    }
+    else if (direction.x < 0)
+    {
+        position.x = roomOrigin.x + roomSize.x - size.x - offset.x;
+    }
+    else if (direction.y > 0)
+    {
+        position.y = roomOrigin.y - offset.y;
+    }
+    else if (direction.y < 0)
+    {
+        position.y = roomOrigin.y + roomSize.y - size.y - offset.y;
+    }
+
+    _player->SetPosition(position);
+}
+
 bool OverworldLevel::CanMoveTo(const Craft::Vector2& destination, const Pawn& mover)
 {
     const auto& moverBox = mover.GetComponent<BoxComponent>();
@@ -708,25 +755,32 @@ bool OverworldLevel::UpdatePawnKnockback(Pawn& pawn, float deltaTime)
             break;
         }
 
-        if (pawn.IsA<Player>() &&
-            !IsAccessibleRoom(GetRoomCoordinateAtLeadingEdge(
+        RoomCoordinate nextRoom = _currentRoom;
+        if (pawn.IsA<Player>())
+        {
+            nextRoom = GetRoomCoordinateAtLeadingEdge(
                 destination,
                 pawn,
-                direction)))
-        {
-            pawn.StopKnockback();
-            break;
+                direction
+            );
+
+            if (!IsAccessibleRoom(nextRoom))
+            {
+                pawn.StopKnockback();
+                break;
+            }
         }
 
         pawn.MoveBy(direction);
 
         if (pawn.IsA<Player>())
         {
-            TryChangeRoom(GetRoomCoordinateAtLeadingEdge(
-                pawn.GetWorldPosition(),
-                pawn,
-                direction
-            ));
+            if (nextRoom != _currentRoom)
+            {
+                SnapPlayerIntoRoom(nextRoom, direction);
+            }
+
+            TryChangeRoom(nextRoom);
         }
     }
 
@@ -802,7 +856,12 @@ void OverworldLevel::UpdatePlayerMovement(float deltaTime, const Vector2& delta)
             break;
         }
 
-        _player->MoveBy(delta); // 적 Spawn할 때 Player 유무를 검사하기 때문에, 먼저 이동시킴
+        _player->MoveBy(delta);
+        if (nextRoom != _currentRoom)
+        {
+            SnapPlayerIntoRoom(nextRoom, delta);
+        }
+
         TryChangeRoom(nextRoom);
     }
 }

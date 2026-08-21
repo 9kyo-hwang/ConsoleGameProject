@@ -52,6 +52,10 @@ private:
         const Craft::Vector2& direction
     ) const;
     Craft::Vector2 GetRoomWorldOrigin(RoomCoordinate room) const;
+    void SnapPlayerIntoRoom(
+        RoomCoordinate room,
+        const Craft::Vector2& direction
+    );
 
     bool CanMoveTo(const Craft::Vector2& destination, const Pawn& mover);
     bool UpdatePawnKnockback(Pawn& pawn, float deltaTime);

@@ -819,6 +819,7 @@ void DungeonLevel::UpdatePlayerMovement(
 
         if (nextRoom != _currentRoom)
         {
+            SnapPlayerIntoRoom(nextRoom, delta);
             TryChangeRoom(nextRoom);
         }
 
@@ -905,17 +906,26 @@ bool DungeonLevel::UpdatePawnKnockback(
             break;
         }
 
+        RoomCoordinate nextRoom = _currentRoom;
+        if (pawn.IsA<Player>())
+        {
+            nextRoom = GetRoomCoordinateAtLeadingEdge(
+                destination,
+                pawn,
+                direction
+            );
+        }
+
         pawn.MoveBy(direction);
 
         if (pawn.IsA<Player>())
         {
-            TryChangeRoom(
-                GetRoomCoordinateAtLeadingEdge(
-                    pawn.GetWorldPosition(),
-                    pawn,
-                    direction
-                )
-            );
+            if (nextRoom != _currentRoom)
+            {
+                SnapPlayerIntoRoom(nextRoom, direction);
+            }
+
+            TryChangeRoom(nextRoom);
         }
     }
 
@@ -1092,6 +1102,52 @@ Vector2 DungeonLevel::GetRoomWorldOrigin(
         room.x * RoomTileWidth * MapTileSize.x,
         room.y * RoomTileHeight * MapTileSize.y
     };
+}
+
+void DungeonLevel::SnapPlayerIntoRoom(
+    RoomCoordinate room,
+    const Vector2& direction)
+{
+    if (!_player)
+    {
+        return;
+    }
+
+    const auto box = _player->GetComponent<BoxComponent>();
+    if (!box)
+    {
+        return;
+    }
+
+    const Vector2 roomOrigin = GetRoomWorldOrigin(room);
+    const Vector2 roomSize
+    {
+        RoomTileWidth * MapTileSize.x,
+        RoomTileHeight * MapTileSize.y
+    };
+
+    Vector2 position = _player->GetWorldPosition();
+    const Vector2 offset = box->GetOffset();
+    const Vector2 size = box->GetSize();
+
+    if (direction.x > 0)
+    {
+        position.x = roomOrigin.x - offset.x;
+    }
+    else if (direction.x < 0)
+    {
+        position.x = roomOrigin.x + roomSize.x - size.x - offset.x;
+    }
+    else if (direction.y > 0)
+    {
+        position.y = roomOrigin.y - offset.y;
+    }
+    else if (direction.y < 0)
+    {
+        position.y = roomOrigin.y + roomSize.y - size.y - offset.y;
+    }
+
+    _player->SetPosition(position);
 }
 
 bool DungeonLevel::CanProjectileOccupy(

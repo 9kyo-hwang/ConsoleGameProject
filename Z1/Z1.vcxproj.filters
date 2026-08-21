@@ -20,6 +20,7 @@
     <ClCompile Include="Level\EnemySpawner.cpp" />
     <ClCompile Include="Actor\Projectile.cpp" />
     <ClCompile Include="Actor\Octorok.cpp" />
+    <ClCompile Include="Actor\Moblin.cpp" />
     <ClCompile Include="Level\GameOverLevel.cpp" />
     <ClCompile Include="Level\CaveLevel.cpp" />
   </ItemGroup>
@@ -45,6 +46,7 @@
     <ClInclude Include="Util\Timer.h" />
     <ClInclude Include="Actor\EnemyTypes.h" />
     <ClInclude Include="Actor\Octorok.h" />
+    <ClInclude Include="Actor\Moblin.h" />
     <ClInclude Include="Level\GameOverLevel.h" />
     <ClInclude Include="Level\CaveLevel.h" />
   </ItemGroup>

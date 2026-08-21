@@ -89,6 +89,11 @@ private:
         RoomCoordinate room
     ) const;
 
+    void SnapPlayerIntoRoom(
+        RoomCoordinate room,
+        const Craft::Vector2& direction
+    );
+
     void TakeContactDamageToPlayer();
     void UpdateBossState();
     void TryCollectItems();

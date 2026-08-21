@@ -9,7 +9,7 @@ enum class ProjectileType
 {
     SwordBeam,  // link
     Rock,
-    Spaer,
+    Spear,
     Fireball,
 };
 
@@ -63,7 +63,7 @@ public:
     inline bool Shieldable() const
     {
         return _spec.type == ProjectileType::Rock ||
-               _spec.type == ProjectileType::Spaer ||
+               _spec.type == ProjectileType::Spear ||
                _spec.type == ProjectileType::Fireball;
     }
 

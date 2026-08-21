@@ -128,6 +128,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClCompile Include="Actor\Pawn.cpp" />
     <ClCompile Include="Actor\Projectile.cpp" />
     <ClCompile Include="Actor\Octorok.cpp" />
+    <ClCompile Include="Actor\Moblin.cpp" />
     <ClCompile Include="World\OverworldMap.cpp" />
     <ClCompile Include="Level\DungeonLevel.cpp" />
     <ClCompile Include="World\DungeonMap.cpp" />
@@ -155,6 +156,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClInclude Include="Level\Room.h" />
     <ClInclude Include="Actor\Projectile.h" />
     <ClInclude Include="Actor\Octorok.h" />
+    <ClInclude Include="Actor\Moblin.h" />
     <ClInclude Include="Util\Timer.h" />
     <ClInclude Include="World\OverworldMap.h" />
     <ClInclude Include="Level\DungeonLevel.h" />
