@@ -74,7 +74,22 @@ Projectile::Projectile(Craft::Vector2 position, const ProjectileSpec& spec, cons
     , _timer(spec.lifetime)
     , _hasHit(false)
 {
-    AddComponent<SpriteRendererComponent>(_spec.image, _spec.color, _spec.sortingOrder);
+    if (_spec.sprite)
+    {
+        AddComponent<SpriteRendererComponent>(
+            _spec.sprite,
+            _spec.sortingOrder
+        );
+    }
+    else
+    {
+        AddComponent<SpriteRendererComponent>(
+            _spec.image,
+            _spec.color,
+            _spec.sortingOrder
+        );
+    }
+
     AddComponent<BoxComponent>(_spec.boxSize);
 }
 

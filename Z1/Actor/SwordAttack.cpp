@@ -4,20 +4,10 @@
 #include <Component/BoxComponent.h>
 #include <Actor/Enemy.h>
 #include <Actor/Pawn.h>
-#include <Actor/CombatEffect.h>
-#include <Level/Level.h>
+#include <Actor/SwordSprite.h>
+#include <Render/Sprite.h>
 
 using namespace Craft;
-
-namespace
-{
-    Vector2 GetAttackBoxSize(const Vector2& direction)
-    {
-        return direction.x != 0
-            ? Vector2(2, 1)
-            : Vector2(1, 2);
-    }
-}
 
 SwordAttack::SwordAttack(const Craft::Vector2& position, std::shared_ptr<Pawn> damageInstigator, int damage)
     : Super(position)
@@ -26,13 +16,9 @@ SwordAttack::SwordAttack(const Craft::Vector2& position, std::shared_ptr<Pawn> d
     , _direction(position)
     , _damage(damage)
 {
-    const std::string image = _direction.x > 0 ? "=>"
-        : _direction.x < 0 ? "<="
-        : _direction.y < 0 ? "^"
-        : "v";
-
-    AddComponent<SpriteRendererComponent>(image);
-    AddComponent<BoxComponent>(GetAttackBoxSize(_direction));
+    const auto sprite = CreateSwordSprite(_direction);
+    AddComponent<SpriteRendererComponent>(sprite);
+    AddComponent<BoxComponent>(sprite->GetSize());
 }
 
 void SwordAttack::BeginPlay()
@@ -79,22 +65,6 @@ void SwordAttack::BeginPlay()
 
     SetPosition(localPosition);
 
-    const auto level = GetOwner();
-    if (!level)
-    {
-        return;
-    }
-
-    level->SpawnActor<CombatEffect>(
-        GetWorldPosition() + Vector2(-1, -1),
-        CreateCombatEffectSprite(
-            CombatEffectType::SwordSlash,
-            _direction,
-            Color::White
-        ),
-        0.12f,
-        20
-    );
 }
 
 void SwordAttack::Tick(float deltaTime)

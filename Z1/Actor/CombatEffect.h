@@ -12,14 +12,12 @@ namespace Craft
 
 enum class CombatEffectType
 {
-    SwordSlash,
     Hit,
     Death
 };
 
 std::shared_ptr<const Craft::Sprite> CreateCombatEffectSprite(
     CombatEffectType type,
-    Craft::Vector2 direction = Craft::Vector2::Zero,
     Craft::Color color = Craft::Color::White
 );
 

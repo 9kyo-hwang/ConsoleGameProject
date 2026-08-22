@@ -7,6 +7,7 @@
 #include <Actor/Player.h>
 #include <Actor/Projectile.h>
 #include <Actor/SwordAttack.h>
+#include <Actor/SwordSprite.h>
 
 #include <Component/BoxComponent.h>
 
@@ -264,17 +265,20 @@ void DungeonLevel::Tick(float deltaTime)
         {
             const Vector2 direction =
                 _player->GetFacingDirection();
-
-            auto attack = SpawnActor<SwordAttack>(
-                direction,
-                _player,
-                1
-            );
-
-            attack->AttachTo(_player, false);
-            _player->SetActiveAttack(attack);
-
             const bool canShootSwordBeam = _player->IsFullHp();
+
+            if (!canShootSwordBeam)
+            {
+                auto attack = SpawnActor<SwordAttack>(
+                    direction,
+                    _player,
+                    1
+                );
+
+                attack->AttachTo(_player, false);
+                _player->SetActiveAttack(attack);
+            }
+
             Engine::Get().PlayOneShot(
                 canShootSwordBeam
                 ? "Z1/LOZ_Sword_Combined.wav"
@@ -283,6 +287,7 @@ void DungeonLevel::Tick(float deltaTime)
 
             if (canShootSwordBeam)
             {
+                const auto swordSprite = CreateSwordSprite(direction);
                 ProjectileSpec swordBeam
                 {
                     .type = ProjectileType::SwordBeam,
@@ -291,9 +296,8 @@ void DungeonLevel::Tick(float deltaTime)
                     .speed = 40.f,
                     .lifetime = 1.5f,
                     .direction = direction,
-                    .boxSize = Vector2::One,
-                    .image = "*",
-                    .color = Color::White,
+                    .boxSize = swordSprite->GetSize(),
+                    .sprite = swordSprite,
                     .sortingOrder = 11
                 };
 

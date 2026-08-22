@@ -44,7 +44,7 @@ namespace
 
         level->SpawnActor<CombatEffect>(
             effectPosition,
-            CreateCombatEffectSprite(type, Vector2::Zero, color),
+            CreateCombatEffectSprite(type, color),
             duration,
             20
         );

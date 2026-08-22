@@ -39,42 +39,11 @@ namespace
 
 std::shared_ptr<const Craft::Sprite> CreateCombatEffectSprite(
     CombatEffectType type,
-    Craft::Vector2 direction,
     Craft::Color color
 )
 {
     switch (type)
     {
-    case CombatEffectType::SwordSlash:
-        if (direction.x > 0)
-        {
-            return MakeSprite(
-                { "  >", "=> ", "  >" },
-                color
-            );
-        }
-
-        if (direction.x < 0)
-        {
-            return MakeSprite(
-                { "<  ", " <=", "<  " },
-                color
-            );
-        }
-
-        if (direction.y < 0)
-        {
-            return MakeSprite(
-                { " ^ ", "/|\\", " | " },
-                color
-            );
-        }
-
-        return MakeSprite(
-            { " | ", "\\|/", " v " },
-            color
-        );
-
     case CombatEffectType::Hit:
         return MakeSprite(
             { " + ", "+*+", " + " },

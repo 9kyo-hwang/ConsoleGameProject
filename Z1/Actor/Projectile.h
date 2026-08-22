@@ -3,8 +3,15 @@
 #include <Math/Vector2.h>
 #include <Util/Timer.h>
 
+#include <memory>
+
 class Pawn;
 class CellStepComponent;
+
+namespace Craft
+{
+    class Sprite;
+}
 
 enum class ProjectileType
 {
@@ -34,6 +41,7 @@ struct ProjectileSpec
     Craft::Vector2 boxSize = Craft::Vector2::One;
 
     std::string image = "*";
+    std::shared_ptr<const Craft::Sprite> sprite;
     Craft::Color color = Craft::Color::White;
     int sortingOrder = 11;
 };
