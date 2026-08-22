@@ -115,7 +115,7 @@ private:
 
     bool _loaded = false;
     bool _bgmStarted = false;
-    bool _needsPlayerSync = true;
+    bool _playerStateLoaded = false;
     bool _gameOverPending = false;
     Timer _gameOverTimer{ 2.7f };
     bool _clearPending = false;

@@ -173,35 +173,20 @@ void DungeonLevel::BeginPlay()
         _bgmStarted = true;
     }
 
-    if (_player)
+    if (!_player)
     {
-        if (_needsPlayerSync)
-        {
-            _player->SetHealth(game.GetPlayerHp());
-            _needsPlayerSync = false;
-        }
+        const Vector2 spawnPosition =
+            Vector2(PlayerSpawnTileX, PlayerSpawnTileY) * TileCellSize;
 
-        if (game.HasSword())
-        {
-            _player->EquipSword();
-        }
-
-        return;
+        _player = SpawnActor<Player>(spawnPosition, Game::PlayerMaxHp);
+        SpawnRoomEnemies();
     }
 
-    const Vector2 spawnPosition =
-        Vector2(PlayerSpawnTileX, PlayerSpawnTileY) * TileCellSize;
-
-    _player = SpawnActor<Player>(spawnPosition, Game::PlayerMaxHp);
-    _player->SetHealth(game.GetPlayerHp());
-    _needsPlayerSync = false;
-
-    if (game.HasSword())
+    if (!_playerStateLoaded)
     {
-        _player->EquipSword();
+        game.LoadPlayerState(*_player);
+        _playerStateLoaded = true;
     }
-
-    SpawnRoomEnemies();
 }
 
 void DungeonLevel::EndPlay()
@@ -211,10 +196,10 @@ void DungeonLevel::EndPlay()
     if (_player)
     {
         Game& game = dynamic_cast<Game&>(Engine::Get());
-        game.SetPlayerHp(_player->GetHp());
+        game.SavePlayerState(*_player);
     }
 
-    _needsPlayerSync = true;
+    _playerStateLoaded = false;
 
     Engine::Get().StopBGM();
     _bgmStarted = false;
@@ -730,8 +715,6 @@ bool DungeonLevel::TryExitDungeon(
     }
 
     Game& game = dynamic_cast<Game&>(Engine::Get());
-    game.SetPlayerHp(_player->GetHp());
-    game.SetHasSword(_player->HasSword());
     game.ChangeLevel(State::Overworld);
 
     return true;

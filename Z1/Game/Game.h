@@ -8,6 +8,8 @@ namespace Craft
     class Level;
 }
 
+class Player;
+
 enum class State
 {
     Title,
@@ -31,19 +33,19 @@ public:
     void StartNewGame();
     void ChangeLevel(State state);
 
-    inline bool HasSword() const { return _hasSword; }
-    void SetHasSword(bool value) { _hasSword = value; }
-
-    inline int GetPlayerHp() const { return _playerHp; }
-    void SetPlayerHp(int value)
-    {
-        _playerHp = std::clamp(value, 0, PlayerMaxHp);
-    }
+    void ResetPlayerState();
+    void SavePlayerState(const Player& player);
+    void LoadPlayerState(Player& player) const;
 
 private:
+    struct PlayerState
+    {
+        int hp = PlayerMaxHp;
+        bool hasSword = false;
+    };
+
     State _state = State::Title;
     std::vector<std::shared_ptr<Craft::Level>> _levels{};
-    bool _hasSword = false;
-    int _playerHp = PlayerMaxHp;
+    PlayerState _playerState{};
 };
 

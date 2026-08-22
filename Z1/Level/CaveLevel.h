@@ -44,6 +44,6 @@ private:
 
     bool _loaded = false;
     bool _swordCollected = false;
-    bool _needsPlayerSync = true;
+    bool _playerStateLoaded = false;
 };
 

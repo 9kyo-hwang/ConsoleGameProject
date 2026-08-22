@@ -82,32 +82,22 @@ void CaveLevel::BeginPlay()
 
     Game& game = dynamic_cast<Game&>(Engine::Get());
 
-    if (_player)
+    if (!_player)
     {
-        if (_needsPlayerSync)
-        {
-            _player->SetHealth(game.GetPlayerHp());
-            _needsPlayerSync = false;
-        }
-
-        if (game.HasSword())
-        {
-            _player->EquipSword();
-        }
-
-        return;
+        Vector2 spawnPosition = _playerPosition * TileCellSize;
+        _player = SpawnActor<Player>(spawnPosition, Game::PlayerMaxHp);
     }
 
-    Vector2 spawnPosition = _playerPosition * TileCellSize;
-    _player = SpawnActor<Player>(spawnPosition, Game::PlayerMaxHp);
-    _player->SetHealth(game.GetPlayerHp());
-    _needsPlayerSync = false;
-
-    if (game.HasSword())
+    if (!_playerStateLoaded)
     {
-        _player->EquipSword();
-        _swordCollected = true;
-        BuildRoomSprite();  // S 없이 새롭게 그리기. 근데 그냥 Sword를 액터처럼 해서 destroy하는 게 안낫나?
+        game.LoadPlayerState(*_player);
+        _playerStateLoaded = true;
+
+        if (_player->HasSword() && !_swordCollected)
+        {
+            _swordCollected = true;
+            BuildRoomSprite();  // S 없이 새롭게 그리기. 근데 그냥 Sword를 액터처럼 해서 destroy하는 게 안낫나?
+        }
     }
 }
 
@@ -118,10 +108,10 @@ void CaveLevel::EndPlay()
     if (_player)
     {
         Game& game = dynamic_cast<Game&>(Engine::Get());
-        game.SetPlayerHp(_player->GetHp());
+        game.SavePlayerState(*_player);
     }
 
-    _needsPlayerSync = true;
+    _playerStateLoaded = false;
 }
 
 void CaveLevel::Tick(float deltaTime)
@@ -355,19 +345,11 @@ bool CaveLevel::TryCollectSword()
 {
     if (!_player || _swordCollected) return false;
 
-    Game& game = dynamic_cast<Game&>(Engine::Get());
-    if (game.HasSword())
-    {
-        _swordCollected = true;
-        return false;
-    }
-
     if (!IsOnTile(_swordPosition))
     {
         return false;
     }
 
-    game.SetHasSword(true);
     _player->EquipSword();
     Engine::Get().PlayOneShot("Z1/07. Collect Item.wav");
 
@@ -409,8 +391,6 @@ bool CaveLevel::TryExitCave(Vector2 destination, Vector2 moveDelta)
     }
 
     Game& game = dynamic_cast<Game&>(Engine::Get());
-    game.SetPlayerHp(_player->GetHp());
-    game.SetHasSword(_player->HasSword());
     game.ChangeLevel(State::Overworld);
 
     return true;

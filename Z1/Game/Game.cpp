@@ -7,6 +7,8 @@
 #include <Level/DevelopmentLevel.h>
 #include <Level/CaveLevel.h>
 #include <Level/DungeonLevel.h>
+#include <Actor/Player.h>
+#include <algorithm>
 
 Game::Game()
 {
@@ -25,14 +27,34 @@ Game::Game()
 
 void Game::StartNewGame()
 {
-    _hasSword = false;
-    _playerHp = PlayerMaxHp;
+    ResetPlayerState();
 
     _levels[(int)State::Overworld] = std::make_shared<OverworldLevel>();
     _levels[(int)State::SwordCave] = std::make_shared<CaveLevel>();
     _levels[(int)State::Dungeon1] = std::make_shared<DungeonLevel>();
 
     ChangeLevel(State::Overworld);
+}
+
+void Game::ResetPlayerState()
+{
+    _playerState = PlayerState{};
+}
+
+void Game::SavePlayerState(const Player& player)
+{
+    _playerState.hp = std::clamp(player.GetHp(), 0, PlayerMaxHp);
+    _playerState.hasSword = player.HasSword();
+}
+
+void Game::LoadPlayerState(Player& player) const
+{
+    player.SetHealth(_playerState.hp);
+
+    if (_playerState.hasSword)
+    {
+        player.EquipSword();
+    }
 }
 
 void Game::ChangeLevel(State state)

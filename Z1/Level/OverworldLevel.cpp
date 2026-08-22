@@ -283,29 +283,20 @@ void OverworldLevel::BeginPlay()
         _bgmStarted = true;
     }
 
-    if (_player)
+    if (!_player)
     {
-        if (_needsPlayerSync)
-        {
-            _player->SetHealth(game.GetPlayerHp());
-            _needsPlayerSync = false;
-        }
-
-        if (game.HasSword())
-        {
-            _player->EquipSword();
-        }
-
-        return;
+        // 월드 좌표
+        _player = SpawnActor<Player>(
+            GetRoomCellOrigin(_currentRoom) + Vector2(7, 2) * TileCellSize,
+            Game::PlayerMaxHp
+        );
     }
 
-    // 월드 좌표
-    _player = SpawnActor<Player>(
-        GetRoomCellOrigin(_currentRoom) + Vector2(7, 2) * TileCellSize,
-        Game::PlayerMaxHp
-    );
-    _player->SetHealth(game.GetPlayerHp());
-    _needsPlayerSync = false;
+    if (!_playerStateLoaded)
+    {
+        game.LoadPlayerState(*_player);
+        _playerStateLoaded = true;
+    }
 }
 
 void OverworldLevel::Tick(float deltaTime)
@@ -424,10 +415,10 @@ void OverworldLevel::EndPlay()
     if (_player)
     {
         Game& game = dynamic_cast<Game&>(Engine::Get());
-        game.SetPlayerHp(_player->GetHp());
+        game.SavePlayerState(*_player);
     }
 
-    _needsPlayerSync = true;
+    _playerStateLoaded = false;
 
     Engine::Get().StopBGM();
     _bgmStarted = false;
@@ -1051,8 +1042,6 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
     {
         Game& game = dynamic_cast<Game&>(Engine::Get());
 
-        game.SetPlayerHp(_player->GetHp());
-        game.SetHasSword(_player->HasSword());
         game.ChangeLevel(State::SwordCave);
 
         _player->ClearMoveRemainder();
@@ -1069,8 +1058,6 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
 
         Game& game = dynamic_cast<Game&>(Engine::Get());
 
-        game.SetPlayerHp(_player->GetHp());
-        game.SetHasSword(_player->HasSword());
         game.ChangeLevel(State::Dungeon1);
 
         _player->ClearMoveRemainder();
