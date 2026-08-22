@@ -15,7 +15,6 @@ private:
     void RequestSpearAttack();
 
 private:
-    EnemyVariant _variant;
     Craft::Vector2 _direction = Craft::Vector2::Right;
 
     Timer _directionTimer;

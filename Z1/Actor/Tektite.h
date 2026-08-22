@@ -15,7 +15,6 @@ private:
     Craft::Vector2 GetHopDirection(const Player& player) const;
 
 private:
-    EnemyVariant _variant;
     Craft::Vector2 _hopDirection = Craft::Vector2::Zero;
     bool _isHopping = false;
 

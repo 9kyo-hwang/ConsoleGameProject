@@ -2,36 +2,12 @@
 #include "Moblin.h"
 
 #include <array>
-#include <Component/BoxComponent.h>
-#include <Component/SpriteRendererComponent.h>
 #include <Render/Sprite.h>
 
 using namespace Craft;
 
 namespace
 {
-    int MaxHp(EnemyVariant variant)
-    {
-        switch (variant)
-        {
-        case EnemyVariant::Red: return 1;
-        case EnemyVariant::Blue: return 2;
-        }
-
-        return 1;
-    }
-
-    Color GetColor(EnemyVariant variant)
-    {
-        switch (variant)
-        {
-        case EnemyVariant::Red: return Color::Red;
-        case EnemyVariant::Blue: return Color::Blue;
-        }
-
-        return Color::Red;
-    }
-
     std::shared_ptr<const Sprite> CreateMoblinSprite(Color bodyColor)
     {
         const std::array<std::string, 5> art
@@ -77,21 +53,11 @@ namespace
 }
 
 Moblin::Moblin(Vector2 position, EnemyVariant variant)
-    : Super(position, MaxHp(variant), 6.f, "M", GetColor(variant))
-    , _variant(variant)
+    : Super(position, GetVariantMaxHp(variant), 6.f, "M", GetVariantColor(variant))
     , _directionTimer(0.8f)
     , _attackTimer(2.2f)
 {
-    if (const auto renderer = GetComponent<SpriteRendererComponent>())
-    {
-        renderer->SetSprite(CreateMoblinSprite(GetColor(variant)));
-        renderer->SetSortingOrder(11);
-    }
-
-    if (const auto box = GetComponent<BoxComponent>())
-    {
-        box->SetSize(Vector2(8, 5));
-    }
+    SetAppearance(CreateMoblinSprite(GetVariantColor(variant)));
 }
 
 void Moblin::Think(float deltaTime, const Player& player)

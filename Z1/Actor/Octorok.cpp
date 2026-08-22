@@ -3,36 +3,12 @@
 
 #include <Math/MathUtility.h>
 #include <array>
-#include <Component/BoxComponent.h>
-#include <Component/SpriteRendererComponent.h>
 #include <Render/Sprite.h>
 
 using namespace Craft;
 
 namespace
 {
-    int MaxHp(EnemyVariant variant)
-    {
-        switch (variant)
-        {
-        case EnemyVariant::Red: return 1;
-        case EnemyVariant::Blue: return 2;
-        }
-
-        return 1;
-    }
-
-    Color GetColor(EnemyVariant variant)
-    {
-        switch (variant)
-        {
-        case EnemyVariant::Red: return Color::Red;
-        case EnemyVariant::Blue: return Color::Blue;
-        }
-
-        return Color::Red;
-    }
-
     std::shared_ptr<const Sprite> CreateOctorokSprite(Color bodyColor)
     {
         const std::array<std::string, 5> art
@@ -79,21 +55,11 @@ namespace
 }
 
 Octorok::Octorok(Craft::Vector2 position, EnemyVariant variant)
-    : Super(position, MaxHp(variant), 8.f, "O", GetColor(variant))
-    , _variant(variant)
+    : Super(position, GetVariantMaxHp(variant), 8.f, "O", GetVariantColor(variant))
     , _rotateTimer(0.75f)
     , _attackTimer(1.5f)
 {
-    if (const auto renderer = GetComponent<SpriteRendererComponent>())
-    {
-        renderer->SetSprite(CreateOctorokSprite(GetColor(variant)));
-        renderer->SetSortingOrder(11);
-    }
-
-    if (const auto box = GetComponent<BoxComponent>())
-    {
-        box->SetSize(Vector2(8, 5));
-    }
+    SetAppearance(CreateOctorokSprite(GetVariantColor(variant)));
 
     Rotate();
 }

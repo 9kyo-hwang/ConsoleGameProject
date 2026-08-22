@@ -3,6 +3,7 @@
 #include <Component/SpriteRendererComponent.h>
 #include <Component/BoxComponent.h>
 #include <Engine/Engine.h>
+#include <Render/Sprite.h>
 
 using namespace Craft;
 
@@ -75,4 +76,42 @@ void Enemy::RequestAttack(const EnemyAttackRequest& request)
     {
         _attackRequest = request;
     }
+}
+
+void Enemy::SetAppearance(
+    const std::shared_ptr<const Sprite>& sprite,
+    int sortingOrder)
+{
+    if (const auto renderer = GetComponent<SpriteRendererComponent>())
+    {
+        renderer->SetSprite(sprite);
+        renderer->SetSortingOrder(sortingOrder);
+    }
+
+    if (const auto box = GetComponent<BoxComponent>())
+    {
+        box->SetSize(sprite->GetSize());
+    }
+}
+
+int Enemy::GetVariantMaxHp(EnemyVariant variant)
+{
+    switch (variant)
+    {
+    case EnemyVariant::Red: return 1;
+    case EnemyVariant::Blue: return 2;
+    }
+
+    return 1;
+}
+
+Color Enemy::GetVariantColor(EnemyVariant variant)
+{
+    switch (variant)
+    {
+    case EnemyVariant::Red: return Color::Red;
+    case EnemyVariant::Blue: return Color::Blue;
+    }
+
+    return Color::Red;
 }

@@ -2,8 +2,6 @@
 #include "Aquamentus.h"
 
 #include <array>
-#include <Component/BoxComponent.h>
-#include <Component/SpriteRendererComponent.h>
 #include <Engine/Engine.h>
 #include <Render/Sprite.h>
 
@@ -61,16 +59,7 @@ Aquamentus::Aquamentus(Vector2 position)
     : Super(position, 6, 3.f, " ", Color::Green)
     , _attackTimer(2.f)
 {
-    if (const auto renderer = GetComponent<SpriteRendererComponent>())
-    {
-        renderer->SetSprite(CreateAquamentusSprite());
-        renderer->SetSortingOrder(11);
-    }
-
-    if (const auto box = GetComponent<BoxComponent>())
-    {
-        box->SetSize(Vector2(5, 5));
-    }
+    SetAppearance(CreateAquamentusSprite());
 }
 
 void Aquamentus::Think(float deltaTime, const Player& player)

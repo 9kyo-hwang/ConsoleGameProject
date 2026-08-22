@@ -2,8 +2,6 @@
 #include "Tektite.h"
 
 #include <array>
-#include <Component/BoxComponent.h>
-#include <Component/SpriteRendererComponent.h>
 #include <Math/MathUtility.h>
 #include <Render/Sprite.h>
 
@@ -11,28 +9,6 @@ using namespace Craft;
 
 namespace
 {
-    int MaxHp(EnemyVariant variant)
-    {
-        switch (variant)
-        {
-        case EnemyVariant::Red: return 1;
-        case EnemyVariant::Blue: return 2;
-        }
-
-        return 1;
-    }
-
-    Color GetColor(EnemyVariant variant)
-    {
-        switch (variant)
-        {
-        case EnemyVariant::Red: return Color::Red;
-        case EnemyVariant::Blue: return Color::Blue;
-        }
-
-        return Color::Red;
-    }
-
     float HopCooldown(EnemyVariant variant)
     {
         return variant == EnemyVariant::Red ? 0.55f : 1.1f;
@@ -89,21 +65,11 @@ namespace
 }
 
 Tektite::Tektite(Vector2 position, EnemyVariant variant)
-    : Super(position, MaxHp(variant), 24.f, "T", GetColor(variant))
-    , _variant(variant)
+    : Super(position, GetVariantMaxHp(variant), 24.f, "T", GetVariantColor(variant))
     , _hopCooldown(HopCooldown(variant))
     , _hopDuration(HopDuration(variant))
 {
-    if (const auto renderer = GetComponent<SpriteRendererComponent>())
-    {
-        renderer->SetSprite(CreateTektiteSprite(GetColor(variant)));
-        renderer->SetSortingOrder(11);
-    }
-
-    if (const auto box = GetComponent<BoxComponent>())
-    {
-        box->SetSize(Vector2(8, 5));
-    }
+    SetAppearance(CreateTektiteSprite(GetVariantColor(variant)));
 }
 
 void Tektite::Think(float deltaTime, const Player& player)

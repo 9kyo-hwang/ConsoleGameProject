@@ -7,6 +7,11 @@
 #include <optional>
 #include <vector>
 
+namespace Craft
+{
+    class Sprite;
+}
+
 struct EnemyAttackRequest
 {
     std::vector<ProjectileSpec> projectiles;
@@ -34,6 +39,10 @@ public:
 protected:
     void OnDeath(const std::shared_ptr<Pawn>& instigator) override;
     void RequestAttack(const EnemyAttackRequest& request);
+    void SetAppearance(const std::shared_ptr<const Craft::Sprite>& sprite, int sortingOrder = 11);
+
+    static int GetVariantMaxHp(EnemyVariant variant);
+    static Craft::Color GetVariantColor(EnemyVariant variant);
 
 protected:
     Craft::Vector2 desiredMove = Craft::Vector2::Zero;
