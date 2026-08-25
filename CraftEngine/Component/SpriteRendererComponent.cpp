@@ -6,13 +6,6 @@
 
 namespace Craft
 {
-    SpriteRendererComponent::SpriteRendererComponent(const std::string& image, Color color, int sortingOrder)
-        : image(image)
-        , color(color)
-        , sortingOrder(sortingOrder)
-    {
-    }
-
     SpriteRendererComponent::SpriteRendererComponent(std::shared_ptr<const Sprite> sprite, int sortingOrder)
         : sprite(std::move(sprite))
         , sortingOrder(sortingOrder)
@@ -36,42 +29,11 @@ namespace Craft
         }
 
         const Vector2 worldPosition = transform->GetWorldPosition();
-        if (sprite)
+        if (!sprite)
         {
-            Renderer::Get().SubmitWorld(
-                sprite,
-                worldPosition,
-                sortingOrder
-            );
-        }
-        else
-        {
-            Renderer::Get().SubmitWorld(
-                image, 
-                worldPosition,
-                color,
-                sortingOrder
-            );
-        }
-    }
-
-    int SpriteRendererComponent::GetWidth() const
-    {
-        if (sprite)
-        {
-            return sprite->GetSize().x;
+            return;
         }
 
-        return static_cast<int>(image.size());
-    }
-
-    Vector2 SpriteRendererComponent::GetSpriteSize() const
-    {
-        if (sprite)
-        {
-            return sprite->GetSize();
-        }
-
-        return Vector2(static_cast<int>(image.size()), 1);
+        Renderer::Get().SubmitWorld(sprite, worldPosition, sortingOrder);
     }
 }

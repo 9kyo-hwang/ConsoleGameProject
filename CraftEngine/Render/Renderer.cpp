@@ -1,5 +1,6 @@
 ﻿#include "pch.h"
 #include "Renderer.h"
+#include <Math/Color.h>
 #include <Render/ScreenBuffer.h>
 
 namespace Craft
@@ -77,35 +78,11 @@ namespace Craft
         SetConsoleActiveScreenBuffer(GetStdHandle(STD_OUTPUT_HANDLE));
     }
 
-    void Renderer::Submit(const std::string& image, const Vector2& position, Color color, int sortingOrder)
+    void Renderer::Submit(std::shared_ptr<const Sprite> sprite, Vector2 position, int sortingOrder)
     {
-        // 액터가 렌더러에게 그릴 데이터를 전달해줌
-        TextPayload payload
-        {
-            .text = image,
-            .color = color,
-        };
-
         RenderCommand command
-        {
-            .payload = payload,
-            .position = position, 
-            .sortingOrder = sortingOrder
-        };
-
-        _renderQueue.emplace_back(command);
-    }
-
-    void Renderer::Submit(std::shared_ptr<const Sprite> sprite, const Vector2& position, int sortingOrder)
-    {
-        SpritePayload payload
         {
             .sprite = std::move(sprite),
-        };
-
-        RenderCommand command
-        {
-            .payload = payload,
             .position = position,   // 위치값엔 scale 적용 X
             .sortingOrder = sortingOrder
         };
@@ -113,12 +90,7 @@ namespace Craft
         _renderQueue.emplace_back(std::move(command));
     }
 
-    void Renderer::SubmitWorld(const std::string& image, const Vector2& worldPosition, Color color, int sortingOrder)
-    {
-        Submit(image, WorldToScreen(worldPosition), color, sortingOrder);
-    }
-
-    void Renderer::SubmitWorld(std::shared_ptr<const Sprite> sprite, const Vector2& worldPosition, int sortingOrder)
+    void Renderer::SubmitWorld(std::shared_ptr<const Sprite> sprite, Vector2 worldPosition, int sortingOrder)
     {
         Submit(std::move(sprite), WorldToScreen(worldPosition), sortingOrder);
     }
@@ -147,18 +119,15 @@ namespace Craft
 
     void Renderer::DrawRenderQueue()
     {
-        // command가 들고 있는 Payload를 보고
-        // DrawPayload -> DrawCellGrid -> CompositeCell -> 
+        // command가 들고 있는 Payload를 보고 DrawSprite -> CompositeCell
         for (const RenderCommand& command : _renderQueue)
         {
-            // variant 내부의 현재 활성화된 타입을 안전하게 판별하고
-            // 그에 맞는 Callable을 실행
-            std::visit([&](const auto& payload)
-                {
-                    DrawPayload(command, payload);
-                },
-                command.payload
-            );
+            if (!command.sprite)
+            {
+                continue;
+            }
+
+            DrawSprite(*command.sprite, command.position, command.sortingOrder);
         }
 
         // 백버퍼에 그리기
@@ -174,47 +143,30 @@ namespace Craft
         );
     }
 
-    void Renderer::DrawPayload(const RenderCommand& command, const TextPayload& payload)
+    void Renderer::DrawSprite(const Sprite& sprite, Vector2 position, int sortingOrder)
     {
-        if (payload.text.empty())
+        const Vector2 size = sprite.GetSize();
+
+        const int sourceStartX = std::max(0, -position.x);
+        const int sourceStartY = std::max(0, -position.y);
+        const int sourceEndX = std::min(size.x, _screenSize.x - position.x);
+        const int sourceEndY = std::min(size.y, _screenSize.y - position.y);
+
+        if (sourceStartX >= sourceEndX || sourceStartY >= sourceEndY)
         {
             return;
         }
 
-        // N x 1 문자열 이미지를 SpriteCell로 치환
-        DrawCellGrid(
-            command.position,
-            Vector2((int)payload.text.size(), 1),
-            command.sortingOrder,
-            [&](int x, int)
-            {
-                return SpriteCell
-                {
-                    .glyph = payload.text[x],
-                    .attributes = (WORD)(payload.color),
-                    .transparent = false
-                };
-            }
-        );
-    }
-
-    void Renderer::DrawPayload(const RenderCommand& command, const SpritePayload& payload)
-    {
-        if (!payload.sprite)
+        for (int sourceY = sourceStartY; sourceY < sourceEndY; ++sourceY)
         {
-            return;
-        }
-
-        const Sprite& sprite = *payload.sprite;
-        DrawCellGrid(
-            command.position,
-            sprite.GetSize(),
-            command.sortingOrder,
-            [&](int x, int y)
+            for (int sourceX = sourceStartX; sourceX < sourceEndX; ++sourceX)
             {
-                return sprite.GetCell(x, y);
+                const int destinationX = position.x + sourceX;
+                const int destinationY = position.y + sourceY;
+
+                CompositeCell(destinationX, destinationY, sprite.GetCell(sourceX, sourceY), sortingOrder);
             }
-        );
+        }
     }
 
     void Renderer::CompositeCell(int x, int y, const SpriteCell& cell, int sortingOrder)

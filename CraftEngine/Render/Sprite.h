@@ -4,6 +4,7 @@
 #include <Math/Vector2.h>
 #include <vector>
 #include <string>
+#include <memory>
 
 namespace Craft
 {
