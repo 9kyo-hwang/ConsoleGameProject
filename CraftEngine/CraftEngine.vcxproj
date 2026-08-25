@@ -136,6 +136,7 @@ xcopy ..\Config\Setting.txt $(OutDir)..\Config\ /e /y /i</Command>
     <ClCompile Include="Component\TransformComponent.cpp" />
     <ClCompile Include="Component\SpriteRendererComponent.cpp" />
     <ClCompile Include="Render\Sprite.cpp" />
+    <ClCompile Include="Tilemaps\Tilemap.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Component\BoxComponent.h" />
@@ -158,6 +159,7 @@ xcopy ..\Config\Setting.txt $(OutDir)..\Config\ /e /y /i</Command>
     <ClInclude Include="Component\TransformComponent.h" />
     <ClInclude Include="Component\SpriteRendererComponent.h" />
     <ClInclude Include="Render\Sprite.h" />
+    <ClInclude Include="Tilemaps\Tilemap.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
