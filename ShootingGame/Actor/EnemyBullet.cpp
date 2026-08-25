@@ -11,8 +11,9 @@ EnemyBullet::EnemyBullet(const Craft::Vector2& startPosition, float moveSpeed)
     , _moveSpeed(moveSpeed)
     , _posY((float)startPosition.y)
 {
-    AddComponent<SpriteRendererComponent>(Sprite::Create("#", Color::Red), 4);
-    AddComponent<BoxComponent>(1);
+    auto sprite = Sprite::Create("#", Color::Red);
+    AddComponent<SpriteRendererComponent>(sprite, 4);
+    AddComponent<BoxComponent>(sprite->GetSize());
 }
 
 void EnemyBullet::Tick(float deltaTime)

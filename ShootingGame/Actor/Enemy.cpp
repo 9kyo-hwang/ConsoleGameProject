@@ -17,15 +17,16 @@ namespace
     int GetCollisionWidth(const Actor& actor)
     {
         auto collider = actor.GetComponent<BoxComponent>();
-        return collider ? collider->GetWidth() : 0;
+        return collider ? collider->GetSize().x : 0;
     }
 }
 
 Enemy::Enemy(const std::string& image, int posY)
     : Super(Vector2::Zero)
 {
-    AddComponent<SpriteRendererComponent>(Sprite::Create(image), 2);
-    AddComponent<BoxComponent>((int32)image.size());
+    auto sprite = Sprite::Create(image);
+    AddComponent<SpriteRendererComponent>(sprite, 2);
+    AddComponent<BoxComponent>(sprite->GetSize());
 
     int random = FMath::RandRange(1, 2);
     if (random == 1)

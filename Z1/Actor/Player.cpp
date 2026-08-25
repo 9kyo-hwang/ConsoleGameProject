@@ -18,8 +18,8 @@ Player::Player(Craft::Vector2 position, int maxHp)
     // 렌더러에서 스케일에 비례하게 박스 크기를 늘리지 않도록 변경되어
     // 명시적으로 박스 크기를 렌더 스케일로 지정
     auto sprite = CreateSprite();
-    _box = AddComponent<BoxComponent>(sprite->GetSize(), Vector2::Zero);
     _renderer = AddComponent<SpriteRendererComponent>(sprite, 10);
+    _box = AddComponent<BoxComponent>(sprite->GetSize(), Vector2::Zero);
 }
 
 void Player::Tick(float deltaTime)

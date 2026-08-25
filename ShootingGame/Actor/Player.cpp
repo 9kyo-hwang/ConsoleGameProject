@@ -20,15 +20,16 @@ namespace
     int GetCollisionWidth(const Actor& actor)
     {
         auto collider = actor.GetComponent<BoxComponent>();
-        return collider ? collider->GetWidth() : 0;
+        return collider ? collider->GetSize().x : 0;
     }
 }
 
 Player::Player()
     : Super(Vector2::Zero)
 {
-    AddComponent<SpriteRendererComponent>(Sprite::Create("<=A=>", Color::Green), 5);
-    AddComponent<BoxComponent>(5);
+    auto sprite = Sprite::Create("<=A=>", Color::Green);
+    AddComponent<SpriteRendererComponent>(sprite, 5);
+    AddComponent<BoxComponent>(sprite->GetSize());
 
     // 콘솔 가운데에 위치 + 플레이어 가로 길이 보정
     int x = (Engine::Get().GetWidth() / 2) - (GetCollisionWidth(*this) / 2);

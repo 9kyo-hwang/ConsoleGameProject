@@ -10,8 +10,9 @@ using namespace Craft;
 Enemy::Enemy(Craft::Vector2 position, int maxHp, float moveSpeed, const std::string& image, Craft::Color color)
     : Super(position, maxHp, moveSpeed)
 {
-    AddComponent<SpriteRendererComponent>(Sprite::Create(image, color), 11);
-    AddComponent<BoxComponent>(Vector2::One);
+    auto sprite = Sprite::Create(image, color);
+    AddComponent<SpriteRendererComponent>(sprite, 11);
+    AddComponent<BoxComponent>(sprite->GetSize());
 }
 
 Enemy::~Enemy()

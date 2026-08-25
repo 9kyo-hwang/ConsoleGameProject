@@ -10,6 +10,7 @@ Wall::Wall(const Craft::Vector2& position)
     : Super(position)
 {
     // 사실 벽은 겹칠 일이 없어 소팅 오더는 의미 없음
-    AddComponent<SpriteRendererComponent>(Sprite::Create("#", Color::White), 2);
-    AddComponent<BoxComponent>(1);  // width = 1
+    auto sprite = Sprite::Create("#", Color::White);
+    AddComponent<SpriteRendererComponent>(sprite, 2);
+    AddComponent<BoxComponent>(sprite->GetSize());  // width = 1
 }
