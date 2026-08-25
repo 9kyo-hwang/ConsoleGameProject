@@ -8,10 +8,4 @@ namespace Craft
         , offset(offset)
     {
     }
-
-    BoxComponent::BoxComponent(int width)
-        : size(width, 1)
-        , offset(Vector2::Zero)
-    {
-    }
 }
