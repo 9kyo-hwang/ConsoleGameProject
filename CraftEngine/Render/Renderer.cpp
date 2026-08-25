@@ -97,8 +97,8 @@ namespace Craft
 
     void Renderer::Draw()
     {
-        Clear();
-        DrawRenderQueue();
+        Clear();    // frame(CHAR_INFO, sorting order) 초기화
+        DrawRenderQueue();  // Sprite 합성 후 ScreenBuffer::Draw() -> WriteConsoleOutputA
         Present();
 
         _viewWorldOrigin = Vector2::Zero;
@@ -110,11 +110,12 @@ namespace Craft
         // 화면 지우는 콘솔 명령어 실행
         //system("cls");  // clear screen
 
-        // 프레임 초기화
+        // 프레임 초기화: CHAR_INFO 및 sorting order 초기화
         _frame->Clear(_screenSize);
 
-        // 콘솔 버퍼 초기화
-        GetCurrentScreenBuffer()->Clear();
+        // 콘솔 버퍼 초기화: Draw에서 현재 스크린 버퍼의 Draw(WriteConsoleOutput)가 
+        // writeRegion 전체를 덮어씌워서 Clear는 필요 없음
+        //GetCurrentScreenBuffer()->Clear();
     }
 
     void Renderer::DrawRenderQueue()

@@ -20,6 +20,6 @@ void Game::ToggleMenu()
     int stateIndex = (int)_state;
     int nextStateIndex = 1 - stateIndex;
 
-    mainLevel = _levels[nextStateIndex];
     _state = (State)nextStateIndex;
+    SetSubLevel(_levels[nextStateIndex]);
 }
