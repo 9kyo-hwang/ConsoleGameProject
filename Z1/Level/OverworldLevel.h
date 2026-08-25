@@ -12,8 +12,6 @@ namespace Craft
     class Sprite;
 }
 
-using TileSpriteMap = std::unordered_map<TileId, std::shared_ptr<const Craft::Sprite>>;
-
 class Pawn;
 class Player;
 class Enemy;
@@ -85,8 +83,6 @@ private:
     std::shared_ptr<Player> _player;
 
     OverworldMap _map;
-    TileSpriteMap _tileSprites;
-
     std::shared_ptr<const Craft::Sprite> _roomSprite;
     RoomCoordinate _currentRoom{ 7, 7 };
 
