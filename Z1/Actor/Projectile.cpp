@@ -76,18 +76,11 @@ Projectile::Projectile(Craft::Vector2 position, const ProjectileSpec& spec, cons
 {
     if (_spec.sprite)
     {
-        AddComponent<SpriteRendererComponent>(
-            _spec.sprite,
-            _spec.sortingOrder
-        );
+        AddComponent<SpriteRendererComponent>(_spec.sprite, _spec.sortingOrder);
     }
     else
     {
-        AddComponent<SpriteRendererComponent>(
-            _spec.image,
-            _spec.color,
-            _spec.sortingOrder
-        );
+        AddComponent<SpriteRendererComponent>(Sprite::Create(_spec.image, _spec.color), _spec.sortingOrder);
     }
 
     AddComponent<BoxComponent>(_spec.boxSize);

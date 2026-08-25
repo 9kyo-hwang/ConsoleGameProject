@@ -27,5 +27,5 @@ void DevelopmentLevel::Draw()
 {
     Level::Draw();
 
-    Renderer::Get().Submit("[Development Level]", Vector2::Zero);
+    Renderer::Get().Submit(Sprite::Create("[Development Level]"), Vector2::Zero);
 }

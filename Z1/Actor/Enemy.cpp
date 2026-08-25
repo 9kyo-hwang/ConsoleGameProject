@@ -10,7 +10,7 @@ using namespace Craft;
 Enemy::Enemy(Craft::Vector2 position, int maxHp, float moveSpeed, const std::string& image, Craft::Color color)
     : Super(position, maxHp, moveSpeed)
 {
-    AddComponent<SpriteRendererComponent>(image, color, 11);
+    AddComponent<SpriteRendererComponent>(Sprite::Create(image, color), 11);
     AddComponent<BoxComponent>(Vector2::One);
 }
 

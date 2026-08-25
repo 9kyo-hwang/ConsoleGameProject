@@ -7,7 +7,7 @@ using namespace Craft;
 PlayerGun::PlayerGun(const Vector2& localPosition)
     : Super(localPosition)
 {
-    AddComponent<SpriteRendererComponent>("^", Color::Blue, 6);
+    AddComponent<SpriteRendererComponent>(Sprite::Create("^", Color::Blue), 6);
 }
 
 Vector2 PlayerGun::GetFirePosition() const

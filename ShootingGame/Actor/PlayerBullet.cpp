@@ -9,7 +9,7 @@ PlayerBullet::PlayerBullet(const Craft::Vector2& start)
     : Super(start)
     , _posY((float)start.y)
 {
-    AddComponent<SpriteRendererComponent>("@", Color::Blue, 4);
+    AddComponent<SpriteRendererComponent>(Sprite::Create("@", Color::Blue), 4);
     AddComponent<BoxComponent>(1);
 }
 

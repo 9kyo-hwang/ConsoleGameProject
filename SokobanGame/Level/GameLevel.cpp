@@ -29,7 +29,7 @@ void GameLevel::Draw()
 
     if (_isGameCleared)
     {
-        Renderer::Get().Submit("Game Clear!", Vector2(30, 0));
+        Renderer::Get().Submit(Sprite::Create("Game Clear!"), Vector2(30, 0));
     }
 }
 

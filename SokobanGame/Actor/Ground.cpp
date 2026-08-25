@@ -7,5 +7,5 @@ using namespace Craft;
 Ground::Ground(const Craft::Vector2& position)
     : Super(position)
 {
-    AddComponent<SpriteRendererComponent>(" ");
+    AddComponent<SpriteRendererComponent>(Sprite::Create(" ", Color::Black));
 }

@@ -18,7 +18,7 @@ static const std::vector<EffectFrame> effects =
 DestroyEffect::DestroyEffect(const Craft::Vector2& effectPosition)
     : Super(effectPosition)
 {
-    _renderer = AddComponent<SpriteRendererComponent>(effects[0].frame, effects[0].color, 7);
+    _renderer = AddComponent<SpriteRendererComponent>(Sprite::Create(effects[0].frame, effects[0].color), 7);
 
     // 이펙트 재생 위치(x) 보정
     const int frameLength = (int)effects[0].frame.size();
@@ -63,7 +63,6 @@ void DestroyEffect::Tick(float deltaTime)
     _timer.SetTargetTime(nextEffect.playtime);
     if (_renderer)
     {
-        _renderer->SetImage(nextEffect.frame);
-        _renderer->SetColor(nextEffect.color);
+        _renderer->SetSprite(Sprite::Create(nextEffect.frame, nextEffect.color));
     }
 }

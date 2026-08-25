@@ -48,7 +48,7 @@ void GameLevel::Draw()
     if (_state == GameState::GameOver)
     {
         // 플레이어 사망 메시지 표시
-        Renderer::Get().Submit("!DEAD!", _gameManager->GetPlayerDeadPosition());
+        Renderer::Get().Submit(Sprite::Create("!DEAD!", Color::White), _gameManager->GetPlayerDeadPosition());
     }
 }
 
@@ -58,7 +58,7 @@ void GameLevel::ShowScore()
     stream << "Score: " << _gameManager->GetScore();
 
     // 창 좌하단에 표시
-    Renderer::Get().Submit(stream.str(), Vector2(0, Engine::Get().GetHeight() - 1));
+    Renderer::Get().Submit(Sprite::Create(stream.str(), Color::White), Vector2(0, Engine::Get().GetHeight() - 1));
 }
 
 void GameLevel::OnPlayerDead()

@@ -36,8 +36,8 @@ void ClearLevel::Draw()
 {
     Level::Draw();
 
-    Renderer::Get().Submit("CLEAR", Craft::Vector2(30, 20));
-    Renderer::Get().Submit("Press Enter", Craft::Vector2(30, 22));
+    Renderer::Get().Submit(Sprite::Create("CLEAR"), Craft::Vector2(30, 20));
+    Renderer::Get().Submit(Sprite::Create("Press Enter"), Craft::Vector2(30, 22));
 }
 
 void ClearLevel::EndPlay()

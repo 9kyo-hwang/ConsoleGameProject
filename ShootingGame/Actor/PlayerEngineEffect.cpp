@@ -16,7 +16,7 @@ PlayerEngineEffect::PlayerEngineEffect(const Craft::Vector2& localPosition)
     : Super(localPosition)
 {
     // 재사용을 위해 캐싱
-    _renderer = AddComponent<SpriteRendererComponent>(effects[0], Color::Red, 4);
+    _renderer = AddComponent<SpriteRendererComponent>(Sprite::Create(effects[0], Color::Red), 4);
 }
 
 void PlayerEngineEffect::Tick(float deltaTime)
@@ -34,6 +34,6 @@ void PlayerEngineEffect::Tick(float deltaTime)
     _frameIndex = (_frameIndex + 1) % (int32)effects.size();
     if (_renderer)
     {
-        _renderer->SetImage(effects[_frameIndex]);
+        _renderer->SetSprite(Sprite::Create(effects[_frameIndex]));
     }
 }

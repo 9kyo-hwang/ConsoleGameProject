@@ -12,7 +12,7 @@ using namespace Craft;
 Player::Player(const Craft::Vector2& position)
     : Super(position)
 {
-    AddComponent<SpriteRendererComponent>("P", Color::Green, 5);
+    AddComponent<SpriteRendererComponent>(Sprite::Create("P", Color::Green), 5);
     AddComponent<BoxComponent>(1);
 }
 

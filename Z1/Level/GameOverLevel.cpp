@@ -33,8 +33,8 @@ void GameOverLevel::Draw()
 {
     Level::Draw();
 
-    Renderer::Get().Submit("GAME OVER", Vector2(30, 20));
-    Renderer::Get().Submit("Press Enter", Vector2(30, 22));
+    Renderer::Get().Submit(Sprite::Create("GAME OVER"), Vector2(30, 20));
+    Renderer::Get().Submit(Sprite::Create("Press Enter"), Vector2(30, 22));
 }
 
 void GameOverLevel::EndPlay()

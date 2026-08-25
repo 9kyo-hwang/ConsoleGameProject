@@ -27,7 +27,7 @@ namespace
 Player::Player()
     : Super(Vector2::Zero)
 {
-    AddComponent<SpriteRendererComponent>("<=A=>", Color::Green, 5);
+    AddComponent<SpriteRendererComponent>(Sprite::Create("<=A=>", Color::Green), 5);
     AddComponent<BoxComponent>(5);
 
     // 콘솔 가운데에 위치 + 플레이어 가로 길이 보정

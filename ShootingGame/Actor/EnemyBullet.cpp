@@ -11,7 +11,7 @@ EnemyBullet::EnemyBullet(const Craft::Vector2& startPosition, float moveSpeed)
     , _moveSpeed(moveSpeed)
     , _posY((float)startPosition.y)
 {
-    AddComponent<SpriteRendererComponent>("#", Color::Red, 4);
+    AddComponent<SpriteRendererComponent>(Sprite::Create("#", Color::Red), 4);
     AddComponent<BoxComponent>(1);
 }
 

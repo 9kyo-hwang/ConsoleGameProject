@@ -7,5 +7,5 @@ using namespace Craft;
 Target::Target(const Craft::Vector2& position)
     : Super(position)
 {
-    AddComponent<SpriteRendererComponent>("T", Craft::Color::Blue, 1);
+    AddComponent<SpriteRendererComponent>(Sprite::Create("T", Craft::Color::Blue), 1);
 }

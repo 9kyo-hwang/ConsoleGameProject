@@ -53,10 +53,9 @@ void TitleLevel::Draw()
 
     Renderer::Get().Submit(_titleSprite, titlePosition);
     Renderer::Get().Submit(
-        startText,
+        Sprite::Create(startText),
         Vector2(
-            titlePosition.x +
-                (_titleSprite->GetSize().x - (int)startText.size()) / 2,
+            titlePosition.x + (_titleSprite->GetSize().x - (int)startText.size()) / 2,
             titlePosition.y + _titleSprite->GetSize().y + 2
         )
     );

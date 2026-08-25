@@ -24,7 +24,7 @@ namespace
 Enemy::Enemy(const std::string& image, int posY)
     : Super(Vector2::Zero)
 {
-    AddComponent<SpriteRendererComponent>(image, Color::White, 2);
+    AddComponent<SpriteRendererComponent>(Sprite::Create(image), 2);
     AddComponent<BoxComponent>((int32)image.size());
 
     int random = FMath::RandRange(1, 2);

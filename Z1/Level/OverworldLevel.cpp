@@ -400,15 +400,15 @@ void OverworldLevel::Draw()
 
     Level::Draw();
 
-    renderer.Submit("[Overworld]", Vector2(2, 1));
+    renderer.Submit(Sprite::Create("[Overworld]"), Vector2(2, 1));
 
     if (_player)
     {
         const std::string hp = "[HP " + std::to_string(_player->GetHp()) + "/" + std::to_string(_player->GetMaxHp()) + "]";
-        renderer.Submit(hp, Vector2(16, 1));
+        renderer.Submit(Sprite::Create(hp), Vector2(16, 1));
 
         const std::string sword = _player->HasSword() ? "[SWORD]" : "[NO SWORD]";
-        renderer.Submit(sword, Vector2(30, 1));
+        renderer.Submit(Sprite::Create(sword), Vector2(30, 1));
     }
 }
 
