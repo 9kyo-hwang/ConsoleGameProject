@@ -3,7 +3,7 @@
 #include <Math/Vector2.h>
 #include <array>
 #include <Level/Room.h>
-#include <Util/BoxBounds.h>
+#include <Math/Box2D.h>
 
 class DungeonMap
 {
@@ -27,7 +27,7 @@ public:
         std::string& errorMessage
     );
 
-    bool CanPlaceBox(const BoxBounds& boxBounds) const;
+    bool CanPlaceBox(const Craft::Box2D& box) const;
 
     char GetTile(int x, int y) const;
     bool IsWalkable(int x, int y) const;

@@ -6,7 +6,7 @@
 #include <Render/Renderer.h>
 #include <Game/Game.h>
 #include <Component/BoxComponent.h>
-#include <Util/BoxBounds.h>
+#include <Math/Box2D.h>
 #include <Util/MapPlacement.h>
 #include <World/MapGeometry.h>
 #include <array>
@@ -273,7 +273,7 @@ bool CaveLevel::CanMoveTo(Craft::Vector2 destination) const
     if (!box) return false;
 
     return CanPlaceBoxOnMap(
-        BoxBounds{
+        Box2D{
             destination + box->GetOffset(),
             box->GetSize()
         },
@@ -300,11 +300,11 @@ bool CaveLevel::IsOnTile(Vector2 tile) const
         return false;
     }
 
-    return BoxBounds{
+    return Box2D{
         _player->GetWorldPosition() + box->GetOffset(),
         box->GetSize()
     }.Overlaps(
-        BoxBounds{
+        Box2D{
             tile * TileCellSize,
             TileCellSize
         }

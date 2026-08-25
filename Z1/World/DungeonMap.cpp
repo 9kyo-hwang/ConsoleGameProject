@@ -59,10 +59,10 @@ bool DungeonMap::Load(const FilePath& path, std::string& errorMessage)
     return true;
 }
 
-bool DungeonMap::CanPlaceBox(const BoxBounds& boxBounds) const
+bool DungeonMap::CanPlaceBox(const Box2D& box) const
 {
     return CanPlaceBoxOnMap(
-        boxBounds,
+        box,
         TileCellSize,
         Vector2(Width, Height),
         [this](int x, int y)

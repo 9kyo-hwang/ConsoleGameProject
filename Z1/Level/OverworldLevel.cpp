@@ -16,7 +16,6 @@
 #include <Actor/Moblin.h>
 #include <Actor/Tektite.h>
 #include <Game/Game.h>
-#include <Util/BoxBounds.h>
 #include <World/MapGeometry.h>
 
 using namespace Craft;
@@ -242,13 +241,13 @@ namespace
 
         if (!lhsBox || !rhsBox) return false;
 
-        const BoxBounds lhsBounds
+        const Box2D lhsBounds
         {
             lhs.GetWorldPosition() + lhsBox->GetOffset(),
             lhsBox->GetSize()
         };
 
-        const BoxBounds rhsBounds
+        const Box2D rhsBounds
         {
             rhs.GetWorldPosition() + rhsBox->GetOffset(),
             rhsBox->GetSize()
@@ -442,7 +441,7 @@ bool OverworldLevel::CanProjectileOccupy(Craft::Vector2 destination, const Proje
         return false;
     }
 
-    return _map.CanPlaceBox(BoxBounds{ boxPos, box->GetSize() });
+    return _map.CanPlaceBox(Box2D{ boxPos, box->GetSize() });
 }
 
 std::shared_ptr<Projectile> OverworldLevel::SpawnProjectile(Craft::Vector2 position, const ProjectileSpec& spec, const std::shared_ptr<Pawn>& instigator)
@@ -677,7 +676,7 @@ bool OverworldLevel::CanMoveTo(
 
     if (!mover.IsA<Tektite>() &&
         !_map.CanPlaceBox(
-            BoxBounds{ moverPosition, moverBox->GetSize() }))
+            Box2D{ moverPosition, moverBox->GetSize() }))
     {
         return false;
     }
@@ -697,8 +696,8 @@ bool OverworldLevel::CanMoveTo(
 
             const Vector2 otherPosition = other->GetWorldPosition() + otherBox->GetOffset();
 
-            return BoxBounds{ moverPosition, moverBox->GetSize() }.Overlaps(
-                BoxBounds{ otherPosition, otherBox->GetSize() }
+            return Box2D{ moverPosition, moverBox->GetSize() }.Overlaps(
+                Box2D{ otherPosition, otherBox->GetSize() }
             );
         };
 
@@ -723,11 +722,11 @@ bool OverworldLevel::CanMoveTo(
                 mover.IsA<Player>() &&
                 allowContactEscape &&
                 enemyBox &&
-                BoxBounds{
+                Box2D{
                     mover.GetWorldPosition() + moverBox->GetOffset(),
                     moverBox->GetSize()
                 }.Overlaps(
-                    BoxBounds{
+                    Box2D{
                         enemy->GetWorldPosition() + enemyBox->GetOffset(),
                         enemyBox->GetSize()
                     }
@@ -939,8 +938,8 @@ bool OverworldLevel::IsInsideCurrentRoom(Craft::Vector2 boxPosition, Craft::Vect
     const Vector2 origin = GetRoomCellOrigin(_currentRoom);
     const Vector2 roomSize{ RoomTileWidth * TileCellSize.x, RoomTileHeight * TileCellSize.y };
 
-    return BoxBounds{ boxPosition, boxSize }.IsInside(
-        BoxBounds{ origin, roomSize }
+    return Box2D{ boxPosition, boxSize }.IsInside(
+        Box2D{ origin, roomSize }
     );
 }
 

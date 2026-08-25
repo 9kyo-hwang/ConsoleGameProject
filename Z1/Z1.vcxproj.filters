@@ -53,7 +53,6 @@
     <ClInclude Include="Actor\Octorok.h" />
     <ClInclude Include="Actor\Moblin.h" />
     <ClInclude Include="Actor\Tektite.h" />
-    <ClInclude Include="Util\BoxBounds.h" />
     <ClInclude Include="Level\GameOverLevel.h" />
     <ClInclude Include="Level\CaveLevel.h" />
     <ClInclude Include="Util\MapPlacement.h" />

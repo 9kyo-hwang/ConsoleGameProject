@@ -1,15 +1,15 @@
 ﻿#pragma once
 
-#include <Util/BoxBounds.h>
+#include <Math/Box2D.h>
 
 template <typename IsTileWalkable>
 bool CanPlaceBoxOnMap(
-    const BoxBounds& boxBounds,
+    const Craft::Box2D& box,
     const Craft::Vector2& tileCellSize,
     const Craft::Vector2& mapTileCount,
     IsTileWalkable&& isTileWalkable)
 {
-    if (!boxBounds.IsValid() ||
+    if (!box.IsValid() ||
         tileCellSize.x <= 0 ||
         tileCellSize.y <= 0 ||
         mapTileCount.x <= 0 ||
@@ -21,18 +21,18 @@ bool CanPlaceBoxOnMap(
     const int mapCellWidth = mapTileCount.x * tileCellSize.x;
     const int mapCellHeight = mapTileCount.y * tileCellSize.y;
 
-    if (boxBounds.Left() < 0 ||
-        boxBounds.Top() < 0 ||
-        boxBounds.Right() >= mapCellWidth ||
-        boxBounds.Bottom() >= mapCellHeight)
+    if (box.Left() < 0 ||
+        box.Top() < 0 ||
+        box.Right() >= mapCellWidth ||
+        box.Bottom() >= mapCellHeight)
     {
         return false;
     }
 
-    const int minTileX = boxBounds.Left() / tileCellSize.x;
-    const int minTileY = boxBounds.Top() / tileCellSize.y;
-    const int maxTileX = boxBounds.Right() / tileCellSize.x;
-    const int maxTileY = boxBounds.Bottom() / tileCellSize.y;
+    const int minTileX = box.Left() / tileCellSize.x;
+    const int minTileY = box.Top() / tileCellSize.y;
+    const int maxTileX = box.Right() / tileCellSize.x;
+    const int maxTileY = box.Bottom() / tileCellSize.y;
 
     for (int tileY = minTileY; tileY <= maxTileY; ++tileY)
     {

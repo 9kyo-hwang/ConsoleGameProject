@@ -75,10 +75,10 @@ TileId OverworldMap::GetTileId(int x, int y) const
 /// <param name="boxColliderSize">BoxComponent 크기</param>
 /// <param name="tileSize">RenderScale이 적용된 타일 하나의 크기(픽셀)</param>
 /// <returns></returns>
-bool OverworldMap::CanPlaceBox(const BoxBounds& boxBounds) const
+bool OverworldMap::CanPlaceBox(const Box2D& box) const
 {
     return CanPlaceBoxOnMap(
-        boxBounds,
+        box,
         TileCellSize,
         Vector2(Width, Height),
         [this](int x, int y)

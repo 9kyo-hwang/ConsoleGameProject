@@ -30,7 +30,7 @@ std::vector<EnemySpawnData> EnemySpawner::BuildSpawnPlan(RoomCoordinate room, co
         const Vector2 mapCellPosition = roomOrigin + Vector2(x, y) * TileCellSize;
 
         // 적이 배치될 수 없는 위치면 pass
-        if (!map.CanPlaceBox(BoxBounds{ mapCellPosition, TileCellSize }))
+        if (!map.CanPlaceBox(Box2D{ mapCellPosition, TileCellSize }))
         {
             continue;
         }

@@ -163,7 +163,6 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClInclude Include="Actor\Octorok.h" />
     <ClInclude Include="Actor\Moblin.h" />
     <ClInclude Include="Actor\Tektite.h" />
-    <ClInclude Include="Util\BoxBounds.h" />
     <ClInclude Include="Util\Timer.h" />
     <ClInclude Include="Util\MapPlacement.h" />
     <ClInclude Include="World\MapGeometry.h" />

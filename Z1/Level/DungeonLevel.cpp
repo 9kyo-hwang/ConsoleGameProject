@@ -15,7 +15,6 @@
 #include <Engine/Engine.h>
 #include <Game/Game.h>
 #include <Math/MathUtility.h>
-#include <Util/BoxBounds.h>
 #include <World/MapGeometry.h>
 
 #include <Render/Renderer.h>
@@ -124,13 +123,13 @@ namespace
             return false;
         }
 
-        const BoxBounds lhsBounds
+        const Box2D lhsBounds
         {
             lhs.GetWorldPosition() + lhsBox->GetOffset(),
             lhsBox->GetSize()
         };
 
-        const BoxBounds rhsBounds
+        const Box2D rhsBounds
         {
             rhs.GetWorldPosition() + rhsBox->GetOffset(),
             rhsBox->GetSize()
@@ -582,7 +581,7 @@ void DungeonLevel::SpawnRoomEnemies()
             roomOrigin + Vector2(localX, localY) * TileCellSize;
 
         if (!_map.CanPlaceBox(
-                BoxBounds{ mapCellPosition, TileCellSize }))
+                Box2D{ mapCellPosition, TileCellSize }))
         {
             continue;
         }
@@ -893,7 +892,7 @@ bool DungeonLevel::CanMoveTo(
     }
 
     if (!_map.CanPlaceBox(
-            BoxBounds{ moverPosition, moverBox->GetSize() }))
+        Box2D{ moverPosition, moverBox->GetSize() }))
     {
         return false;
     }
@@ -921,8 +920,8 @@ bool DungeonLevel::CanMoveTo(
                 other->GetWorldPosition() +
                 otherBox->GetOffset();
 
-            return BoxBounds{ moverPosition, moverBox->GetSize() }.Overlaps(
-                BoxBounds{ otherPosition, otherBox->GetSize() }
+            return Box2D{ moverPosition, moverBox->GetSize() }.Overlaps(
+                Box2D{ otherPosition, otherBox->GetSize() }
             );
         };
 
@@ -961,8 +960,8 @@ bool DungeonLevel::IsInsideCurrentRoom(
         RoomTileHeight * TileCellSize.y
     };
 
-    return BoxBounds{ boxPosition, boxSize }.IsInside(
-        BoxBounds{ roomOrigin, roomSize }
+    return Box2D{ boxPosition, boxSize }.IsInside(
+        Box2D{ roomOrigin, roomSize }
     );
 }
 
@@ -1089,7 +1088,7 @@ bool DungeonLevel::CanProjectileOccupy(
     }
 
     return _map.CanPlaceBox(
-        BoxBounds{ boxPosition, box->GetSize() }
+        Box2D{ boxPosition, box->GetSize() }
     );
 }
 
@@ -1174,8 +1173,8 @@ bool DungeonLevel::IsPlayerOverlappingTile(
     const Vector2 itemPosition =
         tile * TileCellSize;
 
-    return BoxBounds{ playerPosition, playerBox->GetSize() }.Overlaps(
-        BoxBounds{ itemPosition, TileCellSize }
+    return Box2D{ playerPosition, playerBox->GetSize() }.Overlaps(
+        Box2D{ itemPosition, TileCellSize }
     );
 }
 

@@ -3,7 +3,7 @@
 #include <Math/Vector2.h>
 #include <array>
 #include <Level/Room.h>
-#include <Util/BoxBounds.h>
+#include <Math/Box2D.h>
 
 using TileId = std::uint8_t;    // 00, 01, ..., 9c, 9d. 지형 구분 Id
 constexpr TileId InvalidTileId = 0xff;
@@ -30,7 +30,7 @@ public:
 
     TileId GetTileId(int x, int y) const;
     
-    bool CanPlaceBox(const BoxBounds& boxBounds) const;
+    bool CanPlaceBox(const Craft::Box2D& box) const;
 
 private:
     struct Tile
