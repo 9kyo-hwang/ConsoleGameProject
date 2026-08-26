@@ -94,8 +94,6 @@ private:
 
     EnemySpawner _enemySpawner;
     std::vector<std::shared_ptr<Enemy>> _roomEnemies;   // 현재 룸에 생성된 적 별도 보관
-    uint32_t _worldSeed = 12345u;
-
     std::vector<std::shared_ptr<Projectile>> _roomProjectiles;
+    uint32_t _worldSeed = 12345u;
 };
-

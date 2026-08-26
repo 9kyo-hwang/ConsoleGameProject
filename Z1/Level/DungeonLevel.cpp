@@ -31,86 +31,47 @@ namespace
 {
     const Vector2 RoomScreenOffset(0, 3);
 
-    void DrawHeartSprite(
-        std::vector<SpriteCell>& cells,
-        int spriteWidth,
-        int tileX,
-        int tileY)
-    {
-        static const std::array<std::string, 5> art
-        {
-            "  @@  @@  ",
-            " @@@@@@@@ ",
-            "  @@@@@@  ",
-            "   @@@@   ",
-            "    @@    "
-        };
+    constexpr int ItemSortingOrder = 5;
 
-        for (int y = 0; y < static_cast<int>(art.size()); ++y)
+    // 현재 이미지가 Tile 사이즈에 딱 맞지는 않음. 벽에 붙은 상태로 그리면 넘어가버릴 수도..
+    const std::vector<std::string> HeartImage
+    {
+        "  @@  @@  ",
+        " @@@@@@@@ ",
+        "  @@@@@@  ",
+        "   @@@@   ",
+        "    @@    "
+    };
+
+    const std::vector<std::string> TriforceImage
+    {
+        "   /\\   ",
+        "  /__\\  ",
+        " /\\  /\\ ",
+        "/__\\/__\\"
+    };
+
+    std::shared_ptr<const Sprite> CreateItemSprite(const std::vector<std::string> image, Color color)
+    {
+        const int height = image.size(), width = image[0].size();
+        std::vector<SpriteCell> cells(height * width);
+
+        for (int y = 0; y < height; ++y)
         {
-            for (int x = 0; x < static_cast<int>(art[y].size()); ++x)
+            for (int x = 0; x < width; ++x)
             {
-                const char glyph = art[y][x];
+                const char glyph = image[y][x];
                 if (glyph == ' ')
                 {
                     continue;
                 }
 
-                const Color color = glyph == '+'
-                    ? Color::White
-                    : Color::Red;
-
-                const int destX = tileX * TileCellSize.x + x;
-                const int destY = tileY * TileCellSize.y + y;
-
-                cells[destY * spriteWidth + destX] = SpriteCell(
-                    glyph,
-                    static_cast<WORD>(color),
-                    false
-                );
+                // 임시로 색상 단일 색상...
+                cells[y * width + x] = SpriteCell(glyph, (WORD)color, false);
             }
         }
-    }
 
-    void DrawTriforceSprite(
-        std::vector<SpriteCell>& cells,
-        int spriteWidth,
-        int tileX,
-        int tileY)
-    {
-        static const std::array<std::string, 5> art
-        {
-            "    /\\    ",
-            "   /@@\\   ",
-            "  /@@@@\\  ",
-            " /@@/\\@@\\ ",
-            "          "
-        };
-
-        for (int y = 0; y < static_cast<int>(art.size()); ++y)
-        {
-            for (int x = 0; x < static_cast<int>(art[y].size()); ++x)
-            {
-                const char glyph = art[y][x];
-                if (glyph == ' ')
-                {
-                    continue;
-                }
-
-                const Color color = glyph == '@'
-                    ? Color::Yellow
-                    : Color::DarkYellow;
-
-                const int destX = tileX * TileCellSize.x + x;
-                const int destY = tileY * TileCellSize.y + y;
-
-                cells[destY * spriteWidth + destX] = SpriteCell(
-                    glyph,
-                    static_cast<WORD>(color),
-                    false
-                );
-            }
-        }
+        return std::make_shared<const Sprite>(Vector2(width, height), std::move(cells));
     }
 
     bool IsInContact(const Pawn& lhs, const Pawn& rhs)
@@ -245,44 +206,30 @@ void DungeonLevel::Tick(float deltaTime)
         return;
     }
 
-    const bool wasKnockback =
-        UpdatePawnKnockback(*_player, deltaTime);
+    const bool wasKnockback = UpdatePawnKnockback(*_player, deltaTime);
 
     if (!wasKnockback)
     {
-        const Vector2 input =
-            _player->GetMovementInputDirection();
+        const Vector2 input = _player->GetMovementInputDirection();
 
         if (input != Vector2::Zero)
         {
             _player->CancelAttack();
             UpdatePlayerMovement(deltaTime, input);
         }
-        else if (_player->HasSword() &&
-                 Input::Get().GetKeyDown('A') &&
-                 !_player->IsAttacking())
+        else if (_player->HasSword() && Input::Get().GetKeyDown('A') && !_player->IsAttacking())
         {
-            const Vector2 direction =
-                _player->GetFacingDirection();
+            const Vector2 direction = _player->GetFacingDirection();
             const bool canShootSwordBeam = _player->IsFullHp();
 
             if (!canShootSwordBeam)
             {
-                auto attack = SpawnActor<SwordAttack>(
-                    direction,
-                    _player,
-                    1
-                );
-
+                auto attack = SpawnActor<SwordAttack>(direction, _player, 1);
                 attack->AttachTo(_player, false);
                 _player->SetActiveAttack(attack);
             }
 
-            Engine::Get().PlayOneShot(
-                canShootSwordBeam
-                ? "Z1/LOZ_Sword_Combined.wav"
-                : "Z1/LOZ_Sword_Slash.wav"
-            );
+            Engine::Get().PlayOneShot(canShootSwordBeam ? "Z1/LOZ_Sword_Combined.wav" : "Z1/LOZ_Sword_Slash.wav");
 
             if (canShootSwordBeam)
             {
@@ -318,49 +265,45 @@ void DungeonLevel::Draw()
 {
     Renderer& renderer = Renderer::Get();
 
-    const Vector2 roomOrigin =
-        GetRoomCellOrigin(_currentRoom);
-
+    const Vector2 roomOrigin = GetRoomCellOrigin(_currentRoom);
     renderer.SetView(roomOrigin, RoomScreenOffset);
 
     if (_roomSprite)
     {
-        renderer.SubmitWorld(
-            _roomSprite,
-            roomOrigin,
-            0
-        );
+        renderer.SubmitWorld(_roomSprite, roomOrigin, 0);
+    }
+
+    if (_bossDefeated && !_heartCollected)
+    {
+        renderer.SubmitWorld(CreateItemSprite(HeartImage, Color::Red), _heartTile * TileCellSize, ItemSortingOrder);
+    }
+
+    if (_bossDefeated && !_triforceCollected && _currentRoom.x == LastRoomIndex)
+    {
+        renderer.SubmitWorld(CreateItemSprite(TriforceImage, Color::Yellow), _triforceTile * TileCellSize, ItemSortingOrder);
     }
 
     Level::Draw();
+
+    /*
+    * 아래는 HUD 영역
+    */
 
     renderer.Submit(Sprite::Create("[DUNGEON 1]"), Vector2(2, 1));
 
     if (_player)
     {
-        const std::string hp =
-            "[HP " +
-            std::to_string(_player->GetHp()) +
-            "/" +
-            std::to_string(_player->GetMaxHp()) +
-            "]";
-
+        const std::string hp = "[HP " + std::to_string(_player->GetHp()) + "/" + std::to_string(_player->GetMaxHp()) +"]";
         renderer.Submit(Sprite::Create(hp), Vector2(16, 1));
 
-        const std::string sword =
-            _player->HasSword()
-            ? "[SWORD]"
-            : "[NO SWORD]";
-
+        const std::string sword = _player->HasSword() ? "[SWORD]" : "[NO SWORD]";
         renderer.Submit(Sprite::Create(sword), Vector2(30, 1));
     }
 }
 
 bool DungeonLevel::LoadMap()
 {
-    const FilePath path =
-        "../Content/Z1/Maps/Dungeons/Level1.txt";
-
+    const FilePath path = "../Content/Z1/Maps/Dungeons/Level1.txt";
     std::string error;
 
     if (!_map.Load(path, error))
@@ -421,9 +364,7 @@ bool DungeonLevel::TryChangeRoom(RoomCoordinate room)
         return false;
     }
 
-    if (room.x < 0 ||
-        room.x >= DungeonMap::RoomColumns ||
-        room.y != 0)
+    if (room.x < 0 || room.x >= DungeonMap::RoomColumns || room.y != 0)
     {
         return false;
     }
@@ -446,148 +387,36 @@ bool DungeonLevel::TryChangeRoom(RoomCoordinate room)
 
 void DungeonLevel::BuildRoomSprite()
 {
-    const Vector2 spriteSize
-    {
-        RoomTileWidth * TileCellSize.x,
-        RoomTileHeight * TileCellSize.y
-    };
-
-    std::vector<SpriteCell> cells(
-        spriteSize.x * spriteSize.y,
-        SpriteCell()
-    );
-
-    const int originX =
-        _currentRoom.x * RoomTileWidth;
-
-    const int originY =
-        _currentRoom.y * RoomTileHeight;
-
-    for (int localY = 0;
-         localY < RoomTileHeight;
-         ++localY)
-    {
-        for (int localX = 0;
-             localX < RoomTileWidth;
-             ++localX)
-        {
-            const char tile =
-                _map.GetTile(
-                    originX + localX,
-                    originY + localY
-                );
-
-            SpriteCell visual(
-                ' ',
-                (WORD)Color::Black,
-                false
-            );
-
-            if (tile == '#')
-            {
-                visual = SpriteCell(
-                    '#',
-                    (WORD)Color::DarkRed,
-                    false
-                );
-            }
-            else if (tile == 'x')
-            {
-                visual = SpriteCell(
-                    'x',
-                    (WORD)Color::DarkGray,
-                    false
-                );
-            }
-            for (int offsetY = 0;
-                 offsetY < TileCellSize.y;
-                 ++offsetY)
-            {
-                for (int offsetX = 0;
-                     offsetX < TileCellSize.x;
-                     ++offsetX)
-                {
-                    const int destX =
-                        localX * TileCellSize.x + offsetX;
-
-                    const int destY =
-                        localY * TileCellSize.y + offsetY;
-
-                    const int index =
-                        destY * spriteSize.x + destX;
-
-                    cells[index] = visual;
-                }
-            }
-
-            if (tile == 'H' && !_heartCollected)
-            {
-                DrawHeartSprite(
-                    cells,
-                    spriteSize.x,
-                    localX,
-                    localY
-                );
-            }
-            else if (tile == 'T' && !_triforceCollected)
-            {
-                DrawTriforceSprite(
-                    cells,
-                    spriteSize.x,
-                    localX,
-                    localY
-                );
-            }
-        }
-    }
-
-    _roomSprite = std::make_shared<const Sprite>(
-        spriteSize,
-        std::move(cells)
-    );
+    const Vector2 roomOrigin(_currentRoom.x * RoomTileWidth, _currentRoom.y * RoomTileHeight);
+    _roomSprite = _map.BuildRoomSprite(roomOrigin, Vector2(RoomTileWidth, RoomTileHeight));
 }
 
 void DungeonLevel::SpawnRoomEnemies()
 {
-    if (!_player ||
-        _currentRoom.x > RandomEnemyRoomLastIndex)
+    if (!_player || _currentRoom.x > RandomEnemyRoomLastIndex)
     {
         return;
     }
 
-    FMath::SetRandomSeed(
-        _worldSeed ^
-        static_cast<uint32_t>(_currentRoom.x) *
-        73856093u
-    );
+    FMath::SetRandomSeed(_worldSeed ^ static_cast<uint32_t>(_currentRoom.x) * 73856093u);
 
-    const Vector2 roomOrigin =
-        GetRoomCellOrigin(_currentRoom);
+    const Vector2 roomOrigin = GetRoomCellOrigin(_currentRoom);
 
     std::set<Vector2> selected;
 
-    for (int attempt = 0;
-         attempt < MaxSpawnAttempts &&
-         static_cast<int>(selected.size()) < EnemyCount;
-         ++attempt)
+    for (int attempt = 0; attempt < MaxSpawnAttempts && static_cast<int>(selected.size()) < EnemyCount; ++attempt)
     {
-        const int localX =
-            FMath::RandRange(1, RoomTileWidth - 2);
+        const int localX = FMath::RandRange(1, RoomTileWidth - 2);
+        const int localY = FMath::RandRange(1, RoomTileHeight - 2);
 
-        const int localY =
-            FMath::RandRange(1, RoomTileHeight - 2);
+        const Vector2 mapCellPosition = roomOrigin + Vector2(localX, localY) * TileCellSize;
 
-        const Vector2 mapCellPosition =
-            roomOrigin + Vector2(localX, localY) * TileCellSize;
-
-        if (!_map.CanPlaceBox(
-                Box2D{ mapCellPosition, TileCellSize }))
+        if (!_map.CanPlaceBox(Box2D{ mapCellPosition, TileCellSize }))
         {
             continue;
         }
 
-        const Vector2 distance =
-            mapCellPosition - _player->GetWorldPosition();
+        const Vector2 distance = mapCellPosition - _player->GetWorldPosition();
 
         if (std::abs(distance.x) < TileCellSize.x * 2 &&
             std::abs(distance.y) < TileCellSize.y * 2)
@@ -617,15 +446,12 @@ std::shared_ptr<Enemy> DungeonLevel::SpawnEnemy(Vector2 position)
 
 void DungeonLevel::SpawnBoss()
 {
-    if (_bossDefeated ||
-        _boss ||
-        _currentRoom.x != BossRoomIndex)
+    if (_bossDefeated || _boss || _currentRoom.x != BossRoomIndex)
     {
         return;
     }
 
-    const Vector2 bossMapCellPosition =
-        _bossTile * TileCellSize;
+    const Vector2 bossMapCellPosition = _bossTile * TileCellSize;
 
     _boss = SpawnActor<Aquamentus>(bossMapCellPosition);
     Engine::Get().PlayOneShot("Z1/LOZ_Boss_Scream1.wav");
@@ -664,12 +490,9 @@ void DungeonLevel::DestroyRoomProjectiles()
     _roomProjectiles.clear();
 }
 
-bool DungeonLevel::TryExitDungeon(
-    const Vector2& destination,
-    const Vector2& moveDelta)
+bool DungeonLevel::TryExitDungeon(const Vector2& destination, const Vector2& moveDelta)
 {
-    if (!_player ||
-        moveDelta != Vector2::Up * -1)
+    if (!_player || moveDelta != Vector2::Up * -1)
     {
         return false;
     }
@@ -680,11 +503,9 @@ bool DungeonLevel::TryExitDungeon(
         return false;
     }
 
-    const Vector2 boxPosition =
-        destination + box->GetOffset();
+    const Vector2 boxPosition = destination + box->GetOffset();
 
-    const Vector2 boxSize =
-        box->GetSize();
+    const Vector2 boxSize = box->GetSize();
 
     const int left = boxPosition.x;
     const int right = left + boxSize.x - 1;
@@ -693,23 +514,16 @@ bool DungeonLevel::TryExitDungeon(
     constexpr int ExitTileX = 7;
     constexpr int ExitTileWidth = 2;
 
-    const int exitLeft =
-        ExitTileX * TileCellSize.x;
+    const int exitLeft = ExitTileX * TileCellSize.x;
+    const int exitRight = (ExitTileX + ExitTileWidth) * TileCellSize.x - 1;
 
-    const int exitRight =
-        (ExitTileX + ExitTileWidth) * TileCellSize.x - 1;
+    const int dungeonBottom = DungeonMap::Height * TileCellSize.y;
 
-    const int dungeonBottom =
-        DungeonMap::Height * TileCellSize.y;
+    const bool overlapsExitWidth = left <= exitRight && right >= exitLeft;
 
-    const bool overlapsExitWidth =
-        left <= exitRight && right >= exitLeft;
+    const bool reachesDungeonBoundary = bottom >= dungeonBottom;
 
-    const bool reachesDungeonBoundary =
-        bottom >= dungeonBottom;
-
-    if (!overlapsExitWidth ||
-        !reachesDungeonBoundary)
+    if (!overlapsExitWidth || !reachesDungeonBoundary)
     {
         return false;
     }
@@ -720,9 +534,7 @@ bool DungeonLevel::TryExitDungeon(
     return true;
 }
 
-void DungeonLevel::UpdatePlayerMovement(
-    float deltaTime,
-    const Vector2& delta)
+void DungeonLevel::UpdatePlayerMovement(float deltaTime, const Vector2& delta)
 {
     const int moveSteps =
         _player->ConsumeMoveSteps(deltaTime);
@@ -816,9 +628,7 @@ void DungeonLevel::UpdateEnemyMovement(float deltaTime)
     }
 }
 
-bool DungeonLevel::UpdatePawnKnockback(
-    Pawn& pawn,
-    float deltaTime)
+bool DungeonLevel::UpdatePawnKnockback(Pawn& pawn, float deltaTime)
 {
     if (!pawn.IsKnockback())
     {
@@ -868,9 +678,7 @@ bool DungeonLevel::UpdatePawnKnockback(
     return true;
 }
 
-bool DungeonLevel::CanMoveTo(
-    const Vector2& destination,
-    const Pawn& mover)
+bool DungeonLevel::CanMoveTo(const Vector2& destination, const Pawn& mover)
 {
     const auto moverBox =
         mover.GetComponent<BoxComponent>();
@@ -947,9 +755,7 @@ bool DungeonLevel::CanMoveTo(
     return true;
 }
 
-bool DungeonLevel::IsInsideCurrentRoom(
-    Vector2 boxPosition,
-    Vector2 boxSize) const
+bool DungeonLevel::IsInsideCurrentRoom(Vector2 boxPosition, Vector2 boxSize) const
 {
     const Vector2 roomOrigin =
         GetRoomCellOrigin(_currentRoom);
@@ -965,8 +771,7 @@ bool DungeonLevel::IsInsideCurrentRoom(
     );
 }
 
-RoomCoordinate DungeonLevel::GetRoomCoordinate(
-    const Vector2& mapCellPosition) const
+RoomCoordinate DungeonLevel::GetRoomCoordinate(const Vector2& mapCellPosition) const
 {
     assert(mapCellPosition.x >= 0 &&
            mapCellPosition.y >= 0);
@@ -983,10 +788,7 @@ RoomCoordinate DungeonLevel::GetRoomCoordinate(
     );
 }
 
-RoomCoordinate DungeonLevel::GetRoomCoordinateAtLeadingEdge(
-    const Vector2& destination,
-    const Pawn& pawn,
-    const Vector2& direction) const
+RoomCoordinate DungeonLevel::GetRoomCoordinateAtLeadingEdge(const Vector2& destination, const Pawn& pawn, const Vector2& direction) const
 {
     const auto box = pawn.GetComponent<BoxComponent>();
     if (!box)
@@ -1009,8 +811,7 @@ RoomCoordinate DungeonLevel::GetRoomCoordinateAtLeadingEdge(
     return GetRoomCoordinate(probePosition);
 }
 
-Vector2 DungeonLevel::GetRoomCellOrigin(
-    RoomCoordinate room) const
+Vector2 DungeonLevel::GetRoomCellOrigin(RoomCoordinate room) const
 {
     return Vector2
     {
@@ -1019,9 +820,7 @@ Vector2 DungeonLevel::GetRoomCellOrigin(
     };
 }
 
-void DungeonLevel::SnapPlayerIntoRoom(
-    RoomCoordinate room,
-    const Vector2& direction)
+void DungeonLevel::SnapPlayerIntoRoom(RoomCoordinate room, const Vector2& direction)
 {
     if (!_player)
     {
@@ -1065,9 +864,7 @@ void DungeonLevel::SnapPlayerIntoRoom(
     _player->SetPosition(position);
 }
 
-bool DungeonLevel::CanProjectileOccupy(
-    Vector2 destination,
-    const Projectile& projectile)
+bool DungeonLevel::CanProjectileOccupy(Vector2 destination, const Projectile& projectile)
 {
     const auto box =
         projectile.GetComponent<BoxComponent>();
@@ -1092,10 +889,7 @@ bool DungeonLevel::CanProjectileOccupy(
     );
 }
 
-std::shared_ptr<Projectile> DungeonLevel::SpawnProjectile(
-    Vector2 position,
-    const ProjectileSpec& spec,
-    const std::shared_ptr<Pawn>& instigator)
+std::shared_ptr<Projectile> DungeonLevel::SpawnProjectile(Vector2 position, const ProjectileSpec& spec, const std::shared_ptr<Pawn>& instigator)
 {
     auto projectile = SpawnActor<Projectile>(
         position,
@@ -1140,19 +934,16 @@ void DungeonLevel::TakeContactDamageToPlayer()
 
 void DungeonLevel::UpdateBossState()
 {
-    if (!_boss ||
-        !_boss->IsDead() ||
-        _bossDefeated)
+    if (!_boss || !_boss->IsDead() || _bossDefeated)
     {
         return;
     }
 
     _bossDefeated = true;
-    BuildRoomSprite();
+    //BuildRoomSprite();
 }
 
-bool DungeonLevel::IsPlayerOverlappingTile(
-    const Vector2& tile) const
+bool DungeonLevel::IsPlayerOverlappingTile(const Vector2& tile) const
 {
     if (!_player)
     {
@@ -1185,17 +976,16 @@ void DungeonLevel::TryCollectItems()
         return;
     }
 
-    if (!_heartCollected &&
-        IsPlayerOverlappingTile(_heartTile))
+    if (!_heartCollected && IsPlayerOverlappingTile(_heartTile))
     {
-        _player->RestoreFullHealth();
-        Engine::Get().PlayOneShot("Z1/07. Collect Item.wav");
         _heartCollected = true;
-        BuildRoomSprite();
+        _player->RestoreFullHealth();
+        //BuildRoomSprite();  // heart item은 따로 Draw에서 그림
+
+        Engine::Get().PlayOneShot("Z1/07. Collect Item.wav");
     }
 
-    if (!_triforceCollected &&
-        IsPlayerOverlappingTile(_triforceTile))
+    if (!_triforceCollected && IsPlayerOverlappingTile(_triforceTile))
     {
         _triforceCollected = true;
         _clearPending = true;

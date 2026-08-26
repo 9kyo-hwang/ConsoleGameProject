@@ -48,62 +48,31 @@ private:
     void DestroyRoomEnemies();
     void DestroyRoomProjectiles();
 
-    void UpdatePlayerMovement(
-        float deltaTime,
-        const Craft::Vector2& delta
-    );
+    void UpdatePlayerMovement(float deltaTime, const Craft::Vector2& delta);
 
-    bool TryExitDungeon(
-        const Craft::Vector2& destination,
-        const Craft::Vector2& moveDelta
-    );
+    bool TryExitDungeon(const Craft::Vector2& destination, const Craft::Vector2& moveDelta);
 
     void UpdateEnemyMovement(float deltaTime);
+    bool UpdatePawnKnockback(Pawn& pawn, float deltaTime);
 
-    bool UpdatePawnKnockback(
-        Pawn& pawn,
-        float deltaTime
-    );
+    bool CanMoveTo(const Craft::Vector2& destination, const Pawn& mover);
+    bool IsInsideCurrentRoom(Craft::Vector2 boxPosition, Craft::Vector2 boxSize) const;
 
-    bool CanMoveTo(
-        const Craft::Vector2& destination,
-        const Pawn& mover
-    );
+    RoomCoordinate GetRoomCoordinate(const Craft::Vector2& mapCellPosition) const;
+    RoomCoordinate GetRoomCoordinateAtLeadingEdge(const Craft::Vector2& destination, const Pawn& pawn, const Craft::Vector2& direction) const;
+    Craft::Vector2 GetRoomCellOrigin(RoomCoordinate room) const;
 
-    bool IsInsideCurrentRoom(
-        Craft::Vector2 boxPosition,
-        Craft::Vector2 boxSize
-    ) const;
-
-    RoomCoordinate GetRoomCoordinate(
-        const Craft::Vector2& mapCellPosition
-    ) const;
-
-    RoomCoordinate GetRoomCoordinateAtLeadingEdge(
-        const Craft::Vector2& destination,
-        const Pawn& pawn,
-        const Craft::Vector2& direction
-    ) const;
-
-    Craft::Vector2 GetRoomCellOrigin(
-        RoomCoordinate room
-    ) const;
-
-    void SnapPlayerIntoRoom(
-        RoomCoordinate room,
-        const Craft::Vector2& direction
-    );
+    void SnapPlayerIntoRoom(RoomCoordinate room, const Craft::Vector2& direction);
 
     void TakeContactDamageToPlayer();
     void UpdateBossState();
     void TryCollectItems();
 
-    bool IsPlayerOverlappingTile(
-        const Craft::Vector2& tile
-    ) const;
+    bool IsPlayerOverlappingTile(const Craft::Vector2& tile) const;
 
 private:
     static constexpr int BossRoomIndex = 3;
+    static constexpr int LastRoomIndex = 4;
     static constexpr int RandomEnemyRoomLastIndex = 2;
 
     static constexpr int EnemyCount = 6;
@@ -112,6 +81,12 @@ private:
     // Level1.txt에는 Player 마커가 없으므로 입구 바로 위에서 시작한다.
     static constexpr int PlayerSpawnTileX = 7;
     static constexpr int PlayerSpawnTileY = 8;
+    
+    std::shared_ptr<Player> _player;
+
+    DungeonMap _map;
+    std::shared_ptr<const Craft::Sprite> _roomSprite;
+    RoomCoordinate _currentRoom{ 0, 0 };
 
     bool _loaded = false;
     bool _bgmStarted = false;
@@ -121,13 +96,7 @@ private:
     bool _clearPending = false;
     Timer _clearTimer{ 6.0f };
 
-    DungeonMap _map;
-    std::shared_ptr<const Craft::Sprite> _roomSprite;
-
-    RoomCoordinate _currentRoom{ 0, 0 };
-
-    std::shared_ptr<Player> _player;
-
+    // 전체 맵 기준 논리 타일 위치
     Craft::Vector2 _bossTile = Craft::Vector2::Zero;
     Craft::Vector2 _heartTile = Craft::Vector2::Zero;
     Craft::Vector2 _triforceTile = Craft::Vector2::Zero;
@@ -137,8 +106,8 @@ private:
     bool _heartCollected = false;
     bool _triforceCollected = false;
 
+    // EnemySpawner 어딨지?
     std::vector<std::shared_ptr<Enemy>> _roomEnemies;
     std::vector<std::shared_ptr<Projectile>> _roomProjectiles;
-
     uint32_t _worldSeed = 12345u;
 };

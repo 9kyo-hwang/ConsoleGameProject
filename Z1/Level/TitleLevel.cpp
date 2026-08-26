@@ -34,10 +34,10 @@ void TitleLevel::BeginPlay()
 void TitleLevel::Tick(float deltaTime)
 {
     Level::Tick(deltaTime);
+    Game& game = dynamic_cast<Game&>(Engine::Get());
 
     if (Input::Get().GetKeyDown(VK_RETURN))
     {
-        Game& game = dynamic_cast<Game&>(Engine::Get());
         game.StartNewGame();
     }
 }

@@ -4,6 +4,8 @@
 #include <array>
 #include <Level/Room.h>
 #include <Math/Box2D.h>
+#include <Tilemaps/Tilemap.h>
+#include <unordered_map>
 
 class DungeonMap
 {
@@ -18,22 +20,23 @@ public:
     static constexpr int Width = RoomTileWidth * RoomColumns;
     static constexpr int Height = RoomTileHeight * RoomRows;
 
-    using TileRow = std::array<char, Width>;
-    using TileMap = std::array<TileRow, Height>;
-
 public:
-    bool Load(
-        const FilePath& path,
-        std::string& errorMessage
-    );
+    DungeonMap();
 
+    bool Load(const FilePath& path, std::string& errorMessage);
+    std::shared_ptr<const Craft::Sprite> BuildRoomSprite(Craft::Vector2 roomOrigin, Craft::Vector2 roomSize) const;
     bool CanPlaceBox(const Craft::Box2D& box) const;
 
     char GetTile(int x, int y) const;
     bool IsWalkable(int x, int y) const;
 
 private:
+    void InitializeTileSprites();
+
+private:
     bool _loaded = false;
-    TileMap _tiles{};
+    std::vector<char> _tiles;
+    std::unordered_map<char, std::shared_ptr<const Craft::Sprite>> _tileSprites;
+    Craft::Tilemap _tilemap;
 };
 
