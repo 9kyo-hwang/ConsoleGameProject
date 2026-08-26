@@ -34,7 +34,7 @@ namespace
     constexpr int ItemSortingOrder = 5;
 
     // 현재 이미지가 Tile 사이즈에 딱 맞지는 않음. 벽에 붙은 상태로 그리면 넘어가버릴 수도..
-    const std::vector<std::string> HeartImage
+    static const std::vector<std::string> HeartImage
     {
         "  @@  @@  ",
         " @@@@@@@@ ",
@@ -43,7 +43,7 @@ namespace
         "    @@    "
     };
 
-    const std::vector<std::string> TriforceImage
+    static const std::vector<std::string> TriforceImage
     {
         "   /\\   ",
         "  /__\\  ",
@@ -53,7 +53,7 @@ namespace
 
     std::shared_ptr<const Sprite> CreateItemSprite(const std::vector<std::string> image, Color color)
     {
-        const int height = image.size(), width = image[0].size();
+        const int height = (int)image.size(), width = (int)image[0].size();
         std::vector<SpriteCell> cells(height * width);
 
         for (int y = 0; y < height; ++y)
@@ -73,6 +73,9 @@ namespace
 
         return std::make_shared<const Sprite>(Vector2(width, height), std::move(cells));
     }
+
+    static std::shared_ptr<const Sprite> HeartSprite = CreateItemSprite(HeartImage, Color::Red);
+    static std::shared_ptr<const Sprite> TriforceSprite = CreateItemSprite(TriforceImage, Color::Yellow);
 
     bool IsInContact(const Pawn& lhs, const Pawn& rhs)
     {
@@ -136,9 +139,7 @@ void DungeonLevel::BeginPlay()
 
     if (!_player)
     {
-        const Vector2 spawnPosition =
-            Vector2(PlayerSpawnTileX, PlayerSpawnTileY) * TileCellSize;
-
+        const Vector2 spawnPosition = Vector2(PlayerSpawnTileX, PlayerSpawnTileY) * TileCellSize;
         _player = SpawnActor<Player>(spawnPosition, Game::PlayerMaxHp);
         SpawnRoomEnemies();
     }
@@ -275,12 +276,12 @@ void DungeonLevel::Draw()
 
     if (_bossDefeated && !_heartCollected)
     {
-        renderer.SubmitWorld(CreateItemSprite(HeartImage, Color::Red), _heartTile * TileCellSize, ItemSortingOrder);
+        renderer.SubmitWorld(HeartSprite, _heartTile * TileCellSize, ItemSortingOrder);
     }
 
     if (_bossDefeated && !_triforceCollected && _currentRoom.x == LastRoomIndex)
     {
-        renderer.SubmitWorld(CreateItemSprite(TriforceImage, Color::Yellow), _triforceTile * TileCellSize, ItemSortingOrder);
+        renderer.SubmitWorld(TriforceSprite, _triforceTile * TileCellSize, ItemSortingOrder);
     }
 
     Level::Draw();
@@ -918,7 +919,6 @@ void DungeonLevel::UpdateBossState()
     }
 
     _bossDefeated = true;
-    //BuildRoomSprite();
 }
 
 bool DungeonLevel::IsPlayerOverlappingTile(const Vector2& tile) const
@@ -958,7 +958,6 @@ void DungeonLevel::TryCollectItems()
     {
         _heartCollected = true;
         _player->RestoreFullHealth();
-        //BuildRoomSprite();  // heart item은 따로 Draw에서 그림
 
         Engine::Get().PlayOneShot("Z1/07. Collect Item.wav");
     }

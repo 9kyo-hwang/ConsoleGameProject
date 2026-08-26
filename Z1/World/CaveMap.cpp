@@ -105,16 +105,6 @@ char CaveMap::GetTile(int x, int y) const
     return _tiles[y * _tilemap.GetSize().x + x];
 }
 
-bool CaveMap::IsWalkable(int x, int y) const
-{
-    if (const Tile* tile = _tilemap.GetTile(Vector2(x, y)))
-    {
-        return !tile->blocked;
-    }
-
-    return false;
-}
-
 void CaveMap::InitializeTileSprites()
 {
     const auto makeTileSprite = [](char glyph, Color color)

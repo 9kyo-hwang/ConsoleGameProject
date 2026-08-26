@@ -26,11 +26,7 @@ public:
 public:
     OverworldMap();
 
-    bool Load(
-        const FilePath& tileMapPath,
-        const FilePath& blockingMapPath,
-        std::string& errorMessage
-    );
+    bool Load(const FilePath& tileMapPath, const FilePath& blockingMapPath, std::string& errorMessage);
 
     TileId GetTileId(int x, int y) const;
     
@@ -42,9 +38,6 @@ private:
 
     bool ParseTileMap(const FilePath& path, std::vector<TileId>& tileIds, std::string& errorMessage);
     bool ParseBlockingMap(const FilePath& path, std::vector<bool>& blocked, std::string& errorMessage);
-
-    bool OutOfBound(int x, int y) const;
-    bool IsWalkable(int x, int y) const;
 
 private:
     bool _loaded = false;

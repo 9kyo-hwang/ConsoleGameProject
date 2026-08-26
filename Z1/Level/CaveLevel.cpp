@@ -17,7 +17,7 @@ namespace
 {
     constexpr int ItemSortingOrder = 5;
 
-    const std::vector<std::string> SwordImage
+    static const std::vector<std::string> SwordImage
     {
         "    /\\    ",
         "    ||    ",
@@ -28,7 +28,7 @@ namespace
 
     std::shared_ptr<const Sprite> CreateItemSprite(const std::vector<std::string> image, Color color)
     {
-        const int height = image.size(), width = image[0].size();
+        const int height = (int)image.size(), width = (int)image[0].size();
         std::vector<SpriteCell> cells(height * width);
 
         for (int y = 0; y < height; ++y)
@@ -48,6 +48,8 @@ namespace
 
         return std::make_shared<const Sprite>(Vector2(width, height), std::move(cells));
     }
+
+    static std::shared_ptr<const Sprite> SwordSprite = CreateItemSprite(SwordImage, Color::White);
 }
 
 void CaveLevel::OnInitialized()
@@ -122,7 +124,7 @@ void CaveLevel::Draw()
 
     if (!_player->HasSword() && !_swordCollected)
     {
-        renderer.SubmitWorld(CreateItemSprite(SwordImage, Color::White), _swordPosition * TileCellSize, ItemSortingOrder);
+        renderer.SubmitWorld(SwordSprite, _swordPosition * TileCellSize, ItemSortingOrder);
     }
 
     Level::Draw();

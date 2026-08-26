@@ -94,7 +94,7 @@ bool OverworldMap::Load(const FilePath& tileMapPath, const FilePath& blockingMap
 
 TileId OverworldMap::GetTileId(int x, int y) const
 {
-    if (OutOfBound(x, y)) return InvalidTileId;
+    assert(_tilemap.IsInBounds(Vector2(x, y)));
     return _tileIds[y * _tilemap.GetSize().x + x];
 }
 
@@ -407,19 +407,4 @@ bool OverworldMap::ParseBlockingMap(const FilePath& path, std::vector<bool>& blo
     }
 
     return true;
-}
-
-bool OverworldMap::OutOfBound(int x, int y) const
-{
-    return !_tilemap.IsInBounds(Vector2(x, y));
-}
-
-bool OverworldMap::IsWalkable(int x, int y) const
-{
-    if (const Tile* tile = _tilemap.GetTile(Vector2(x, y)))
-    {
-        return !tile->blocked;
-    }
-
-    return false;
 }

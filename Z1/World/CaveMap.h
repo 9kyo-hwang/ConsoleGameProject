@@ -32,7 +32,6 @@ public:
     bool CanPlaceBox(const Craft::Box2D& box) const;
 
     char GetTile(int x, int y) const;
-    bool IsWalkable(int x, int y) const;
 
 private:
     void InitializeTileSprites();
