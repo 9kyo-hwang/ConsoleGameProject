@@ -11,7 +11,48 @@
 - 서버 권위형 시뮬레이션으로 옮기는 순서
 - 첫 구현에서 의도적으로 제외할 기능과 확장 조건
 
-이 문서는 목표 설계다. 아직 `SocketAPI`, `Z1Server`, 네트워크 클라이언트는 구현되지 않았다. 구현 도중 계약이 달라지면 코드와 이 문서를 같은 변경에서 갱신한다.
+이 문서는 목표 설계와 실제 진행 상태를 함께 기록한다. 설계상 `SocketAPI` 경계의 실제 프로젝트 이름은 현재 `Sockets`이며, `Z1Server`의 초기 골격은 구현 중이다. 네트워크 클라이언트와 Z1 프로토콜은 아직 연결하지 않았다. 구현 도중 계약이 달라지면 코드와 이 문서를 같은 변경에서 갱신한다.
+
+## 현재 구현 진행 상황 (2026-08-26)
+
+이 절은 목표 구조가 아니라 현재 작업 트리와 실제 확인 결과를 기준으로 한다. 다음 에이전트나 모델은 이 절과 코드의 차이가 있으면 코드를 우선 확인하고, 작업을 이어갈 때 이 절을 갱신한다.
+
+### 완료·확인된 범위
+
+- Z1, SokobanGame, ShootingGame의 기존 싱글플레이 상태는 유지되고, 사용자가 Debug|x64 빌드·실행 정상임을 확인했다.
+- 설계상 `SocketAPI` 역할을 담당하는 실제 Visual Studio 프로젝트 `Sockets`를 추가했다. `Sockets.dll`/`Sockets.lib`를 만들고 공개 헤더와 DLL·import library를 `Includes/Sockets`, `Libraries/Sockets/<Configuration>`으로 staging하는 빌드 이벤트를 설정했다.
+- `Sockets`에는 `Net::Runtime`, `Net::Endpoint`, 이동 전용 `Net::Socket`이 있다.
+  - `Runtime`: 프로세스의 `WSAStartup`/`WSACleanup` 수명 관리
+  - `Endpoint`: 공개 API에서 `SOCKADDR_IN`을 숨기고 `Any`, `Loopback`, IPv4 파싱 제공
+  - `Socket`: `CreateTcp`, `Bind`, `Listen`, `Accept`, `Connect`, `SetNonBlocking`, `Close`, `Release`와 유효성·이동 의미 제공
+- 현재 `Sockets`는 필요한 WinSock 링크(`Ws2_32.lib`)를 갖는다. 추가 `getsockopt`/`setsockopt` 추상화는 아직 넣지 않았고, 실제 요구가 생길 때 추가한다.
+- `Z1Server` 콘솔 프로젝트를 추가하고 `Sockets`와 WinSock에 링크했다. `Server`가 listen socket과 raw IOCP `HANDLE`을 직접 소유하는 최소 구조이며, IOCP를 `SocketAPI` 공개 API로 올리지는 않았다.
+- `Server::Start`는 TCP socket 생성 → `Bind` → `Listen` → completion port 생성 순으로 동작하고, blocking `AcceptLoop`와 IOCP `IOLoop`을 각각 스레드로 시작한다.
+- 서버를 실행해 `Bind`/`Listen` 후 대기하는 상태를 확인했고, 별도 PowerShell에서 다음 명령으로 접속 경로를 검증했다.
+
+  ```powershell
+  Test-NetConnection 127.0.0.1 -Port 7777
+  ```
+
+  결과는 `TcpTestSucceeded : True`였고 서버에 `Client Connected!`가 출력됐다. 이는 TCP handshake와 `accept`까지의 확인이며, 애플리케이션 payload나 `WSARecv`/`WSASend` 왕복을 검증한 것은 아니다.
+
+### 현재 구현 중인 범위
+
+- `Session`은 accepted `Net::Socket`, recv용 `OVERLAPPED`, `WSABUF`, 4096바이트 수신 버퍼, 누적 수신 벡터를 보유한다. `PostRecv`와 `HandleRecv`가 작성되어 있고, `AcceptLoop`에서 Session을 IOCP에 연결한 뒤 `WSARecv`를 등록하는 경로까지 있다.
+- IOCP 완료 루프는 disconnect/실패/recv operation 식별을 확인하고 다음 recv를 재등록하는 골격까지 작성되어 있다. 아직 완료된 byte를 `HandleRecv`에 넘겨 framing하거나 응답을 보내지 않으므로 payload 경로는 미완성이다.
+- `CompletionPort.h/.cpp`는 현재 stub 상태이고 사용하지 않는다. 초기 범위에서는 `Server`가 raw completion-port handle을 직접 소유한다. 반복 사용이 확인된 뒤에도 필요하면 `Z1Server` 내부 RAII 타입으로만 추출한다.
+
+### 다음 코드 작업 전에 확인할 항목
+
+1. `Session`의 복사 금지 선언이 현재 `Net::Socket` 매개변수 형태로 되어 있으므로, 의도대로라면 `Session(const Session&) = delete`와 `Session& operator=(const Session&) = delete`로 정정한다.
+2. IOCP recv completion에서 `transferredBytes`를 `Session::HandleRecv`에 전달하고, 누적 buffer에서 고정 길이 ping packet을 파싱하는 최소 경로를 연결한다.
+3. 작은 dummy TCP client로 `ping` payload를 전송해 `WSARecv` completion을 실제로 확인한다. `Test-NetConnection`은 이 검증을 대신하지 않는다.
+4. 그 다음 `WSASend`를 한 번에 완료된다고 가정하지 않는 최소 echo/pong 경로를 추가한다. partial send와 Session당 동시 send 하나의 규칙을 지킨다.
+5. 종료 시 pending overlapped completion이 남은 상태에서 Session이 파괴되지 않도록, closing → socket close/cancel → completion drain → outstanding operation 0 확인 순서를 구현하기 전까지는 서버 종료 수명을 완료로 간주하지 않는다.
+
+### 현재 중단 지점
+
+다음 재개 지점은 **dummy client를 이용한 ping 데이터 전송과 IOCP recv completion 처리**다. 그 전까지는 SocketAPI 저수준 API와 localhost listen/accept smoke check만 끝난 상태로 기록한다. Z1 클라이언트, `Z1Shared` protocol, 서버 권위형 게임 시뮬레이션은 아직 시작하지 않는다.
 
 ## 현재 저장소 구조
 
@@ -89,6 +130,8 @@ Z1/
   Network/NetworkClient.*  클라이언트 연결과 수신 큐
 ```
 
+문서의 `SocketAPI`는 공용 DLL의 설계상 역할 이름이고, 현재 저장소에서 그 역할을 수행하는 실제 프로젝트·산출물 이름은 `Sockets`다. 이름을 통일하는 작업은 기능 검증 이후 별도 결정한다.
+
 `Z1Shared`는 처음에는 헤더 디렉터리로 둔다. 여러 cpp를 실제로 공유하게 될 때만 static library 프로젝트로 승격한다.
 
 ## 프로젝트별 책임
@@ -108,7 +151,7 @@ CraftEngine 자체는 `SocketAPI`에 의존하지 않는다. Z1 외의 콘텐츠
 
 ### 이름과 빌드 경계
 
-- 프로젝트/산출물: `SocketAPI`, `SocketAPI.dll`, `SocketAPI.lib`
+- 설계상 경계: `SocketAPI`; 현재 프로젝트/산출물: `Sockets`, `Sockets.dll`, `Sockets.lib`
 - DLL 매크로: `SOCKET_API`
 - C++ namespace: `Net`
 - 플랫폼: Windows x64, C++20, MSVC v145
@@ -555,6 +598,8 @@ CraftEngine
 
 ### 단계 1: SocketAPI DLL
 
+현재 상태: `Sockets` 프로젝트, `Runtime`/`Endpoint`/`Socket`의 기본 API, staging과 WinSock 링크, localhost listener에 필요한 연산까지 구현했다. ping/pong 왕복과 반복 연결·해제 검증은 남아 있다.
+
 - `Runtime`과 이동 전용 `Socket` 구현
 - 주소 생성, connect/listen/accept와 클라이언트 `select`에 필요한 최소 함수 구현
 - 로컬 ping/pong smoke program 또는 서버 모드로 왕복 확인
@@ -563,6 +608,8 @@ CraftEngine
 완료 기준: 반복 연결/해제에서 socket 누수나 double close가 없다.
 
 ### 단계 2: 미니 IOCP echo 서버
+
+현재 상태: `Z1Server`의 blocking accept, accepted socket의 completion-port 연결, Session과 단일 recv 등록 골격까지 구현했다. framing, `HandleRecv` 연결, send queue, echo/pong, 안전한 종료 drain은 아직 구현하지 않았다.
 
 - blocking accept thread
 - accepted socket을 completion port에 연결
