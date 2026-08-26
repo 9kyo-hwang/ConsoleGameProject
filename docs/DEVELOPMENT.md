@@ -11,6 +11,8 @@
 
 솔루션 파일은 `ConsoleGameProject.slnx`이며 Debug/Release, x64 구성만 정의되어 있다.
 
+Z1의 계획된 SocketAPI/IOCP 서버 확장은 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](Z1_MULTIPLAYER_IOCP_PLAN.md)를 참고한다. 해당 프로젝트가 실제로 추가되기 전까지 아래 빌드 순서는 현재 싱글플레이 구조를 기준으로 한다.
+
 ## 빌드 순서
 
 현재 프로젝트는 import library와 공개 헤더를 중간 staging 디렉터리에 복사해 다음 프로젝트가 소비한다. 깨끗한 checkout에서는 다음 순서가 안전하다.
