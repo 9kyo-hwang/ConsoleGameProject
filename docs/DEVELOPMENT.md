@@ -49,8 +49,10 @@ Visual Studio의 프로젝트 디렉터리에서 실행하면 저장소 루트�
 - 부모/자식, 로컬/월드 좌표: `CraftEngine/Component/TransformComponent.*`
 - 화면 합성: `CraftEngine/Render/Renderer.*`, `Sprite.*`
 - 충돌 판정: `CraftEngine/Physics/CollisionSystem.*`, `BoxComponent.*`
+- 타일 저장·좌표 변환·점유 판정·Sprite 합성: `CraftEngine/Tilemaps/Tilemap.*`
 - 타입 시스템: `CraftEngine/Core/CObject.h`, `CClass.h`
 - 사운드 로드와 voice 수명: `SoundSystem/SoundSystem/Sound.*`
+- Z1 맵 원본 파싱과 Tile 매핑: `Z1/World/OverworldMap.*`, `DungeonMap.*`, `CaveMap.*`
 - 게임 규칙: 각 콘텐츠의 `Level/`, 구체 행동: 각 콘텐츠의 `Actor/`
 
 ## 기능 추가 패턴
@@ -79,6 +81,7 @@ Visual Studio의 프로젝트 디렉터리에서 실행하면 저장소 루트�
 - 생명주기 변경: 프레임 중 spawn/destroy에서 순회 무효화나 파괴 Actor의 추가 이벤트가 없는지 확인
 - 렌더링 변경: Sprite 투명 셀, X/Y 화면 경계 clipping, sorting order, buffer swap 확인
 - 충돌 변경: 2D Box 크기/offset, 빠른 탄환, 파괴된 Actor, Component 없는 Actor 확인
+- Tilemap 변경: 직사각형 맵 인덱싱, 셀/월드 좌표 변환, Map 경계와 blocked 점유 판정, 부분 구간 Sprite 합성 확인
 - Z1 실행: 타이틀의 `Press Enter To Play` 안내 뒤 `Enter` 키로 새 게임을 시작하고, 방향키로 이동하며 HUD에 HP·검 보유 상태가 표시되는지 확인
 - Z1 Overworld 변경: `Content/Z1/Maps/Overworld`를 출력 Content 경로에서도 읽는지, Room `(7, 7)` 배경과 플레이어가 보이는지 확인
 - Z1 Overworld 변경: BlockingMap의 막힌 타일·Map 바깥으로 이동할 수 없고, 이동 가능한 타일에서는 플레이어 Box 크기만큼 정상 이동하는지 확인

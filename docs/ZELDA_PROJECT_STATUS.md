@@ -24,25 +24,25 @@
 - [x] Z1 Debug|x64 빌드에서 실행 파일 생성 성공
 - [x] 빌드 출력 디렉터리에서 실행 성공
 - [x] Title/Gameplay/Clear 최소 전환 동작 확인
-- [x] CraftEngine N×M Sprite와 기존 문자열 렌더링 경로 구현
+- [x] CraftEngine N×M Sprite 구현과 Renderer 제출 경로를 Sprite로 통합
 - [x] Sprite 투명 셀, 셀별 속성, X/Y 클리핑 및 sorting order 처리
 - [x] Z1에서 Sprite 출력과 화면 경계 클리핑을 직접 확인
-- [x] BoxComponent를 `size`/`offset` 기반 2D Box로 확장하고 width API 호환 유지
-- [x] CollisionSystem에 이전/현재 월드 위치 기반 `SweptBounds` X/Y 판정 적용
+- [x] BoxComponent를 `size`/`offset` 기반 2D Box로 일원화하고 width 호환 API 제거
+- [x] 공용 `Box2D`와 이전/현재 월드 위치 기반 swept AABB 판정을 CollisionSystem에 적용
 - [x] 엔진 변경 후 ShootingGame/SokobanGame/Z1 빌드 및 기존 두 게임 회귀 확인
 - [x] Z1 개발 장면에서 1x1/2x2 겹침과 X/Y 분리 수동 확인
 - [x] Z1 개발 장면에서 offset이 충돌 영역에 반영되는지 확인
 - [x] Z1 개발 장면에서 이전 위치와 현재 위치 사이의 swept 충돌 확인
 - [x] `Content/Z1/Maps/Overworld`의 원본 TileId/Blocking 맵 추가
 - [x] `OverworldMap`으로 256x88 TileId/Blocking 맵 파싱 및 형식 검증
-- [x] 같은 좌표의 TileId/walkable을 하나의 2차원 Cell Grid에 보관
+- [x] TileId 원본을 보관하고 BlockingMap을 `Tilemap`의 셀별 blocked 상태로 변환
 - [x] Room `(7,7)` 및 `(0,0)`의 16x11 구간을 전체 Map 좌표로 직접 조회해 TileId 일치 확인
-- [x] `OverworldLevel`의 TileId-Sprite map으로 현재 Room의 TileId 일부를 문자 Sprite로 매핑
-- [x] 논리 타일을 `MapTileSize (10,5)`으로 펼쳐 실제 160x55 Room 배경 Sprite 생성
+- [x] `OverworldMap`의 TileId-Sprite map으로 10×5 Tile Sprite를 구성
+- [x] Engine `Tilemap::BuildSprite`로 16×11 구간의 160×55 Room 배경 Sprite 생성
 - [x] Renderer의 Sprite Scale을 제거하고 Sprite를 실제 크기 그대로 1:1 출력
 - [x] Renderer의 World/View 변환과 화면 좌표 제출 경로 분리
 - [x] Player Actor의 Transform을 전체 Map 기준 월드 좌표로 관리하고 자체 Sprite 크기로 Box 생성
-- [x] `BlockingMap`을 `OverworldMap::CanOccupyWorldRect` 전역 이동 판정에 연결
+- [x] `BlockingMap`을 `OverworldMap::CanPlaceBox`와 Engine `Tilemap`의 전역 이동 판정에 연결
 - [x] Player 월드 좌표로 Room 변경을 감지하고 인접 Room 배경과 View 전환 확인
 - [x] Player와 Enemy의 HP·피해·사망 기반 클래스 `Pawn` 추가
 - [x] Player 검 공격에 공격자, 피해 원인과 공격당 1회 피해 전달
@@ -81,14 +81,14 @@ Z1 프로젝트 골격 작업은 다음을 모두 만족하면 완료로 본다.
 
 - [x] N×M Sprite/셀 데이터를 한 프레임에 합성
 - [x] 투명 셀과 양축 클리핑 처리
-- [x] 기존 문자열 렌더링 API와 ShootingGame/SokobanGame 출력 유지
+- [x] ShootingGame/SokobanGame의 제출 코드를 Sprite 기반 API로 전환하고 출력 유지
 - [x] Z1에서 최소 Sprite 출력 장면 직접 확인
 
 ## 단계 2 완료 기록
 
 단계 2 2D 충돌 검증은 다음을 확인해 완료했다.
 
-- [x] BoxComponent의 `size`/`offset`과 width 호환 API 구현
+- [x] BoxComponent의 `size`/`offset` API 구현과 width 호환 API 제거
 - [x] CollisionSystem의 X/Y swept AABB 구현
 - [x] 1x1 및 2x2 겹침과 경계 분리를 Z1에서 확인
 - [x] X축/Y축으로 분리된 Box가 충돌하지 않음을 확인
@@ -101,9 +101,9 @@ SweptBounds 수정 후 Z1 실행 검증까지 완료했다. 기존 두 게임의
 
 단계 3 한 방 전투 버티컬 슬라이스는 다음을 만족하면 완료로 본다.
 
-- [x] `MapTileSize(10, 5)`과 논리 타일/월드 셀 좌표 변환을 확정
+- [x] `TileCellSize(10, 5)`과 Engine `Tilemap`의 논리 타일/월드 셀 좌표 변환을 확정
 - [x] Overworld 원본 맵을 `Content`에서 읽고 최소 Room 하나의 구간을 직접 조회
-- [x] TileId를 `OverworldLevel`의 TileId-Sprite map에 매핑
+- [x] TileId를 `OverworldMap`의 Tile Sprite와 blocked 상태에 매핑
 - [x] 지형 Sprite를 화면에 합성
 - [x] 지형 통행 가능 여부를 이동 판정에 연결
 - [x] 검 공격으로 Enemy에 피해를 주고 HP 0에서 제거

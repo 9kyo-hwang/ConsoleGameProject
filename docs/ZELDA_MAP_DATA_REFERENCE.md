@@ -38,7 +38,7 @@
 초기 문서의 `2 × 1`과 이후의 `5 × 3`은 임시 표시값이었고 현재 Overworld는 논리 타일 하나를 콘솔 셀 `10 × 5`로 표시한다. 이 값은 원작의 `16 × 16` NES 픽셀을 직접 변환한 것이 아니라 현재 콘솔 글꼴과 Room 표시 크기에 맞춘 Z1 콘텐츠 정책이다.
 
 ```cpp
-const Craft::Vector2 MapTileSize(10, 5);
+const Craft::Vector2 TileCellSize(10, 5);
 ```
 
 다음 단위를 구분한다.
@@ -49,7 +49,7 @@ const Craft::Vector2 MapTileSize(10, 5);
 - `160 × 55`: 현재 Room 배경 Sprite의 실제 콘솔 셀 크기
 - `N × M Sprite`: Actor나 배경이 실제로 차지하는 콘솔 셀 배열
 
-Renderer는 Z1의 타일 크기를 모르며 Sprite를 저장된 크기 그대로 1:1로 출력한다. `MapTileSize`는 `OverworldLevel`의 Room 배경 합성과 `OverworldMap`의 타일 통행 질의에만 사용한다. Player, 검, 적과 무기는 자체 Sprite와 Box 크기를 가지며 Map 타일 크기에 종속되지 않는다. `Config/Setting.txt`의 `width`와 `height`도 NES 픽셀 해상도가 아니라 콘솔 셀 버퍼 크기다.
+Renderer는 Z1의 타일 크기를 모르며 Sprite를 저장된 크기 그대로 1:1로 출력한다. `TileCellSize`는 Z1 Map이 Engine `Tilemap`을 구성할 때 전달하며, Tilemap의 Room 배경 합성·좌표 변환·통행 판정에서 사용한다. Player, 검, 적과 무기는 자체 Sprite와 Box 크기를 가지므로 Map 타일 크기에 종속되지 않는다. `Config/Setting.txt`의 `width`와 `height`도 NES 픽셀 해상도가 아니라 콘솔 셀 버퍼 크기다.
 
 ## Room 파일 포맷 결정
 
@@ -68,9 +68,9 @@ Overworld는 원본 전체 맵을 그대로 보관한다.
 - Blocking 맵 문자: `.`은 이동 가능, `X`는 이동 불가
 - 주석, 스폰, 출구 지시는 원본 맵 파일에 넣지 않는다.
 
-토큰 하나는 논리 타일 하나다. 현재 구현은 `OverworldLevel`이 소유한 `unordered_map<TileId, shared_ptr<const Sprite>>`에서 1×1 문자 Sprite를 찾고, 그 첫 셀을 `MapTileSize (10, 5)` 영역에 반복해 Room 배경을 만든다. 별도 Catalog 타입은 두지 않는다. 향후 타일별 ASCII 아트를 적용할 때는 map의 값은 그대로 Sprite로 유지하고 합성 단계에서 Sprite 전체 셀을 복사한다.
+토큰 하나는 논리 타일 하나다. 현재 구현은 `OverworldMap`이 소유한 `unordered_map<TileId, shared_ptr<const Sprite>>`에서 완성된 10×5 Tile Sprite를 찾고, BlockingMap의 값과 함께 Engine `Tilemap`에 설정한다. 별도 Catalog 타입은 두지 않으며 Tilemap은 지정한 논리 구간의 각 Tile Sprite를 복사해 Room 배경을 합성한다.
 
-`OverworldMap`은 두 파일을 한 번 읽어 같은 좌표의 `TileId`와 `walkable`을 `Cell` 하나로 묶은 `88 × 256` 2차원 배열에 보관한다. TileMap 파서와 BlockingMap 파서는 입력 형식이 다르므로 분리되어 있지만 같은 임시 Grid의 각 필드만 채우며, 두 파싱이 모두 성공한 뒤 런타임 Grid에 반영한다. Room 전환 시 TileId를 별도 Room 데이터로 복사하지 않고 `(roomX * 16, roomY * 11)`에서 시작하는 `16 × 11` 구간을 전체 Map에 직접 질의한다. 동굴·던전처럼 별도 제작 데이터가 필요한 경우에는 추후 `Content/Z1/Rooms` 아래에 Room 전용 파일을 추가할 수 있다.
+`OverworldMap`은 TileMap 파일을 TileId 배열로, BlockingMap 파일을 임시 blocked 배열로 각각 검증한다. 두 파싱이 모두 성공하면 같은 좌표의 TileId를 Z1 Tile Sprite로 해석하고 blocked 값과 함께 Engine `Tilemap`에 설정한다. TileId 배열은 입구 판정 등 콘텐츠 규칙을 위해 별도로 유지한다. Room 전환 시 데이터를 별도 Room 객체로 복사하지 않고 `(roomX * 16, roomY * 11)`에서 시작하는 `16 × 11` 구간을 전체 Tilemap에서 합성한다. 동굴과 던전은 별도 문자 파일을 사용하지만 같은 Tilemap 구성·합성 방식을 따른다.
 
 ### Room 외부 메타데이터
 
@@ -85,21 +85,21 @@ Overworld는 원본 전체 맵을 그대로 보관한다.
 ```text
 OverworldMap
   → 256 × 88 TileId/Blocking 맵을 각각 검증
-  → 2차원 Cell Grid에 전체 TileId/walkable 보관
-  → 현재 Room의 16 × 11 TileId를 전역 Map 좌표로 직접 조회
-  → OverworldLevel의 TileId-Sprite map에서 문자 Sprite 조회
-  → 각 타일을 10 × 5로 펼쳐 160 × 55 Room Sprite 합성
-  → OverworldMap에 Actor의 월드 Box 통행 여부 질의
+  → TileId 원본은 Z1 규칙용 배열에 보관
+  → TileId를 10 × 5 Sprite로, Blocking 값을 blocked로 해석
+  → Engine Tilemap의 각 셀에 Tile 설정
+  → 현재 Room의 16 × 11 구간을 160 × 55 Sprite로 합성
+  → Tilemap에 Actor의 월드 Box 통행 여부 질의
   → 월드 좌표가 속한 Room이 바뀌면 배경과 View 교체
 ```
 
-시각 정보와 통행 정보는 분리한다. `OverworldLevel`의 TileId-Sprite map은 시각 정보만 보관하고, `OverworldMap`의 Cell은 원본 TileMap과 BlockingMap에서 읽은 TileId와 walkable을 보관한다. 따라서 같은 TileId라도 Map 데이터가 허용하면 다른 통행 결과를 가질 수 있고, Sprite map이 게임플레이 속성을 재정의하지 않는다.
+시각 정보와 통행 원본은 분리한다. `OverworldMap`의 TileId-Sprite map은 시각 정보만 정하고, 별도 BlockingMap이 각 Engine Tile의 blocked 값을 정한다. 따라서 같은 TileId라도 BlockingMap 데이터에 따라 다른 통행 결과를 가질 수 있고, Sprite map이 게임플레이 속성을 재정의하지 않는다.
 
 Actor의 Transform과 Box는 전체 Map 기준 월드 셀 단위를 사용한다. 좌표 변환은 다음 두 단계다.
 
 ```text
 mapTile(x, y)
-  → worldCell(x * MapTileSize.x, y * MapTileSize.y)
+  → worldCell(x * TileCellSize.x, y * TileCellSize.y)
 
 worldCell
   → screenCell = worldCell - viewWorldOrigin + viewScreenOrigin
@@ -115,7 +115,7 @@ worldCell
 - `Room`: 한 번에 표시되는 고정 화면 하나
 - `OverworldLevel`: 현재 Area/Room을 관리하고 Room 전환과 Actor 수명을 조정
 
-동굴과 던전은 이 외부 지상 맵 자료에 포함되지 않으므로 자체 Room 파일과 `RoomCatalog` 메타데이터를 만든다. 그렇다고 Area마다 Level을 만들 필요는 없다.
+동굴과 던전은 이 외부 지상 맵 자료에 포함되지 않으므로 각각 자체 문자 Map 파일을 사용한다. Z1의 `CaveMap`과 `DungeonMap`이 문자 원본과 콘텐츠 표식을 보관하고, 지형 시각·blocked 상태는 내부 Engine Tilemap에 설정한다.
 
 ## 구현 범위와 보류 사항
 

@@ -92,8 +92,8 @@
 ### 논리 타일과 렌더 셀
 
 - Room txt의 토큰 하나는 콘솔 셀 하나나 Actor 하나가 아니라 논리 타일 ID다. 기본 파일은 `16`개 토큰씩 `11`행을 갖고, 토큰은 공백으로 구분된 16진수 ID다.
-- 타일 ID의 시각 정보는 `OverworldLevel`이 소유한 TileId-Sprite map에서 조회하고, 통행 정보는 전체 `OverworldMap`의 Cell Grid에서 조회한다.
-- 논리 타일은 Z1의 `MapTileSize`에 따라 콘솔 셀로 확장한다. 현재 구현은 `10 x 5`이며, 원작의 `16 x 16` 픽셀을 직접 의미하지 않는다.
+- 타일 ID의 시각 정보는 `OverworldMap`이 소유한 TileId-Sprite map에서 조회하고, 통행 정보는 BlockingMap에서 읽어 Engine Tilemap의 blocked 상태로 설정한다.
+- 논리 타일은 Z1의 `TileCellSize`에 따라 콘솔 셀로 확장한다. 현재 구현은 `10 x 5`이며, 원작의 `16 x 16` 픽셀을 직접 의미하지 않는다.
 - 정적 지형은 타일 Sprite를 하나의 방 배경 Sprite로 합성하고, 통행 판정은 별도 BlockingMap에서 수행한다.
 - 플레이어, 적, 아이템과 보스처럼 동작이 필요한 대상만 Spawn Actor로 만든다.
 - 출구, 진입 위치와 스폰은 지형 타일 파일과 분리된 Room 메타데이터로 관리한다. 지형과 엔티티 토큰을 한 파일에 섞지 않는다.
@@ -185,7 +185,7 @@ Z1/
 - Area: 여러 Room을 묶는 지상, 동굴 또는 던전 단위의 콘텐츠 그룹
 - Room: 별도 데이터 객체가 아니라 전체 Map에서 현재 화면에 표시하는 16×11 논리 타일 구간
 
-필드마다 Level을 만들지 않는다. Area는 하나 이상의 Room을 포함하며, 동굴이나 던전도 별도 Level이 아니라 Area 데이터로 표현할 수 있다. Overworld는 `Content/Z1/Maps/Overworld`의 `256 x 88` 원본 TileId/Blocking 맵을 `OverworldMap` 하나가 읽어 2차원 Cell Grid로 보관한다. 현재 Room의 `16 x 11` TileId는 별도 데이터로 추출하지 않고 전체 Map 좌표로 직접 조회한다. `OverworldLevel`의 TileId-Sprite map에서 찾은 문자 Sprite를 `MapTileSize (10, 5)`만큼 펼쳐 실제 Room 배경을 만들고, 통행 판정은 전체 Map에 Pawn의 월드 Box를 질의한다. Player의 전역 월드 좌표가 다른 Room 영역에 들어가면 배경과 Renderer View를 교체하며 Player Transform은 유지한다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
+Overworld는 `Content/Z1/Maps/Overworld`의 `256 x 88` 원본 TileId/Blocking 맵을 `OverworldMap` 하나가 읽는다. TileId 원본은 입구 등 Z1 규칙을 위해 유지하고, 시각 정보와 blocked 상태는 합성으로 소유한 Engine `Tilemap`에 설정한다. 현재 Room의 `16 x 11` 구간은 별도 데이터로 추출하지 않고 `Tilemap::BuildSprite`로 전체 Map에서 합성한다. 통행 판정은 `Tilemap::CanPlaceBox`에 Pawn의 월드 Box를 질의한다. Player의 전역 월드 좌표가 다른 Room 영역에 들어가면 배경과 Renderer View를 교체하며 Player Transform은 유지한다. 동굴과 던전도 각각 문자 원본을 보관하는 Z1 Map과 공용 Tilemap의 합성 구조를 사용한다. 상세한 외부 자료 대응과 포맷은 [`ZELDA_MAP_DATA_REFERENCE.md`](ZELDA_MAP_DATA_REFERENCE.md)를 따른다.
 
 ### 플레이어와 공격
 
@@ -232,7 +232,7 @@ Z1/
 ### 단계 1: 2D 렌더링
 
 - Sprite/셀 데이터, 2D 합성, 투명도, 양축 클리핑
-- SpriteRendererComponent 확장과 문자열 API 호환
+- SpriteRendererComponent와 Renderer의 Sprite 단일 제출 경로
 
 완료: 다색 Sprite가 올바르게 겹치고 기존 두 게임 출력이 유지된다.
 
@@ -249,7 +249,7 @@ Z1/
 
 ### 단계 3: 한 방 전투 버티컬 슬라이스
 
-- 고정 `MapTileSize(10, 5)`, 논리 타일 좌표와 월드 셀 좌표 변환
+- 고정 `TileCellSize(10, 5)`, Engine Tilemap의 논리 타일 좌표와 월드 셀 좌표 변환
 - `256 x 88` Overworld TileId/Blocking 파일을 읽고 `16 x 11` Room 하나를 추출
 - TileId/Sprite 연결, 4방향 플레이어, 검, 적 하나, 체력 HUD와 사망
 
@@ -306,13 +306,13 @@ Z1/
 ## 작업자 체크리스트
 
 - 공용 엔진 책임과 Z1 콘텐츠 책임을 구분했는가?
-- 기존 문자열 렌더링과 width 기반 Box API를 보존했는가?
+- 문자열 렌더링을 Sprite로 변환하고 Box API를 2차원 size로 일원화했는가?
 - 렌더링과 충돌에 월드 좌표를 사용했는가?
 - Actor를 SpawnActor로 만들고 지연 추가를 고려했는가?
 - Actor 컨테이너를 프레임 중 직접 수정하지 않는가?
 - 필요한 Super 호출을 보존했는가?
 - 논리 타일, 콘솔 렌더 셀과 동적 Actor를 구분했는가?
-- `MapTileSize`를 Renderer에 하드코딩하지 않고 Z1의 배경 합성과 Map 통행 판정에서 공유하는가?
+- `TileCellSize`를 Renderer에 하드코딩하지 않고 Z1 Map이 구성하는 Engine Tilemap에 전달하는가?
 - Room 파일이 `16 x 11` 16진수 타일 포맷을 검증하고, 출구/스폰 메타데이터와 분리되어 있는가?
 - Room 배경 타일을 개별 Actor로 만들지 않았는가?
 - vcxproj, filters와 구조 문서를 함께 갱신했는가?

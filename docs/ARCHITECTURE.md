@@ -23,7 +23,7 @@ flowchart LR
 | 프로젝트 | 산출물 | 책임 |
 | --- | --- | --- |
 | `SoundSystem` | DLL/import library | COM·XAudio2 초기화, WAV 파싱과 캐시, 원샷 및 반복 BGM 보이스 관리 |
-| `CraftEngine` | DLL/import library | 루프, Level/Actor/Component, 입력, 렌더링, 충돌, 수학, RTTI, SoundSystem 파사드 |
+| `CraftEngine` | DLL/import library | 루프, Level/Actor/Component, 입력, 렌더링, 충돌, 타일맵, 수학, RTTI, SoundSystem 파사드 |
 | `ShootingGame` | EXE | 플레이어·총구·엔진 이펙트 계층, 적 스폰, 탄환, 점수와 게임 오버 |
 | `SokobanGame` | EXE | 맵 로드, 이동·박스 밀기, 클리어 판정, 게임/메뉴 Level 전환 |
 | `Z1` | EXE | Zelda형 오버월드·동굴·Dungeon 1, 플레이어/적 전투와 보스 클리어 콘텐츠 |
@@ -90,8 +90,8 @@ flowchart TD
 | Component | 데이터와 책임 |
 | --- | --- |
 | `TransformComponent` | 로컬 좌표, 이전 월드 좌표, 부모/자식 Transform 링크, 월드 좌표 계산, attach/detach |
-| `SpriteRendererComponent` | 문자열 또는 N×M Sprite, sorting order를 보관하고 월드 좌표로 RenderCommand 제출 |
-| `BoxComponent` | `size`와 `offset`을 가진 셀 단위 2D AABB. 기존 width API는 `size.x` 호환 경로로 제공 |
+| `SpriteRendererComponent` | immutable Sprite와 sorting order를 보관하고 월드 좌표로 RenderCommand 제출 |
+| `BoxComponent` | `size`와 `offset`을 가진 셀 단위 2D AABB |
 
 `Actor::GetPosition()`과 `SetPosition()`은 기존 콘텐츠 API를 유지하는 Transform 로컬 좌표 파사드다. 부모가 없는 Actor에서는 로컬과 월드가 같지만 계층에 들어간 Actor에서는 다르다.
 
@@ -113,13 +113,19 @@ Attach 동작은 다음 계약을 가진다.
 
 ### 렌더링
 
-Actor의 `Draw`는 Component까지 전달되고 SpriteRenderer가 문자열 또는 Sprite 단위 명령을 제출한다. `RenderCommand`는 payload 종류에 따라 텍스트와 셀 배열을 보관하며, Renderer는 화면 크기의 `CHAR_INFO`와 sorting order 배열에 이를 합성한다. Sprite는 저장된 콘솔 셀 크기 그대로 1:1로 출력하며, 투명 셀은 기존 백버퍼 셀을 보존하고 X/Y 양축 부분 클리핑을 적용한다. 같은 셀에서는 높은 sorting order가 우선하며, Win32 콘솔 screen buffer 두 개를 번갈아 활성화해 깜박임을 줄인다.
+Actor의 `Draw`는 Component까지 전달되고 SpriteRenderer가 Sprite 단위 명령을 제출한다. `RenderCommand`는 immutable Sprite 포인터, 위치, sorting order만 보관하며, Renderer는 화면 크기의 `CHAR_INFO`와 sorting order 배열에 이를 합성한다. 문자열도 먼저 Sprite로 변환하므로 Renderer 내부에는 별도 문자열 payload가 없다. Sprite는 저장된 콘솔 셀 크기 그대로 1:1로 출력하며, 투명 셀은 기존 백버퍼 셀을 보존하고 X/Y 양축 부분 클리핑을 적용한다. 같은 셀에서는 높은 sorting order가 우선하며, Win32 콘솔 screen buffer 두 개를 번갈아 활성화해 깜박임을 줄인다. 매 프레임 전체 영역을 `WriteConsoleOutputA`로 덮으므로 프레임 중 ScreenBuffer의 별도 Clear는 호출하지 않는다.
 
 `Submit`은 화면 좌표를 그대로 사용하고 HUD와 메뉴에 적합하다. `SubmitWorld`는 현재 View의 `worldOrigin`을 빼고 `screenOrigin`을 더해 월드 좌표를 화면 좌표로 바꾼다. `SpriteRendererComponent`는 Actor의 월드 위치를 `SubmitWorld`로 제출한다. View는 이를 사용하는 Level이 Actor 제출 전에 설정하며, Renderer는 한 프레임을 출력한 뒤 원점을 `(0, 0)`으로 초기화한다.
 
 ### 충돌
 
-CollisionSystem은 활성 Actor의 모든 조합을 검사하는 `O(n²)` 방식이다. 양쪽에 `BoxComponent`가 있을 때만 검사하며, 각 Box의 `size`와 `offset`, 이전/현재 월드 위치로 내부 `SweptBounds`를 계산해 X/Y 포함 범위를 비교한다. 한 변이 0 이하인 Box는 충돌하지 않는다. 모든 충돌 쌍을 먼저 모은 뒤 콜백을 보내 컬렉션과 활성 상태 변화의 영향을 줄인다.
+CollisionSystem은 활성 Actor의 모든 조합을 검사하는 `O(n²)` 방식이다. 양쪽에 `BoxComponent`가 있을 때만 검사하며, 각 Box의 `size`와 `offset`, 이전/현재 월드 위치로 이동 구간을 포함하는 `Box2D`를 계산한다. `Box2D`는 좌상단 위치와 2차원 크기를 보관하고 양 끝을 포함하는 AABB 겹침·접촉·포함 판정을 공용으로 제공한다. 한 변이 0 이하인 Box는 충돌하지 않는다. 모든 충돌 쌍을 먼저 모은 뒤 콜백을 보내 컬렉션과 활성 상태 변화의 영향을 줄인다.
+
+### 타일맵
+
+`Tilemap`은 별도 Grid·Renderer·Collider 계층을 두지 않은 최소 공용 타일맵이다. 논리 타일 개수와 각 셀의 월드/콘솔 크기, 셀별 `Tile` 배열을 보관한다. `Tile`은 immutable Sprite 포인터와 `blocked` 여부만 가지며 파일 형식이나 콘텐츠 식별자는 알지 못한다. `GetTile`/`SetTile`, 논리 셀과 월드 좌표 변환, 셀 `Box2D`, 월드 Box가 막힌 타일과 겹치는지 검사하는 `CanPlaceBox`, 지정한 논리 타일 구간의 Sprite를 합성하는 `BuildSprite`를 제공한다.
+
+TileId나 문자 원본 파싱, 원본 값을 Sprite와 blocked 상태로 해석하는 규칙은 콘텐츠 책임이다. 따라서 Z1의 Map 타입은 원본 데이터를 보관하면서 `Tilemap`을 합성으로 소유하고, Level은 현재 Room 선택과 동적 게임 상태만 관리한다.
 
 ### 사운드
 
@@ -139,11 +145,11 @@ SoundSystem의 전역 `Sound` 클래스는 WAV를 경로별로 캐시한다. 원
 
 Z1의 `Game`은 `Title`, `Overworld`, `SwordCave`, `Dungeon1`, `Clear`, `GameOver`, `Development` 상태를 보유한다. 실제 진행은 타이틀에서 `Enter` 키로 새 게임을 시작해 오버월드에서 검을 얻고 Dungeon 1을 클리어하는 흐름이다. 새 게임 시작 시 오버월드·동굴·던전 Level을 다시 만들어 HP 20과 검 미소지 상태로 초기화한다. Level 전환 전후에는 `Game`이 플레이어 HP와 검 보유 여부를 보관·복원한다. `Development`는 별도 수동 확인용 장면으로 남아 있다.
 
-`OverworldMap`은 `Content/Z1/Maps/Overworld`의 256×88 TileId·Blocking 맵을 각각 검증하고, 같은 좌표의 `TileId`와 `walkable`을 하나의 2차원 Cell 그리드에 보관한다. 별도 중간 맵 데이터나 Room 객체는 없으며 Room은 전체 Map에서 현재 화면에 표시할 16×11 논리 타일 구간을 뜻한다. `OverworldLevel`은 `TileId`와 `Sprite`의 `unordered_map`으로 1×1 문자 타일을 Z1 전용 `MapTileSize (10, 5)`만큼 반복해 Room당 160×55 콘솔 배경 Sprite를 만든다. Actor는 각자 Sprite 크기와 Box를 가지므로 Map 타일 크기에 종속되지 않는다. Player·Octorok·Moblin·Tektite는 좌우 공통 여백을 제거한 8×5 Sprite와 같은 크기의 Box를 사용한다.
+`OverworldMap`은 `Content/Z1/Maps/Overworld`의 256×88 TileId·Blocking 맵을 각각 검증한다. 입구 등 Z1 규칙에 필요한 TileId 원본은 별도 배열에 유지하고, 두 파일의 값을 Z1 전용 10×5 Tile Sprite와 blocked 상태로 해석해 내부 `Tilemap`에 설정한다. 별도 Room 객체는 없으며 Room은 전체 Map에서 현재 화면에 표시할 16×11 논리 타일 구간을 뜻한다. `OverworldLevel`은 현재 Room의 논리 원점만 계산하고 `OverworldMap::BuildRoomSprite`에 배경 합성을 위임한다. Actor는 각자 Sprite 크기와 Box를 가지므로 Map 타일 크기에 종속되지 않는다. Player·Octorok·Moblin·Tektite는 좌우 공통 여백을 제거한 8×5 Sprite와 같은 크기의 Box를 사용한다.
 
-Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 후보의 Box가 겹치는 모든 타일을 `OverworldMap::CanOccupyWorldRect`로 검사하고, 앞쪽 Box 경계가 다른 Room에 들어가면 현재 Room 배경 캐시와 Renderer View 원점을 바꾼다. 이때 Player Box가 새 Room 안에 온전히 들어가도록 이동 방향의 Room 경계에 위치를 보정한다. 현재 접근 가능한 Room은 `(7,7) → (7,6) → (8,6) → (8,5) → (8,4) → (8,3) → (7,3)` 경로로 제한한다. 시작 Room `(7, 7)`의 `(4, 1)` 입구는 `SwordCave`로, Room `(7, 3)`의 `(7, 4)` 입구는 검 보유 시에만 `Dungeon1`으로 전환한다. 입구는 Block 타일이므로 일반 지형 이동 검사보다 먼저 판정한다.
+Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 후보의 Box는 `OverworldMap::CanPlaceBox`를 거쳐 내부 Tilemap의 blocked 타일과 Map 경계를 검사하고, 앞쪽 Box 경계가 다른 Room에 들어가면 현재 Room 배경 캐시와 Renderer View 원점을 바꾼다. 이때 Player Box가 새 Room 안에 온전히 들어가도록 이동 방향의 Room 경계에 위치를 보정한다. 현재 접근 가능한 Room은 `(7,7) → (7,6) → (8,6) → (8,5) → (8,4) → (8,3) → (7,3)` 경로로 제한한다. 시작 Room `(7, 7)`의 `(4, 1)` 입구는 `SwordCave`로, Room `(7, 3)`의 `(7, 4)` 입구는 검 보유 시에만 `Dungeon1`으로 전환한다. 입구는 blocked 타일이므로 일반 지형 이동 검사보다 먼저 판정한다.
 
-`CaveLevel`은 16×11 문자 맵을 읽어 검과 출구 위치를 찾는다. Player Box가 검의 10×5 타일 영역과 겹치면 `Game`과 Player에 검 보유 상태를 기록하고 배경에서 검을 제거한다. 출구를 통해 오버월드로 돌아갈 수 있다.
+`CaveMap`은 16×11 문자 원본을 보관하고 벽·바닥·검·출구 문자를 기본 지형 Sprite와 blocked 상태로 해석해 내부 Tilemap을 구성한다. `CaveLevel`은 원본 문자에서 검과 출구 위치를 찾고, 검은 배경과 분리된 캐시 Sprite로 조건부 렌더링한다. Player Box가 검 타일 영역과 겹치면 `Game`과 Player에 검 보유 상태를 기록하며 이후 Draw에서 검을 제출하지 않는다. 출구를 통해 오버월드로 돌아갈 수 있다.
 
 `Pawn`은 Player와 Enemy가 공유하는 HP, facing, 셀 단위 이동 누산, 피해·사망, 넉백과 피격 무적 상태를 담당한다. Player는 방향키로 이동하며 마지막 방향을 유지한다. 검 보유 후 `A` 키를 누르면 Player에 attach한 짧은 수명의 `SwordAttack`을 만들고, HP가 가득 차 있으면 같은 방향으로 검기도 발사한다. 피해를 입은 Pawn은 공격 반대 방향으로 밀려나고 짧은 무적 시간 동안 깜빡인다. HP가 0이면 오버월드와 던전은 잠시 뒤 `GameOver`로 전환한다.
 
@@ -151,7 +157,7 @@ Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 
 
 `EnemySpawner`는 시작 Room `(7, 7)`을 제외한 오버월드 Room 좌표와 월드 시드로 결정적인 스폰 계획을 만든다. Room을 나가면 기존 Enemy와 투사체를 파괴하고 새 Room의 통행 가능한 위치에 다시 생성한다. Player와 Octorok·Moblin은 서로 겹칠 수 없지만 Tektite는 접촉 피해를 위해 Player와 겹칠 수 있고, Enemy끼리는 서로 통과한다.
 
-`DungeonLevel`은 `Content/Z1/Maps/Dungeons/Level1.txt`의 5×1 Room을 읽고 Death Mountain Dungeon BGM을 재생한다. Room 전환 시에는 Player Box가 새 Room 안에 온전히 들어가도록 경계 위치를 보정한다. 앞의 세 Room에는 Octorok을 임의 배치하고, 보스 Room에는 Aquamentus를 하나 생성한다. Aquamentus는 수평 이동이 막히면 방향을 바꾸며 Player 쪽으로 세 갈래 화염구를 발사한다. 보스 처치 뒤 표시되는 하트와 트라이포스는 Player Box가 각 Sprite 영역과 겹치면 획득한다. 하트는 HP를 전부 회복한다. 트라이포스 획득 시 Zelda Is Rescued 팬파레를 재생하고 플레이어 입력을 잠시 멈춘 뒤 `Clear`로 전환하며, Clear 화면에서는 Ending Theme을 재생한다. 던전 입구 출구로 오버월드에 되돌아갈 수도 있다.
+`DungeonMap`은 `Content/Z1/Maps/Dungeons/Level1.txt`의 5×1 Room 문자 원본을 보관하고 내부 Tilemap을 구성한다. `B`, `H`, `T`는 보스와 보상 위치를 찾는 Z1 표식으로 유지하되 Tilemap에는 기본 바닥 Sprite로 설정한다. `DungeonLevel`은 Room 전환 시 Tilemap에서 해당 16×11 배경을 합성하고 Player Box가 새 Room 안에 온전히 들어가도록 경계 위치를 보정한다. 앞의 세 Room에는 Octorok을 임의 배치하고, 보스 Room에는 자체 SpriteRenderer를 가진 Aquamentus Actor를 하나 생성한다. Aquamentus는 수평 이동이 막히면 방향을 바꾸며 Player 쪽으로 세 갈래 화염구를 발사한다. 보스 처치 뒤 하트와 트라이포스는 캐시된 별도 Sprite로 조건부 렌더링되고, 획득하면 제출을 중단해 아래의 바닥이 보인다. 하트는 HP를 전부 회복한다. 트라이포스 획득 시 Zelda Is Rescued 팬파레를 재생하고 플레이어 입력을 잠시 멈춘 뒤 `Clear`로 전환하며, Clear 화면에서는 Ending Theme을 재생한다. 던전 입구 출구로 오버월드에 되돌아갈 수도 있다.
 
 `DevelopmentLevel`은 Sprite·2D Box 충돌을 수동으로 확인하는 별도 장면이다.
 
@@ -159,6 +165,7 @@ Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 
 
 - 루프는 목표 프레임 간격이 될 때까지 대기하며 누적 시간을 보정하는 fixed-step accumulator는 아니다. 정밀한 고정 물리가 필요할 때 루프 모델을 재검토한다.
 - 충돌은 broad phase 없이 전수 검사한다. Actor 수가 실제 병목이 될 때 공간 분할을 고려한다.
+- Tilemap은 단일 레이어의 Sprite와 blocked 여부만 제공한다. 별도 Grid, 렌더러, Collider, 다중 레이어나 one-way·경사 지형이 실제로 필요해질 때 역할 분리와 충돌 속성 확장을 검토한다.
 - Transform은 이동만 표현하며 회전·크기·행렬은 없다. 콘솔 2D 요구가 바뀔 때 확장한다.
 - Level 전환에는 `subLevel` 예약 방식과 Sokoban의 직접 포인터 전환 방식이 함께 존재한다. 공통 전환 정책이 필요해질 때 하나로 통합한다.
 - 빌드 의존성은 라이브러리 경로와 복사 이벤트에 일부 의존한다. 재현 가능한 클린 빌드가 중요해지면 프로젝트 참조/솔루션 의존성을 명시한다.
