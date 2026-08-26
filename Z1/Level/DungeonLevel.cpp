@@ -536,13 +536,11 @@ bool DungeonLevel::TryExitDungeon(const Vector2& destination, const Vector2& mov
 
 void DungeonLevel::UpdatePlayerMovement(float deltaTime, const Vector2& delta)
 {
-    const int moveSteps =
-        _player->ConsumeMoveSteps(deltaTime);
+    const int moveSteps = _player->ConsumeMoveSteps(deltaTime);
 
     for (int i = 0; i < moveSteps; ++i)
     {
-        const Vector2 candidate =
-            _player->GetWorldPosition() + delta;
+        const Vector2 candidate = _player->GetWorldPosition() + delta;
 
         if (TryExitDungeon(candidate, delta))
         {
@@ -556,13 +554,7 @@ void DungeonLevel::UpdatePlayerMovement(float deltaTime, const Vector2& delta)
             break;
         }
 
-        const RoomCoordinate nextRoom =
-            GetRoomCoordinateAtLeadingEdge(
-                candidate,
-                *_player,
-                delta
-            );
-
+        const RoomCoordinate nextRoom = GetRoomCoordinateAtLeadingEdge(candidate, *_player, delta);
         _player->MoveBy(delta);
 
         if (nextRoom != _currentRoom)
@@ -680,56 +672,42 @@ bool DungeonLevel::UpdatePawnKnockback(Pawn& pawn, float deltaTime)
 
 bool DungeonLevel::CanMoveTo(const Vector2& destination, const Pawn& mover)
 {
-    const auto moverBox =
-        mover.GetComponent<BoxComponent>();
-
+    const auto moverBox = mover.GetComponent<BoxComponent>();
     if (!moverBox)
     {
         return false;
     }
 
-    const Vector2 moverPosition =
-        destination + moverBox->GetOffset();
+    const Vector2 moverPosition = destination + moverBox->GetOffset();
 
-    if (mover.IsA<Enemy>() &&
-        !IsInsideCurrentRoom(
-            moverPosition,
-            moverBox->GetSize()))
+    if (mover.IsA<Enemy>() && !IsInsideCurrentRoom(moverPosition, moverBox->GetSize()))
     {
         return false;
     }
 
-    if (!_map.CanPlaceBox(
-        Box2D{ moverPosition, moverBox->GetSize() }))
+    if (!_map.CanPlaceBox(Box2D{ moverPosition, moverBox->GetSize() }))
     {
         return false;
     }
 
-    auto IsOverlappingPawn =
-        [&mover, &moverPosition, &moverBox]
-        (const std::shared_ptr<Pawn>& other)
+    auto IsOverlappingPawn = [&mover, &moverPosition, &moverBox](const std::shared_ptr<Pawn>& other)
         {
-            if (!other ||
-                !other->IsActive() ||
-                other.get() == &mover)
+            if (!other || !other->IsActive() || other.get() == &mover)
             {
                 return false;
             }
 
-            const auto otherBox =
-                other->GetComponent<BoxComponent>();
+            const auto otherBox = other->GetComponent<BoxComponent>();
 
             if (!otherBox)
             {
                 return false;
             }
 
-            const Vector2 otherPosition =
-                other->GetWorldPosition() +
-                otherBox->GetOffset();
+            const Vector2 otherPosition = other->GetWorldPosition() + otherBox->GetOffset();
 
-            return Box2D{ moverPosition, moverBox->GetSize() }.Overlaps(
-                Box2D{ otherPosition, otherBox->GetSize() }
+            return Box2D{ moverPosition, moverBox->GetSize() }
+                .Overlaps(Box2D{ otherPosition, otherBox->GetSize() }
             );
         };
 

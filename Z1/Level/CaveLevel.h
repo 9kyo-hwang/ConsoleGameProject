@@ -2,6 +2,7 @@
 #include <Level/Level.h>
 #include <Level/Room.h>
 #include <array>
+#include <World/CaveMap.h>
 
 namespace Craft
 {
@@ -29,18 +30,14 @@ private:
     bool TryExitCave(Craft::Vector2 destination, Craft::Vector2 moveDelta);
 
 private:
-    using TileRow = std::array<char, RoomTileWidth>;
-    using TileMap = std::array<TileRow, RoomTileHeight>;
+    std::shared_ptr<class Player> _player;
 
-private:
-    TileMap _tiles{};
+    CaveMap _map;
+    std::shared_ptr<const Craft::Sprite> _roomSprite;
 
     Craft::Vector2 _playerPosition = Craft::Vector2::Zero;
     Craft::Vector2 _swordPosition = Craft::Vector2::Zero;
     Craft::Vector2 _exitPosition = Craft::Vector2::Zero;
-
-    std::shared_ptr<const Craft::Sprite> _roomSprite;
-    std::shared_ptr<class Player> _player;
 
     bool _loaded = false;
     bool _swordCollected = false;

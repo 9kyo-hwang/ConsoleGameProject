@@ -114,6 +114,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
   <ItemGroup>
     <ClCompile Include="Actor\Enemy.cpp" />
     <ClCompile Include="Actor\SwordSprite.cpp" />
+    <ClCompile Include="World\CaveMap.cpp" />
     <ClCompile Include="Component\CellStepComponent.cpp" />
     <ClCompile Include="Actor\Aquamentus.cpp" />
     <ClCompile Include="Actor\CombatEffect.cpp" />
@@ -144,6 +145,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
   <ItemGroup>
     <ClInclude Include="Actor\Enemy.h" />
     <ClInclude Include="Actor\SwordSprite.h" />
+    <ClInclude Include="World\CaveMap.h" />
     <ClInclude Include="Component\CellStepComponent.h" />
     <ClInclude Include="Actor\Aquamentus.h" />
     <ClInclude Include="Actor\CombatEffect.h" />
@@ -164,7 +166,6 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
     <ClInclude Include="Actor\Moblin.h" />
     <ClInclude Include="Actor\Tektite.h" />
     <ClInclude Include="Util\Timer.h" />
-    <ClInclude Include="Util\MapPlacement.h" />
     <ClInclude Include="World\MapGeometry.h" />
     <ClInclude Include="World\OverworldMap.h" />
     <ClInclude Include="Level\DungeonLevel.h" />

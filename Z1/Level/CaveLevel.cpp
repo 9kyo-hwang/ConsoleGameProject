@@ -7,7 +7,6 @@
 #include <Game/Game.h>
 #include <Component/BoxComponent.h>
 #include <Math/Box2D.h>
-#include <Util/MapPlacement.h>
 #include <World/MapGeometry.h>
 #include <array>
 
@@ -16,51 +15,38 @@ using FilePath = std::filesystem::path;
 
 namespace
 {
-    void DrawSwordSprite(
-        std::vector<SpriteCell>& cells,
-        int spriteWidth,
-        int tileX,
-        int tileY)
-    {
-        static const std::array<std::string, 5> art
-        {
-            "    /\\    ",
-            "    ||    ",
-            "  ==++==  ",
-            "    ||    ",
-            "    oo    "
-        };
+    constexpr int ItemSortingOrder = 5;
 
-        for (int y = 0; y < static_cast<int>(art.size()); ++y)
+    const std::vector<std::string> SwordImage
+    {
+        "    /\\    ",
+        "    ||    ",
+        "  ==++==  ",
+        "    ||    ",
+        "    oo    "
+    };
+
+    std::shared_ptr<const Sprite> CreateItemSprite(const std::vector<std::string> image, Color color)
+    {
+        const int height = image.size(), width = image[0].size();
+        std::vector<SpriteCell> cells(height * width);
+
+        for (int y = 0; y < height; ++y)
         {
-            for (int x = 0; x < static_cast<int>(art[y].size()); ++x)
+            for (int x = 0; x < width; ++x)
             {
-                const char glyph = art[y][x];
+                const char glyph = image[y][x];
                 if (glyph == ' ')
                 {
                     continue;
                 }
 
-                Color color = Color::White;
-                if (glyph == '=' || glyph == '+')
-                {
-                    color = Color::Yellow;
-                }
-                else if (glyph == 'o')
-                {
-                    color = Color::DarkYellow;
-                }
-
-                const int destX = tileX * TileCellSize.x + x;
-                const int destY = tileY * TileCellSize.y + y;
-
-                cells[destY * spriteWidth + destX] = SpriteCell(
-                    glyph,
-                    static_cast<WORD>(color),
-                    false
-                );
+                // 임시로 색상 단일 색상...
+                cells[y * width + x] = SpriteCell(glyph, (WORD)color, false);
             }
         }
+
+        return std::make_shared<const Sprite>(Vector2(width, height), std::move(cells));
     }
 }
 
@@ -92,12 +78,6 @@ void CaveLevel::BeginPlay()
     {
         game.LoadPlayerState(*_player);
         _playerStateLoaded = true;
-
-        if (_player->HasSword() && !_swordCollected)
-        {
-            _swordCollected = true;
-            BuildRoomSprite();  // S 없이 새롭게 그리기. 근데 그냥 Sword를 액터처럼 해서 destroy하는 게 안낫나?
-        }
     }
 }
 
@@ -140,8 +120,16 @@ void CaveLevel::Draw()
         renderer.SubmitWorld(_roomSprite, Vector2::Zero, 0);
     }
 
+    if (!_player->HasSword() && !_swordCollected)
+    {
+        renderer.SubmitWorld(CreateItemSprite(SwordImage, Color::White), _swordPosition * TileCellSize, ItemSortingOrder);
+    }
+
     Level::Draw();
 
+    /*
+    * HUD 영역
+    */
     renderer.Submit(Sprite::Create("[CAVE]"), Vector2(2, 1));
     
     if (_player)
@@ -157,9 +145,9 @@ void CaveLevel::Draw()
 bool CaveLevel::LoadMap()
 {
     const FilePath path = "../Content/Z1/Maps/Caves/SwordCave.txt";
-    
-    std::ifstream file(path);
-    if (!file.is_open())
+    std::string error;
+
+    if (!_map.Load(path, error))
     {
         return false;
     }
@@ -167,35 +155,13 @@ bool CaveLevel::LoadMap()
     bool hasExit = false;
     bool hasSword = false;
 
-    std::string line;
-    for (int y = 0; y < RoomTileHeight; ++y)
+    for (int y = 0; y < CaveMap::Height; ++y)
     {
-        if (!std::getline(file, line))
+        for (int x = 0; x < CaveMap::Width; ++x)
         {
-            return false;
-        }
+            const char tile = _map.GetTile(x, y);
 
-        if (!line.empty() && line.back() == '\r')
-        {
-            line.pop_back();
-        }
-
-        if (line.size() != RoomTileWidth)
-        {
-            return false;
-        }
-
-        for (int x = 0; x < RoomTileWidth; ++x)
-        {
-            char symbol = line[x];
-            if (symbol != '#' && symbol != '.' && symbol != 'E' && symbol != 'S')
-            {
-                return false;
-            }
-
-            _tiles[y][x] = symbol;
-
-            if (symbol == 'E')
+            if (tile == 'E')
             {
                 if (hasExit)
                 {
@@ -205,7 +171,7 @@ bool CaveLevel::LoadMap()
                 _exitPosition = Vector2(x, y);
                 hasExit = true;
             }
-            else if (symbol == 'S')
+            else if (tile == 'S')
             {
                 if (hasSword)
                 {
@@ -218,53 +184,14 @@ bool CaveLevel::LoadMap()
         }
     }
 
-    if (std::getline(file, line)) return false;
-    if (!hasExit || !hasSword) return false;
-    if (_exitPosition.y <= 0) return false;
-
     _playerPosition = Vector2(_exitPosition.x, _exitPosition.y - 1);
-    return true;
+    return hasExit && hasSword && _exitPosition.y > 0;
 }
 
 void CaveLevel::BuildRoomSprite()
 {
-    const Vector2 spriteSize(RoomTileWidth * TileCellSize.x, RoomTileHeight * TileCellSize.y);
-    std::vector<SpriteCell> cells(spriteSize.x * spriteSize.y);
-
-    for (int tileY = 0; tileY < RoomTileHeight; ++tileY)
-    {
-        for (int tileX = 0; tileX < RoomTileWidth; ++tileX)
-        {
-            char symbol = _tiles[tileY][tileX];
-            SpriteCell visual;
-            if (symbol == '#')
-            {
-                visual = SpriteCell(symbol, (WORD)Color::DarkRed, false);
-            }
-            else
-            {
-                visual = SpriteCell(' ', (WORD)Color::Black, false);
-            }
-
-            for (int offsetY = 0; offsetY < TileCellSize.y; ++offsetY)
-            {
-                for (int offsetX = 0; offsetX < TileCellSize.x; ++offsetX)
-                {
-                    int x = tileX * TileCellSize.x + offsetX;
-                    int y = tileY * TileCellSize.y + offsetY;
-
-                    cells[y * spriteSize.x + x] = visual;
-                }
-            }
-
-            if (symbol == 'S' && !_swordCollected)
-            {
-                DrawSwordSprite(cells, spriteSize.x, tileX, tileY);
-            }
-        }
-    }
-
-    _roomSprite = std::make_shared<const Sprite>(spriteSize, std::move(cells));
+    // 단일 룸이라 origin 필요 없음
+    _roomSprite = _map.BuildRoomSprite(Vector2::Zero, Vector2(RoomTileWidth, RoomTileHeight));
 }
 
 bool CaveLevel::CanMoveTo(Craft::Vector2 destination) const
@@ -272,18 +199,7 @@ bool CaveLevel::CanMoveTo(Craft::Vector2 destination) const
     auto box = _player->GetComponent<BoxComponent>();
     if (!box) return false;
 
-    return CanPlaceBoxOnMap(
-        Box2D{
-            destination + box->GetOffset(),
-            box->GetSize()
-        },
-        TileCellSize,
-        Vector2(RoomTileWidth, RoomTileHeight),
-        [this](int x, int y)
-        {
-            return _tiles[y][x] != '#';
-        }
-    );
+    return _map.CanPlaceBox(Box2D{destination + box->GetOffset(), box->GetSize()});
 }
 
 // Player Box가 특정 타일과 겹치는지 검사
@@ -300,14 +216,8 @@ bool CaveLevel::IsOnTile(Vector2 tile) const
         return false;
     }
 
-    return Box2D{
-        _player->GetWorldPosition() + box->GetOffset(),
-        box->GetSize()
-    }.Overlaps(
-        Box2D{
-            tile * TileCellSize,
-            TileCellSize
-        }
+    return Box2D{_player->GetWorldPosition() + box->GetOffset(), box->GetSize()}
+        .Overlaps(Box2D{tile * TileCellSize, TileCellSize}
     );
 }
 
@@ -354,7 +264,6 @@ bool CaveLevel::TryCollectSword()
     Engine::Get().PlayOneShot("Z1/07. Collect Item.wav");
 
     _swordCollected = true;
-    BuildRoomSprite();
 
     return true;
 }

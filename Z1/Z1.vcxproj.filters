@@ -26,6 +26,7 @@
     <ClCompile Include="Actor\Tektite.cpp" />
     <ClCompile Include="Level\GameOverLevel.cpp" />
     <ClCompile Include="Level\CaveLevel.cpp" />
+    <ClCompile Include="World\CaveMap.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -55,7 +56,7 @@
     <ClInclude Include="Actor\Tektite.h" />
     <ClInclude Include="Level\GameOverLevel.h" />
     <ClInclude Include="Level\CaveLevel.h" />
-    <ClInclude Include="Util\MapPlacement.h" />
     <ClInclude Include="World\MapGeometry.h" />
+    <ClInclude Include="World\CaveMap.h" />
   </ItemGroup>
 </Project>
