@@ -9,6 +9,7 @@
   <Project Path="ShootingGame/ShootingGame.vcxproj" Id="4cd2787e-9f5e-4d39-93b3-df37a2ea0036">
     <BuildDependency Project="CraftEngine/CraftEngine.vcxproj" />
   </Project>
+  <Project Path="Sockets/Sockets.vcxproj" Id="194e0eeb-fef8-4a6b-845e-024f6866bce6" />
   <Project Path="SokobanGame/SokobanGame.vcxproj" Id="b3f0a50e-1435-43be-b165-f35124003f13">
     <BuildDependency Project="CraftEngine/CraftEngine.vcxproj" />
   </Project>
