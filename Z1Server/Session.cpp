@@ -105,3 +105,102 @@ bool Session::TryPopRecvdPacket(RecvdPacket& outPacket)
     _recvdPackets.pop_front();
     return true;
 }
+
+// 패킷을 queue에 넣고, send pending이 아니면 WSASend
+bool Session::Send(std::vector<Z1::Protocol::Byte>&& packet)
+{
+    if (!_socket.IsValid() || packet.empty())
+    {
+        return false;
+    }
+
+    _sendQueue.push_back(std::move(packet));
+
+    if (_sendPending)
+    {
+        return true;
+    }
+
+    return PostSend();
+}
+
+// 클라가 Send 이벤트를 완료했을 때
+bool Session::HandleSend(DWORD bytesTransferred)
+{
+    if (!_sendPending || _sendQueue.empty())
+    {
+        return false;
+    }
+
+    const std::vector<Byte>& packet = _sendQueue.front();
+    const size_t remainingSize = packet.size() - _sendOffset;
+
+    if (bytesTransferred == 0 || bytesTransferred > remainingSize)
+    {
+        return false;
+    }
+
+    _sendOffset += bytesTransferred;
+    _sendPending = false;
+
+    // 아직 해당 패킷을 다 전송 못했으면 나머지 재등록
+    if (_sendOffset < packet.size())
+    {
+        return PostSend();
+    }
+
+    // 이번 패킷 전송 완료
+    _sendQueue.pop_front();
+    _sendOffset = 0;
+
+    // 아직 보낼 패킷이 남아있으면 이어서 전송
+    if (!_sendQueue.empty())
+    {
+        return PostSend();
+    }
+
+    return true;
+}
+
+// 전송 큐 맨 앞 패킷에서 아직 못보낸 구간만 WSASend 등록
+bool Session::PostSend()
+{
+    if (!_socket.IsValid() || _sendQueue.empty())
+    {
+        return false;
+    }
+
+    const std::vector<Byte>& packet = _sendQueue.front();
+    if (_sendOffset >= packet.size())   // 이미 보낸 패킷이라 커서가 패킷 뒤에 있다면
+    {
+        return false;
+    }
+
+    const size_t remainingSize = packet.size() - _sendOffset;
+    std::memset(&_sendOverlapped, 0, sizeof(_sendOverlapped));
+
+    _sendBufferView = { .len = (ULONG)remainingSize, .buf = (char*)(packet.data() + _sendOffset) };
+
+    DWORD bytesSent = 0;
+    const int result = ::WSASend(_socket.GetNativeHandle(), &_sendBufferView, 1, &bytesSent, 0, &_sendOverlapped, nullptr);
+
+    // 성공했더라도 Completion 기준으로 완료 처리 해야하므로, 전송 큐 pop 하면 안됨!
+    if (result == 0 || _socket.GetLastError() == WSA_IO_PENDING)
+    {
+        _sendPending = true;
+        return true;
+    }
+
+    return false;
+}
+
+bool Session::Enter(std::uint32_t playerId)
+{
+    if (_playerId.has_value())
+    {
+        return false;
+    }
+
+    _playerId = playerId;
+    return true;
+}

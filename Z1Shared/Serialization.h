@@ -8,7 +8,10 @@
 #include <span>
 #include <vector>
 
-// TODO: 16bit 값 처리자. WriteU16, ReadU16...
+#include <Z1Shared/Protocol.h>
+
+// 클라이언트, 서버가 동시에 사용하는 유틸리티 함수들
+// Byte 읽기/쓰기, 패킷 생성기 등
 namespace Z1::Protocol
 {
     using Byte = std::uint8_t;
@@ -64,6 +67,26 @@ namespace Z1::Protocol
         offset += sizeof(netlong);
         output = ::ntohl(netlong);    // pc little-endian
 
+        return true;
+    }
+
+    inline bool BuildPacket(PacketType type, std::span<const Byte> payload, std::vector<Byte>& outPacket)
+    {
+        // 패킷 내용물이 너무 크면 안됨
+        if (payload.size() > MaxPacketSize - PacketHeaderSize)
+        {
+            return false;
+        }
+
+        std::uint16_t packetSize = (std::uint16_t)(PacketHeaderSize + payload.size());
+
+        outPacket.clear();
+        outPacket.reserve(packetSize);
+
+        WriteU16(outPacket, packetSize);    // 패킷 크기 적고
+        WriteU16(outPacket, (std::uint16_t)type);   // 패킷 종류 넣고
+        outPacket.insert(outPacket.end(), payload.begin(), payload.end());  // 헤더 뒷부분부터 payload로 채워넣기
+        
         return true;
     }
 }

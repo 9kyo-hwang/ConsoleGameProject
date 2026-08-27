@@ -97,12 +97,37 @@ bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> p
         return false;
     }
 
-    if (offset != payload.size())
+    // 읽은 크기가 페이로드 크기와 다르거나, 버전이 안맞으면 false
+    if (offset != payload.size() || version != ProtocolVersion)
     {
         return false;
     }
 
-    if (version != ProtocolVersion)
+    if (!session.Enter(_playerId++))
+    {
+        return false;
+    }
+
+    /*
+    * S2C_Enter 패킷을 보내자.
+    * 10바이트씩 끊어 보내면 아래 값이 확인됨
+    * 00 0A 00 65 00 01 00 00 00 01
+    * - 00 0A: 10 -> 패킷 전체 크기(헤더 4 + 페이로드 6)
+    * - 00 65: 101 -> PacketType::S2C_Enter
+    * - 00 01: 1 -> ProtocolVersion
+    * - 00 00 00 01: 1 -> 서버가 세션에 할당한 플레이어 ID
+    */
+    std::vector<Byte> enterPayload;
+    WriteU16(enterPayload, ProtocolVersion);
+    WriteU32(enterPayload, *session.GetPlayerId()); // 패킷 페이로드가 됨
+
+    std::vector<Byte> enterPacket;
+    if (!BuildPacket(PacketType::S2C_Enter, enterPayload, enterPacket))
+    {
+        return false;
+    }
+
+    if (!session.Send(std::move(enterPacket)))
     {
         return false;
     }
@@ -203,48 +228,62 @@ void Server::IOLoop()
             continue;
         }
 
-        // 상대방이 전송한 데이터가 0이면 접속 종료를 요청한 것
-        if (bytesTransferred == 0)
+        // case 1: Recv 이벤트 완료
+        if (overlapped == session->GetRecvOverlapped())
         {
-            std::cout << "Client Disconnected\n";
-            session->Close();
-            continue;
-        }
+            // 상대방이 전송한 데이터가 0이면 접속 종료를 요청한 것
+            if (bytesTransferred == 0)
+            {
+                std::cout << "Client Disconnected\n";
+                session->Close();
+                continue;
+            }
 
-        // 이건 무슨 검사지?
-        if (overlapped != session->GetRecvOverlapped())
-        {
-            session->Close();
-            continue;
-        }
-
-        if (!session->HandleRecv(bytesTransferred))
-        {
-            session->Close();
-            continue;
-        }
-
-        bool isValidSession = true;
-        Session::RecvdPacket packet;
-        while (session->TryPopRecvdPacket(packet))
-        {
-            if (!HandleClientPacket(*session, packet))
+            if (!session->HandleRecv(bytesTransferred))
             {
                 session->Close();
-                isValidSession = false;
-                break;
+                continue;
             }
-        }
 
-        if (!isValidSession)
-        {
+            bool isValidSession = true;
+            Session::RecvdPacket packet;
+            while (session->TryPopRecvdPacket(packet))
+            {
+                if (!HandleClientPacket(*session, packet))
+                {
+                    session->Close();
+                    isValidSession = false;
+                    break;
+                }
+            }
+
+            if (!isValidSession)
+            {
+                continue;
+            }
+
+            // 일단 수신 확인만 하자. 이후 WSASend로 echo
+            if (!_stopRequested && !session->PostRecv())
+            {
+                session->Close();
+            }
+
             continue;
         }
 
-        // 일단 수신 확인만 하자. 이후 WSASend로 echo
-        if (!_stopRequested && !session->PostRecv())
+        // case 2: Send 이벤트 완료
+        if (overlapped == session->GetSendOverlapped())
         {
-            session->Close();
+            // Send Completion에서 전송한 바이트 수가 0이라면 비정상 전송
+            if (!session->HandleSend(bytesTransferred))
+            {
+                session->Close();
+            }
+
+            continue;
         }
+
+        // 등록하지 않은 OVERLAPPED 완료 통지
+        session->Close();
     }
 }
