@@ -1,7 +1,6 @@
 ﻿#include "pch.h"
 #include "Server.h"
 #include <Sockets/Endpoint.h>
-#include <iostream>
 #include <chrono>
 
 using namespace Net;
@@ -75,6 +74,7 @@ bool Server::HandleClientPacket(Session& session, const Session::RecvdPacket& pa
     switch ((PacketType)packet.rawType)
     {
     case PacketType::C2S_Enter: return HandleEnter(session, payload);
+    case PacketType::C2S_Input: return HandleInput(session, payload);
     default: return false;
     }
 }
@@ -109,6 +109,13 @@ bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> p
         return false;
     }
 
+    // C2S_Enter 성공했으니 서버 월드에 입장시키자.
+    const std::uint32_t playerId = *session.GetPlayerId();
+    if (!_overworld.AddPlayer(playerId))
+    {
+        return false;
+    }
+
     /*
     * S2C_Enter 패킷을 보내자.
     * 10바이트씩 끊어 보내면 아래 값이 확인됨
@@ -135,6 +142,51 @@ bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> p
 
     std::cout << "C2S_Enter received\n";
     return true;
+}
+
+bool Server::HandleInput(Session& session, std::span<const Z1::Protocol::Byte> payload)
+{
+    // 입장하지 않은 플레이어
+    if (!session.IsEntered())
+    {
+        return false;
+    }
+
+    // uint32(시퀀스) + uint8(이동 방향) + uint8(공격 유무)
+    if (payload.size() != sizeof(std::uint32_t) + 2)
+    {
+        return false;
+    }
+
+    std::size_t offset = 0;
+    std::uint32_t sequence = 0;
+    std::uint8_t direction = 0, actionFlags = 0;
+
+    if (!ReadU32(payload, offset, sequence) || !ReadU8(payload, offset, direction) || !ReadU8(payload, offset, actionFlags))
+    {
+        return false;
+    }
+
+    // 4 + 1 + 1 읽었는데 offset이 payload 크기랑 다르면 문제
+    if (offset != payload.size())
+    {
+        return false;
+    }
+
+    // 0 ~ 4 의 값이 아니라면 문제
+    if (direction > (std::uint8_t)(MoveDirection::Right))
+    {
+        return false;
+    }
+
+    // [11111...0]이랑 & 했는데 0이 아니라면 flag로 2 이상의 값이 들어왔다는 뜻
+    if ((actionFlags & ~ValidInputActions) != 0)
+    {
+        return false;
+    }
+
+    const InputCommand input{ sequence, (MoveDirection)direction, actionFlags };
+    return _overworld.SetInput(*session.GetPlayerId(), input);
 }
 
 void Server::AcceptLoop()
@@ -267,7 +319,7 @@ void Server::IOLoop()
 
         if (!dequeueSuccess)
         {
-            session->Close();
+            CloseSession(*session);
             continue;
         }
 
@@ -278,13 +330,13 @@ void Server::IOLoop()
             if (bytesTransferred == 0)
             {
                 std::cout << "Client Disconnected\n";
-                session->Close();
+                CloseSession(*session);
                 continue;
             }
 
             if (!session->HandleRecv(bytesTransferred))
             {
-                session->Close();
+                CloseSession(*session);
                 continue;
             }
 
@@ -294,7 +346,7 @@ void Server::IOLoop()
             {
                 if (!HandleClientPacket(*session, packet))
                 {
-                    session->Close();
+                    CloseSession(*session);
                     isValidSession = false;
                     break;
                 }
@@ -308,7 +360,7 @@ void Server::IOLoop()
             // 일단 수신 확인만 하자. 이후 WSASend로 echo
             if (!_stopRequested && !session->PostRecv())
             {
-                session->Close();
+                CloseSession(*session);
             }
 
             continue;
@@ -320,15 +372,25 @@ void Server::IOLoop()
             // Send Completion에서 전송한 바이트 수가 0이라면 비정상 전송
             if (!session->HandleSend(bytesTransferred))
             {
-                session->Close();
+                CloseSession(*session);
             }
 
             continue;
         }
 
         // 등록하지 않은 OVERLAPPED 완료 통지
-        session->Close();
+        CloseSession(*session);
     }
+}
+
+void Server::CloseSession(Session& session)
+{
+    if (const auto playerId = session.GetPlayerId())
+    {
+        _overworld.RemovePlayer(*playerId);
+    }
+
+    session.Close();
 }
 
 // 서버 시뮬레이션 역할을 하는 Tick
@@ -336,4 +398,5 @@ void Server::IOLoop()
 void Server::Tick()
 {
     //std::cout << "Server::Tick(10ms)\n";
+    _overworld.Tick();
 }

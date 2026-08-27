@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 
 [CmdletBinding()]
 param(
@@ -104,6 +104,19 @@ try
     $hex = (@($header) + @($payload) | ForEach-Object { $_.ToString("X2") }) -join " "
     Write-Output "PASS: S2C_Enter received (playerId=$playerId)"
     Write-Output "Packet: $hex"
+
+    # C2S_Input:
+    # size=10, type=2, sequence=1, direction=Up(1), actions=0
+    [byte[]]$inputUp = 0x00, 0x0A, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00
+
+    # sequence=2, direction=None(0), actions=0
+    [byte[]]$inputStop = 0x00, 0x0A, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00
+
+    $stream.Write($inputUp, 0, $inputUp.Length)
+    Start-Sleep -Milliseconds 300
+
+    $stream.Write($inputStop, 0, $inputStop.Length)
+    Start-Sleep -Milliseconds 100
 }
 finally
 {

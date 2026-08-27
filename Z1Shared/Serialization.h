@@ -16,6 +16,12 @@ namespace Z1::Protocol
 {
     using Byte = std::uint8_t;
     
+    // 방향, flags 값은 1바이트라 변환 필요없으나, API 형태를 맞추기 위해 헬퍼 추가
+    inline void WriteU8(std::vector<Byte>& output, std::uint8_t value)
+    {
+        output.push_back(value);
+    }
+
     inline void WriteU16(std::vector<Byte>& output, std::uint16_t value)
     {
         const u_short netshort = ::htons((u_short)value);    // network big-endian
@@ -34,6 +40,17 @@ namespace Z1::Protocol
         output.resize(offset + sizeof(netlong));
 
         std::memcpy(output.data() + offset, &netlong, sizeof(netlong));
+    }
+
+    inline bool ReadU8(std::span<const Byte> input, std::size_t& offset, std::uint8_t& output)
+    {
+        if (offset >= input.size())
+        {
+            return false;
+        }
+
+        output = input[offset++];
+        return true;
     }
 
     inline bool ReadU16(std::span<const Byte> input, std::size_t& offset, std::uint16_t& output)

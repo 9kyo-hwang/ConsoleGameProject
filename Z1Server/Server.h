@@ -8,6 +8,7 @@
 #include <vector>
 #include <memory>
 #include <Session.h>
+#include <OverworldSimulation.h>
 
 class Server
 {
@@ -20,10 +21,13 @@ public:
 
     bool HandleClientPacket(Session& session, const Session::RecvdPacket& packet);
     bool HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> payload);
+    bool HandleInput(Session& session, std::span<const Z1::Protocol::Byte> payload);
 
 private:
     void AcceptLoop();  // 별도 스레드로 처리하기 위함(accept: blocking)
     void IOLoop();
+    void CloseSession(Session& session);
+
     void Tick();
 
 private:
@@ -39,4 +43,5 @@ private:
 
 private:    // IO Thread만 접근한다는 전제
     std::uint32_t _playerId = 1;
+    OverworldSimulation _overworld;
 };

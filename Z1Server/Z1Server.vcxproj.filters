@@ -6,6 +6,7 @@
     <ClCompile Include="Session.cpp" />
     <ClCompile Include="CompletionPort.cpp" />
     <ClCompile Include="Server.cpp" />
+    <ClCompile Include="OverworldSimulation.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -13,5 +14,6 @@
     <ClInclude Include="CompletionPort.h" />
     <ClInclude Include="SocketIO.h" />
     <ClInclude Include="Server.h" />
+    <ClInclude Include="OverworldSimulation.h" />
   </ItemGroup>
 </Project>
