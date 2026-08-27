@@ -24,6 +24,7 @@ public:
 private:
     void AcceptLoop();  // 별도 스레드로 처리하기 위함(accept: blocking)
     void IOLoop();
+    void Tick();
 
 private:
     Net::Socket _listener;

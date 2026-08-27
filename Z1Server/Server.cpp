@@ -2,6 +2,7 @@
 #include "Server.h"
 #include <Sockets/Endpoint.h>
 #include <iostream>
+#include <chrono>
 
 using namespace Net;
 
@@ -198,16 +199,57 @@ void Server::AcceptLoop()
 /// </summary>
 void Server::IOLoop()
 {
+    using namespace std::chrono;
+    using Clock = steady_clock;
+
+    constexpr auto TickInterval = milliseconds(100);    // tick 주기는 100ms(== 초당 10번: 10hz)
+    constexpr int MaxCatchupTicks = 5;  // 한 Tick Loop 안에서 과거 Tick을 최대 몇 번 보정할 지
+    auto nextTick = Clock::now() + TickInterval;    // 다음 Tick을 호출해야하는 시각
+
     while (true)
     {
+        const auto now = Clock::now();
+        int tickCount = 0;  // 이번 while 안에서 처리한 catch-up 틱 횟수
+        while (now >= nextTick && tickCount < MaxCatchupTicks)
+        {
+            // 일반적인 상황에선 1회만 수행되나, breakpoint 등으로 서버가 잠깐 멈추면 
+            // now가 이전에 설정한 nextTick보다 뒷 시간이 됨
+            // 그러면 그 간격만큼 Tick을 몰아서 실행하게 되는데
+            // 그 횟수의 상한이 MaxCatchupTick
+            Tick();
+            nextTick += TickInterval;
+            ++tickCount;
+        }
+
+        // 횟수 상한을 다 채웠는데도 이 상태라면(즉 너무 오래 멈췄다면) 강제로 시간 보정
+        if (now >= nextTick)
+        {
+            nextTick = now + TickInterval;
+        }
+
+        const auto remaining = nextTick - Clock::now();
+        const long long remainingMs = duration_cast<milliseconds>(remaining).count();
+        const DWORD timeoutMs = (DWORD)((remainingMs > 0 ? remainingMs : 1));
+
         DWORD bytesTransferred = 0;
         ULONG_PTR completionKey = 0;
         OVERLAPPED* overlapped = nullptr;
 
-        const BOOL completed = ::GetQueuedCompletionStatus(_completionPort, &bytesTransferred, &completionKey, &overlapped, INFINITE);
+        // 대기시간을 INFINITE로 넘기면 네트워크 이벤트가 올 때까지 영원히 sleep
+        // 따라서 다음 tick까지 남은 시간으로 변경
+        const BOOL dequeueSuccess = ::GetQueuedCompletionStatus(_completionPort, &bytesTransferred, &completionKey, &overlapped, timeoutMs);
+        const DWORD completionError = dequeueSuccess ? ERROR_SUCCESS : ::WSAGetLastError();
         
+        // 실패 원인이 TIMEOUT이라면?
+        if (!dequeueSuccess && completionError == WAIT_TIMEOUT)
+        {
+            // 무한 대기(INFINITE)가 아닌 Tick 간격만큼만 기다리도록 변경했으므로.
+            // 다음 While-loop 진입에서 Tick 실행 여부를 다시 판단한다.
+            continue;
+        }
+
         // 종료를 위해 Post~에서 completionKey에 nullptr을 넣었음
-        if (completionKey == 0 && overlapped == nullptr)
+        if (dequeueSuccess && completionKey == 0 && overlapped == nullptr)
         {
             break;
         }
@@ -222,7 +264,8 @@ void Server::IOLoop()
         // 각 세션은 accept 시 unique_ptr로 서버에서 관리하고,
         // 아직 vector에서 세션을 제거하는 로직이 없어 유효함
         Session* session = (Session*)completionKey;
-        if (!completed)
+
+        if (!dequeueSuccess)
         {
             session->Close();
             continue;
@@ -286,4 +329,11 @@ void Server::IOLoop()
         // 등록하지 않은 OVERLAPPED 완료 통지
         session->Close();
     }
+}
+
+// 서버 시뮬레이션 역할을 하는 Tick
+// 플레이어, 적, 투사체 상태 갱신
+void Server::Tick()
+{
+    //std::cout << "Server::Tick(10ms)\n";
 }
