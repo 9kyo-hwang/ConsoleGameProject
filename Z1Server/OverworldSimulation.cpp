@@ -1,6 +1,27 @@
 ﻿#include "pch.h"
 #include "OverworldSimulation.h"
 
+namespace
+{
+    constexpr std::int32_t PlayerMoveCellsPerTick = 1;
+    
+    // 클라쪽 크기를 일단 가져왔는데...
+    constexpr std::int32_t PlayerBoxWidth = 8;
+    constexpr std::int32_t PlayerBoxHeight = 5;
+    
+    constexpr std::int32_t TileCellWidth = 10;
+    constexpr std::int32_t TileCellHeight = 5;
+    
+    constexpr std::int32_t RoomTileWidth = 16;
+    constexpr std::int32_t RoomTileHeight = 11;
+    
+    constexpr std::int32_t OverworldRoomColumns = 16;
+    constexpr std::int32_t OverworldRoomRows = 8;
+
+    constexpr std::int32_t WorldWidth = OverworldRoomColumns * RoomTileWidth * TileCellWidth;
+    constexpr std::int32_t WorldHeight = OverworldRoomRows * RoomTileHeight * TileCellHeight;
+}
+
 /*
 * Tile: (10, 5) / Room: (16, 11)
 * StartRoom: (7, 7) / LocalSpawn: (7, 2)
@@ -55,10 +76,59 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
         << ", sequence=" << input.sequence
         << ", direction=" << (int)input.moveDirection
         << ", actions=" << (int)input.actionFlags
-        << "\n";
+        << ", position=" << player.x << ", " << player.y << ")\n";
     return true;
 }
 
 void OverworldSimulation::Tick()
 {
+    for (auto& [id, player] : _players)
+    {
+        if (player.dead)
+        {
+            continue;
+        }
+
+        const MoveDirection direction = player.latestInput.moveDirection;
+        if (direction == MoveDirection::None)
+        {
+            continue;
+        }
+
+        // 입력이 있으면 막히더라도 방향은 바뀜
+        player.facing = direction;
+
+        const MoveDelta delta = GetMoveDelta(direction);
+        for (std::int32_t step = 0; step < PlayerMoveCellsPerTick; ++step)
+        {
+            const std::int32_t candidateX = player.x + delta.x;
+            const std::int32_t candidateY = player.y + delta.y;
+
+            if (CanPlacePlayer(candidateX, candidateY))
+            {
+                player.x = candidateX;
+                player.y = candidateY;
+            }
+        }
+    }
+}
+
+bool OverworldSimulation::CanPlacePlayer(std::int32_t x, std::int32_t y)
+{
+    // 일단 OverworldMap 밖에 안나가는지 검사
+    return x >= 0 && y >= 0 && x + PlayerBoxWidth <= WorldWidth && y + PlayerBoxHeight <= WorldHeight;
+}
+
+MoveDelta OverworldSimulation::GetMoveDelta(Z1::Protocol::MoveDirection direction)
+{
+    switch (direction)
+    {
+    case MoveDirection::Up: return { 0, -1 };
+    case MoveDirection::Down: return { 0, 1 };
+    case MoveDirection::Left: return { -1, 0 };
+    case MoveDirection::Right: return { 1, 0 };
+    case MoveDirection::None: return { 0, 0 };
+    }
+
+    return {};
 }

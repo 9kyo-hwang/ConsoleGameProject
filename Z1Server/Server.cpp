@@ -254,7 +254,7 @@ void Server::IOLoop()
     using namespace std::chrono;
     using Clock = steady_clock;
 
-    constexpr auto TickInterval = milliseconds(100);    // tick 주기는 100ms(== 초당 10번: 10hz)
+    constexpr auto TickInterval = milliseconds(50);    // tick 주기는 50ms(== 초당 20번: 20hz)
     constexpr int MaxCatchupTicks = 5;  // 한 Tick Loop 안에서 과거 Tick을 최대 몇 번 보정할 지
     auto nextTick = Clock::now() + TickInterval;    // 다음 Tick을 호출해야하는 시각
 

@@ -3,6 +3,12 @@
 #include <optional>
 #include <unordered_map>
 
+struct MoveDelta
+{
+    std::int32_t x = 0;
+    std::int32_t y = 0;
+};
+
 // Z1의 OverworldMap에서 컨트롤하는 충돌 판정, Room, 적/투사체 등의 서버 버전
 class OverworldSimulation
 {
@@ -14,6 +20,11 @@ public:
     bool SetInput(std::uint32_t playerId, const Z1::Protocol::InputCommand& input);
 
     void Tick();
+
+private:
+    // 클라의 CanPlaceBox류 충돌맵 검사에 대응
+    bool CanPlacePlayer(std::int32_t x, std::int32_t y);
+    MoveDelta GetMoveDelta(Z1::Protocol::MoveDirection direction);
 
 private:
     struct ServerPlayerState
