@@ -19,6 +19,9 @@ public:
     // false: 플레이어 없음 / true: 입력 갱신(오래된 입력 무시)
     bool SetInput(std::uint32_t playerId, const Z1::Protocol::InputCommand& input);
 
+    // Session이나 packet을 모른 채, 현재 월드 상태를 Snapshot 용 값으로 복사해주는 API를 제공.
+    std::vector<SnapshotPlayerState> BuildPlayerSnapshot() const;
+
     void Tick();
 
 private:

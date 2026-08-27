@@ -54,6 +54,7 @@ private:
     std::vector<Z1::Protocol::Byte> _recvdData;         // 수신 완료 후 누적하는 데이터. TCP Framing에 사용
     std::deque<RecvdPacket> _recvdPackets;              // 수신 큐
 
+    inline static constexpr std::size_t MaxQueuedSendPackets = 64;
     OVERLAPPED _sendOverlapped{};
     WSABUF _sendBufferView{};
     

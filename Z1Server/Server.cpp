@@ -206,43 +206,11 @@ void Server::AcceptLoop()
             continue;
         }
 
-        /*
-        * 접속한 클라를 Session화 시켜서 컨테이너에 보관
-        * IOCP associate
-        * WSARecv 등록
-        */
-
-        // 대충 이런 형태가 되려나?
-        auto session = std::make_unique<Session>(std::move(client));    // Socket도 복사가 막혀있음
-        Session* sessionPtr = session.get();
-        _sessions.push_back(std::move(session));
-
-        // 
-        /*
-        * 연결된 클라를 IOCP 큐가 관찰하도록 Register. 
-        * 이때 CompletionKey를 Session*로 설정하여 IOCP Worker에서 해당 세션을 찾을 수 있게 함
-        * 이 Session 객체는 Heap에 있기 때문에, 해당 세션의 주소(Session*)가 바뀌지 않음
-        * 단, IOCP Completion이 있는 동안 Session을 Vector에서 erase 시키면 안됨
-        * ULONG_PTR을 중간에 거쳐야 하는가?
-        */
-        HANDLE clientHandle = (HANDLE)sessionPtr->GetNativeHandle();
-        HANDLE associatedPort = ::CreateIoCompletionPort(clientHandle, _completionPort, (ULONG_PTR)sessionPtr, 0);
-
-        // 등록 실패
-        if (associatedPort == nullptr)
+        // Accept 스레드는 수신 소켓 큐에 push만 하자.
         {
-            sessionPtr->Close();
-            continue;
+            std::lock_guard lock(_acceptMutex);
+            _acceptedSockets.push_back(std::move(client));
         }
-
-        // WSARecv 실패
-        if (!sessionPtr->PostRecv())
-        {
-            sessionPtr->Close();
-            continue;
-        }
-
-        std::cout << "Client Connected!\n";
     }
 }
 
@@ -260,6 +228,8 @@ void Server::IOLoop()
 
     while (true)
     {
+        ProcessAcceptedSockets();
+
         const auto now = Clock::now();
         int tickCount = 0;  // 이번 while 안에서 처리한 catch-up 틱 횟수
         while (now >= nextTick && tickCount < MaxCatchupTicks)
@@ -383,6 +353,59 @@ void Server::IOLoop()
     }
 }
 
+void Server::ProcessAcceptedSockets()
+{
+    // 수신 스레드에서 큐잉한 소켓들을 지역 변수 큐로 바꾼 뒤 Register 처리
+    // 왜 지역 변수로 옮기는가?
+    std::deque<Socket> acceptedSockets;
+    {
+        std::lock_guard lock(_acceptMutex);
+        acceptedSockets.swap(_acceptedSockets);
+    }
+
+    for (Socket& socket : acceptedSockets)
+    {
+        RegisterAcceptedSocket(std::move(socket));
+    }
+}
+
+/*
+* 접속한 클라를 Session화 시켜서 컨테이너에 보관
+* IOLoop 스레드가 이를 매 프레임 처음에 처리함
+*/
+bool Server::RegisterAcceptedSocket(Net::Socket&& clientSocket)
+{
+    auto clientSession = std::make_unique<Session>(std::move(clientSocket));
+    Session* clientSessionPtr = clientSession.get();
+    HANDLE clientHandle = (HANDLE)clientSessionPtr->GetNativeHandle();
+
+    /*
+    * 연결된 클라를 IOCP 큐가 관찰하도록 Register.
+    * 이때 CompletionKey를 Session*로 설정하여 IOCP Worker에서 해당 세션을 찾을 수 있게 함
+    * 이 Session 객체는 Heap에 있기 때문에, 해당 세션의 주소(Session*)가 바뀌지 않음
+    * 단, IOCP Completion이 있는 동안 Session을 Vector에서 erase 시키면 안됨
+    * ULONG_PTR을 중간에 거쳐야 하는가?
+    */
+
+    if (nullptr == ::CreateIoCompletionPort(clientHandle, _completionPort, (ULONG_PTR)clientSessionPtr, 0))
+    {
+        // 등록 실패
+        clientSessionPtr->Close();
+        return false;
+    }
+
+    if (!clientSessionPtr->PostRecv())
+    {
+        // WSARecv 실패
+        clientSessionPtr->Close();
+        return false;
+    }
+
+    _sessions.push_back(std::move(clientSession));
+    std::cout << "Client Connected!\n";
+    return true;
+}
+
 void Server::CloseSession(Session& session)
 {
     if (const auto playerId = session.GetPlayerId())
@@ -399,4 +422,56 @@ void Server::Tick()
 {
     //std::cout << "Server::Tick(10ms)\n";
     _overworld.Tick();
+    ++_serverTick;
+
+    BroadcastWorldSnapshot();
+}
+
+/// <summary>
+/// 1. BuildPlayerSnapshot() 호출
+/// 2. payload 직렬화
+/// 3. BuildPacket(S2C_WorldSnapshot, ...)
+/// 4. 현재 입장한 Session들의 송신 큐에 추가
+/// </summary>
+void Server::BroadcastWorldSnapshot()
+{
+    const auto players = _overworld.BuildPlayerSnapshot();
+
+    std::vector<Byte> payload;
+    WriteU32(payload, _serverTick); // 얜 뭘 넣는 거지?
+    WriteU16(payload, (std::uint16_t)players.size());
+
+    for (const SnapshotPlayerState& player : players)
+    {
+        WriteU32(payload, player.playerId);
+        Write32(payload, player.x);
+        Write32(payload, player.y);
+        WriteU8(payload, (std::uint8_t)player.facing);
+        Write32(payload, player.hp);
+        WriteU8(payload, player.flags);
+    }
+
+    WriteU16(payload, 0);   // 적 수
+    WriteU16(payload, 0);   // 투사체 수
+
+    std::vector<Byte> snapshotPacket;
+    if (!BuildPacket(PacketType::S2C_WorldSnapshot, payload, snapshotPacket))
+    {
+        return;
+    }
+
+    for (const std::unique_ptr<Session>& session : _sessions)
+    {
+        if (!session->IsEntered())
+        {
+            continue;
+        }
+
+        // 각자 별도의 패킷을 갖기 때문에 별도의 vector
+        // 최초 Send가 pending == true로 만들며 sendQueue의 패킷을 소비하기 때문에 복사
+        if (!session->Send(std::vector<Byte>(snapshotPacket)))
+        {
+            CloseSession(*session);
+        }
+    }
 }

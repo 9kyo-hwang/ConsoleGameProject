@@ -1,5 +1,6 @@
 ﻿#include "pch.h"
 #include "OverworldSimulation.h"
+#include <algorithm>
 
 namespace
 {
@@ -78,6 +79,40 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
         << ", actions=" << (int)input.actionFlags
         << ", position=" << player.x << ", " << player.y << ")\n";
     return true;
+}
+
+std::vector<SnapshotPlayerState> OverworldSimulation::BuildPlayerSnapshot() const
+{
+    std::vector<SnapshotPlayerState> result;
+    result.reserve(_players.size());
+
+    for (const auto& [id, player] : _players)
+    {
+        std::uint8_t flags = 0;
+
+        if (player.dead)
+        {
+            flags |= PlayerStateDead;
+        }
+
+        result.push_back(SnapshotPlayerState
+            {
+                .playerId = player.playerId,
+                .x = player.x,
+                .y = player.y,
+                .facing = player.facing,
+                .hp = player.hp,
+                .flags = flags
+            });
+    }
+
+    // 선택
+    std::sort(result.begin(), result.end(), [](const SnapshotPlayerState& lhs, const SnapshotPlayerState& rhs)
+        {
+            return lhs.playerId < rhs.playerId;
+        });
+    
+    return result;
 }
 
 void OverworldSimulation::Tick()

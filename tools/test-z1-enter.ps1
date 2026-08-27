@@ -6,6 +6,13 @@ param(
     [ValidateRange(1, 65535)]
     [int]$Port = 7777,
     [switch]$SplitSend,
+    [switch]$SendInput,
+    [ValidateSet("None", "Up", "Down", "Left", "Right")]
+    [string]$InputDirection = "Up",
+    [ValidateRange(0, 30000)]
+    [int]$HoldMilliseconds = 300,
+    [ValidateRange(0, 100)]
+    [int]$ReadSnapshots = 0,
     [ValidateRange(100, 30000)]
     [int]$TimeoutMs = 3000
 )
@@ -52,6 +59,141 @@ function Read-U32BigEndian
         [uint32]$Bytes[$Offset + 3]
 }
 
+function Read-I32BigEndian
+{
+    param([byte[]]$Bytes, [int]$Offset)
+
+    [byte[]]$littleEndian = @(
+        $Bytes[$Offset + 3],
+        $Bytes[$Offset + 2],
+        $Bytes[$Offset + 1],
+        $Bytes[$Offset]
+    )
+
+    return [System.BitConverter]::ToInt32($littleEndian, 0)
+}
+
+function Read-Packet
+{
+    param([Parameter(Mandatory)][System.IO.Stream]$Stream)
+
+    [byte[]]$header = Read-Exactly $Stream 4
+    $packetSize = Read-U16BigEndian $header 0
+    $packetType = Read-U16BigEndian $header 2
+
+    if ($packetSize -lt 4 -or $packetSize -gt 4096)
+    {
+        throw "Invalid packet size received from server: $packetSize"
+    }
+
+    [byte[]]$payload = Read-Exactly $Stream ($packetSize - 4)
+
+    return [pscustomobject]@{
+        Header = $header
+        PacketSize = $packetSize
+        PacketType = $packetType
+        Payload = $payload
+    }
+}
+
+function Get-U32BigEndianBytes
+{
+    param([Parameter(Mandatory)][uint32]$Value)
+
+    return [byte[]]@(
+        [byte]($Value -shr 24),
+        [byte]($Value -shr 16),
+        [byte]($Value -shr 8),
+        [byte]$Value
+    )
+}
+
+function Send-Input
+{
+    param(
+        [Parameter(Mandatory)][System.IO.Stream]$Stream,
+        [Parameter(Mandatory)][uint32]$Sequence,
+        [Parameter(Mandatory)][string]$Direction
+    )
+
+    $directions = @{ None = 0; Up = 1; Down = 2; Left = 3; Right = 4 }
+    [byte[]]$sequenceBytes = Get-U32BigEndianBytes $Sequence
+    [byte[]]$packet = @(
+        0x00, 0x0A, 0x00, 0x02,
+        $sequenceBytes[0], $sequenceBytes[1],
+        $sequenceBytes[2], $sequenceBytes[3],
+        [byte]$directions[$Direction], 0x00
+    )
+
+    $Stream.Write($packet, 0, $packet.Length)
+    Write-Output "Sent C2S_Input: sequence=$Sequence, direction=$Direction"
+}
+
+function Show-WorldSnapshot
+{
+    param([Parameter(Mandatory)][pscustomobject]$Packet)
+
+    if ($Packet.PacketType -ne 102)
+    {
+        throw "Expected S2C_WorldSnapshot=102, received packet type $($Packet.PacketType)."
+    }
+
+    [byte[]]$payload = $Packet.Payload
+    $offset = 0
+
+    if ($payload.Length -lt 10)
+    {
+        throw "WorldSnapshot payload is too small: $($payload.Length) bytes."
+    }
+
+    [uint32]$serverTick = Read-U32BigEndian $payload $offset
+    $offset += 4
+    $playerCount = Read-U16BigEndian $payload $offset
+    $offset += 2
+
+    Write-Output "Snapshot: tick=$serverTick, players=$playerCount"
+
+    for ($index = 0; $index -lt $playerCount; ++$index)
+    {
+        if ($payload.Length - $offset -lt 18)
+        {
+            throw "WorldSnapshot player[$index] is truncated."
+        }
+
+        [uint32]$playerId = Read-U32BigEndian $payload $offset
+        $offset += 4
+        $x = Read-I32BigEndian $payload $offset
+        $offset += 4
+        $y = Read-I32BigEndian $payload $offset
+        $offset += 4
+        $facing = $payload[$offset]
+        ++$offset
+        $hp = Read-I32BigEndian $payload $offset
+        $offset += 4
+        $flags = $payload[$offset]
+        ++$offset
+
+        Write-Output ("  Player: id={0}, position=({1}, {2}), facing={3}, hp={4}, flags={5}" -f $playerId, $x, $y, $facing, $hp, $flags)
+    }
+
+    if ($payload.Length - $offset -lt 4)
+    {
+        throw "WorldSnapshot enemy/projectile count is truncated."
+    }
+
+    $enemyCount = Read-U16BigEndian $payload $offset
+    $offset += 2
+    $projectileCount = Read-U16BigEndian $payload $offset
+    $offset += 2
+
+    if ($offset -ne $payload.Length)
+    {
+        throw "WorldSnapshot has unexpected trailing bytes: $($payload.Length - $offset)."
+    }
+
+    Write-Output "  Enemies=$enemyCount, Projectiles=$projectileCount"
+}
+
 $client = [System.Net.Sockets.TcpClient]::new()
 
 try
@@ -78,9 +220,10 @@ try
         $stream.Write($enterPacket, 0, $enterPacket.Length)
     }
 
-    [byte[]]$header = Read-Exactly $stream 4
-    $packetSize = Read-U16BigEndian $header 0
-    $packetType = Read-U16BigEndian $header 2
+    $enterResponse = Read-Packet $stream
+    [byte[]]$header = $enterResponse.Header
+    $packetSize = $enterResponse.PacketSize
+    $packetType = $enterResponse.PacketType
 
     if ($packetSize -ne 10)
     {
@@ -92,7 +235,7 @@ try
         throw "Unexpected packet type: $packetType (expected S2C_Enter=101)."
     }
 
-    [byte[]]$payload = Read-Exactly $stream ($packetSize - 4)
+    [byte[]]$payload = $enterResponse.Payload
     $version = Read-U16BigEndian $payload 0
     [uint32]$playerId = Read-U32BigEndian $payload 2
 
@@ -105,18 +248,22 @@ try
     Write-Output "PASS: S2C_Enter received (playerId=$playerId)"
     Write-Output "Packet: $hex"
 
-    # C2S_Input:
-    # size=10, type=2, sequence=1, direction=Up(1), actions=0
-    [byte[]]$inputUp = 0x00, 0x0A, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00
+    if ($SendInput)
+    {
+        Send-Input $stream 1 $InputDirection
 
-    # sequence=2, direction=None(0), actions=0
-    [byte[]]$inputStop = 0x00, 0x0A, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00
+        if ($InputDirection -ne "None" -and $HoldMilliseconds -gt 0)
+        {
+            Start-Sleep -Milliseconds $HoldMilliseconds
+            Send-Input $stream 2 "None"
+        }
+    }
 
-    $stream.Write($inputUp, 0, $inputUp.Length)
-    Start-Sleep -Milliseconds 300
-
-    $stream.Write($inputStop, 0, $inputStop.Length)
-    Start-Sleep -Milliseconds 100
+    for ($index = 0; $index -lt $ReadSnapshots; ++$index)
+    {
+        $snapshot = Read-Packet $stream
+        Show-WorldSnapshot $snapshot
+    }
 }
 finally
 {

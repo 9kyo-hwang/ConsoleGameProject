@@ -114,6 +114,14 @@ bool Session::Send(std::vector<Z1::Protocol::Byte>&& packet)
         return false;
     }
 
+    // WorldSnapshot 패킷이 매 Tick마다 뿌려지기 때문에,
+    // 읽지 않는 클라의 전송 큐에 무한히 쌓이지 않도록 방어
+    // Send에서 false가 반환되면 CloseSession -> 3.2초 이상 Send가 밀리면 세션 정리
+    if (_sendQueue.size() >= MaxQueuedSendPackets)
+    {
+        return false;
+    }
+
     _sendQueue.push_back(std::move(packet));
 
     if (_sendPending)

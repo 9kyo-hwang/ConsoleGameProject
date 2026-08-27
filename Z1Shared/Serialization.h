@@ -7,6 +7,7 @@
 #include <cstring>
 #include <span>
 #include <vector>
+#include <bit>
 
 #include <Z1Shared/Protocol.h>
 
@@ -40,6 +41,16 @@ namespace Z1::Protocol
         output.resize(offset + sizeof(netlong));
 
         std::memcpy(output.data() + offset, &netlong, sizeof(netlong));
+    }
+
+    inline void Write32(std::vector<Byte>& output, std::int32_t value)
+    {
+        // bit_cast<T>: 값-대-값으로 비트 패턴을 T 타입으로 재해석
+        // Trivially copyable(단순 복사 가능) 제약 조건 존재
+        // - memcpy 같은 메모리 블럭 단위 복사를 해도 안전한 것들
+        // - 즉 별도의 복사 생성자/소멸자/가상함수 등이 없고 바이트 단위 복사만으로 동일한 의미를 가짐
+        // 소스와 타겟 타입의 크기가 같아야 함
+        WriteU32(output, std::bit_cast<std::uint32_t>(value));
     }
 
     inline bool ReadU8(std::span<const Byte> input, std::size_t& offset, std::uint8_t& output)
@@ -84,6 +95,18 @@ namespace Z1::Protocol
         offset += sizeof(netlong);
         output = ::ntohl(netlong);    // pc little-endian
 
+        return true;
+    }
+
+    inline bool Read32(std::span<const Byte> input, std::size_t& offset, std::int32_t& output)
+    {
+        std::uint32_t raw = 0;
+        if (!ReadU32(input, offset, raw)) 
+        {
+            return false;
+        }
+
+        output = std::bit_cast<std::int32_t>(raw);
         return true;
     }
 
