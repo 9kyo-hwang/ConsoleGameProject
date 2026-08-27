@@ -5,6 +5,10 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
+  <Folder Name="/Z1Shared/">
+    <File Path="Z1Shared/Protocol.h" />
+    <File Path="Z1Shared/Serialization.h" />
+  </Folder>
   <Project Path="CraftEngine/CraftEngine.vcxproj" Id="9eafa265-5871-4026-82c3-5c9f46e089d0" />
   <Project Path="ShootingGame/ShootingGame.vcxproj" Id="4cd2787e-9f5e-4d39-93b3-df37a2ea0036">
     <BuildDependency Project="CraftEngine/CraftEngine.vcxproj" />

@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <Sockets/Socket.h>
 
-#include <Windows.h>    // WinSock2 헤더보다 먼저 포함되면 안됨!
+//#include <Windows.h>    // WinSock2 헤더보다 먼저 포함되면 안됨!
 #include <thread>
 #include <atomic>
 #include <vector>
@@ -17,6 +17,9 @@ public:
     bool Start(std::uint16_t port);
     void WaitForShutdown();
     void Stop();
+
+    bool HandleClientPacket(Session& session, const Session::RecvdPacket& packet);
+    bool HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> payload);
 
 private:
     void AcceptLoop();  // 별도 스레드로 처리하기 위함(accept: blocking)

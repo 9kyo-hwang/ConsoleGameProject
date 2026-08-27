@@ -67,6 +67,50 @@ void Server::Stop()
     }
 }
 
+// 수신 패킷의 타입을 보고 타입 별 핸들 함수를 호출하는 역할
+bool Server::HandleClientPacket(Session& session, const Session::RecvdPacket& packet)
+{
+    std::span<const Byte> payload(packet.payload.data(), packet.payload.size());
+    switch ((PacketType)packet.rawType)
+    {
+    case PacketType::C2S_Enter: return HandleEnter(session, payload);
+    default: return false;
+    }
+}
+
+// C2S_Enter 패킷 처리 함수
+bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> payload)
+{
+    // 1. payload 크기가 sizeof(uint16_t)인지
+    // 2. protocol version이 ProtocolVersion인지
+
+    if (payload.size() != sizeof(std::uint16_t))
+    {
+        return false;
+    }
+
+    std::size_t offset = 0;
+    std::uint16_t version = 0;
+
+    if (!ReadU16(payload, offset, version))
+    {
+        return false;
+    }
+
+    if (offset != payload.size())
+    {
+        return false;
+    }
+
+    if (version != ProtocolVersion)
+    {
+        return false;
+    }
+
+    std::cout << "C2S_Enter received\n";
+    return true;
+}
+
 void Server::AcceptLoop()
 {
     while (!_stopRequested)
@@ -143,7 +187,15 @@ void Server::IOLoop()
             break;
         }
 
+        // 예상치 못한 completion 방어
+        if (completionKey == 0 || overlapped == nullptr)
+        {
+            break;
+        }
+
         // completionKey를 Session*로 넘겼었음!
+        // 각 세션은 accept 시 unique_ptr로 서버에서 관리하고,
+        // 아직 vector에서 세션을 제거하는 로직이 없어 유효함
         Session* session = (Session*)completionKey;
         if (!completed)
         {
@@ -154,6 +206,7 @@ void Server::IOLoop()
         // 상대방이 전송한 데이터가 0이면 접속 종료를 요청한 것
         if (bytesTransferred == 0)
         {
+            std::cout << "Client Disconnected\n";
             session->Close();
             continue;
         }
@@ -162,6 +215,29 @@ void Server::IOLoop()
         if (overlapped != session->GetRecvOverlapped())
         {
             session->Close();
+            continue;
+        }
+
+        if (!session->HandleRecv(bytesTransferred))
+        {
+            session->Close();
+            continue;
+        }
+
+        bool isValidSession = true;
+        Session::RecvdPacket packet;
+        while (session->TryPopRecvdPacket(packet))
+        {
+            if (!HandleClientPacket(*session, packet))
+            {
+                session->Close();
+                isValidSession = false;
+                break;
+            }
+        }
+
+        if (!isValidSession)
+        {
             continue;
         }
 
