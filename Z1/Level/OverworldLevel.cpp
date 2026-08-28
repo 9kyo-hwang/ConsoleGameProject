@@ -122,7 +122,13 @@ void OverworldLevel::BeginPlay()
 
 void OverworldLevel::Tick(float deltaTime)
 {
+    Game& game = dynamic_cast<Game&>(Engine::Get());
+    game.PumpNetwork(); // OverworldLevel에서, 메인 스레드가 네트워크 큐를 소비하도록
+    // 이후 Player/MyPlayer 위치 설정할 때 Actor::Tick 보다 먼저 서버 확정 상태를 반영할 수 있음
+
     Level::Tick(deltaTime);
+
+    // 싱글플레이 로직
 
     // TODO: 나중에 PlayerContoller 같은 걸로 다 이관시켜야 하나?
     if (!_player) return;

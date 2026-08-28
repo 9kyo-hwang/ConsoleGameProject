@@ -8,7 +8,9 @@
 #include <Level/CaveLevel.h>
 #include <Level/DungeonLevel.h>
 #include <Actor/Player.h>
-#include <algorithm>
+#include <Sockets/Endpoint.h>
+
+using namespace Net;
 
 Game::Game()
 {
@@ -28,6 +30,8 @@ Game::Game()
 void Game::StartNewGame()
 {
     ResetPlayerState();
+
+    ConnectToServer();  // 일단 Overworld 로 제한했으니, 게임 세션 시작할 때 서버 연결도 한 번 시도하자.
 
     _levels[(int)State::Overworld] = std::make_shared<OverworldLevel>();
     _levels[(int)State::SwordCave] = std::make_shared<CaveLevel>();
@@ -55,6 +59,67 @@ void Game::LoadPlayerState(Player& player) const
     {
         player.EquipSword();
     }
+}
+
+bool Game::ConnectToServer()
+{
+    if (_network.IsConnected())
+    {
+        return true;
+    }
+
+    Endpoint endpoint = Endpoint::Loopback(7777);
+    if (!_network.Start(endpoint))
+    {
+        std::cout << "Failed to connect Z1Server: "
+            << _network.GetLastError()
+            << "\n";
+
+        // TODO: 연결 실패 시 싱글 플레이로 돌아가도록 하기?
+        return false;
+    }
+
+    return true;
+}
+
+// Only MainThread
+void Game::PumpNetwork()
+{
+    IncomingMessage message;
+    while (_network.TryPopIncomingMessage(message))
+    {
+        std::visit([this](const auto& received)
+            {
+                using T = std::decay_t<decltype(received)>; // 참조, const, volatile 한정자를 제거하고 순수 값타입으로 바꾸는 역할
+
+                if constexpr (std::is_same_v<T, EnterMessage>)
+                {
+                    _localPlayerId = received.playerId;
+
+                    std::cout << "Conneced as player " << received.playerId << "\n";
+                }
+                else if constexpr (std::is_same_v<T, WorldSnapshot>)
+                {
+                    _latestSnapshot = received;
+
+                    std::cout << "Snapshot: tick="
+                        << received.serverTick
+                        << ", players="
+                        << received.players.size()
+                        << "\n";
+                }
+            }, message);
+    }
+}
+
+std::optional<std::uint32_t> Game::GetLocalPlayerId() const
+{
+    return _localPlayerId;
+}
+
+const std::optional<WorldSnapshot>& Game::GetLatestSnapshot() const
+{
+    return _latestSnapshot;
 }
 
 void Game::ChangeLevel(State state)
