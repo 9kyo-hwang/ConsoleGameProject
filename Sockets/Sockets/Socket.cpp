@@ -58,6 +58,16 @@ namespace Net
         return false;
     }
 
+    bool Socket::SetNoDelay(bool isNoDelay)
+    {
+        if (!IsValid())
+        {
+            return false;
+        }
+
+        return SetSocketOption(TCP_NODELAY, isNoDelay ? TRUE : FALSE);
+    }
+
     bool Socket::Bind(const Endpoint& addr)
     {
         if (!IsValid() || !addr.IsValid())
@@ -90,6 +100,21 @@ namespace Net
         return false;
     }
 
+    // true + bytesRead > 0: 수신 성공
+    // true + bytesRead == 0: 상대방 연결 정상 종료(bufferSize > 0인 경우)
+    // false: GetLastError()
+    bool Socket::Recv(void* data, std::int32_t bufferSize, std::int32_t& bytesRead)
+    {
+        bytesRead = ::recv(_handle, (char*)data, bufferSize, 0);
+        if (bytesRead >= 0)
+        {
+            return true;
+        }
+
+        _error = ::WSAGetLastError();
+        return false;
+    }
+
     Socket Socket::Accept(Endpoint* outAddr)
     {
         if (!IsValid())
@@ -97,21 +122,21 @@ namespace Net
             return Socket();
         }
 
-        SOCKADDR_IN clientaddr{};
-        int addrlen = sizeof(clientaddr);
+        SOCKADDR_IN peeraddr{};
+        int addrlen = sizeof(peeraddr);
 
-        const SOCKET clientHandle = ::accept(_handle, (SOCKADDR*)&clientaddr, &addrlen);
-        if (clientHandle == INVALID_SOCKET)
+        const SOCKET peerHandle = ::accept(_handle, (SOCKADDR*)&peeraddr, &addrlen);
+        if (peerHandle == INVALID_SOCKET)
         {
             return Socket();
         }
 
         if (outAddr)
         {
-            *outAddr = Endpoint(clientaddr);
+            *outAddr = Endpoint(peeraddr);
         }
 
-        return Socket(clientHandle);
+        return Socket(peerHandle);
     }
 
     bool Socket::Connect(const Endpoint& endpoint)
@@ -139,10 +164,24 @@ namespace Net
         }
     }
 
-    SOCKET Socket::Release()
+    SOCKET Socket::ReleaseNativeSocket()
     {
         SOCKET released = _handle;
         _handle = INVALID_SOCKET;
         return released;
+    }
+
+    // true + bytesSent > 0: 일부 또는 전체 전송 성공
+    // false: GetLastError 확인(WSAEWOULDBLOCK이면 넌블록킹 소켓이 처리 불가한 상태. 에러가 아니라 다음 select. 그 외에는 에러)
+    bool Socket::Send(const void* data, std::int32_t count, std::int32_t& bytesSent)
+    {
+        bytesSent = ::send(_handle, (const char*)data, count, 0);
+        if (bytesSent > 0)
+        {
+            return true;
+        }
+
+        _error = ::WSAGetLastError();
+        return false;
     }
 }

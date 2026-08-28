@@ -193,7 +193,7 @@ bool Session::PostSend()
     const int result = ::WSASend(_socket.GetNativeHandle(), &_sendBufferView, 1, &bytesSent, 0, &_sendOverlapped, nullptr);
 
     // 성공했더라도 Completion 기준으로 완료 처리 해야하므로, 전송 큐 pop 하면 안됨!
-    if (result == 0 || _socket.GetLastError() == WSA_IO_PENDING)
+    if (result == 0 || ::WSAGetLastError() == WSA_IO_PENDING)
     {
         _sendPending = true;
         return true;

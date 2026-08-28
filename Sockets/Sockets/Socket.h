@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "Export.h"
 #include <WinSock2.h>
+#include <cstdint>
 
 namespace Net
 {
@@ -25,13 +26,29 @@ namespace Net
 
         bool IsValid() const;
         bool SetNonBlocking(bool isNonBlocking);    // select 모델 사용 시 필요
-        
-        bool Bind(const Endpoint& addr);
-        bool Listen(int maxBacklog = SOMAXCONN);       // Bind를 성공한 상태에서 client를 받을 상태로 전환
+        bool SetNoDelay(bool isNoDelay);
+
         Socket Accept(Endpoint* outAddr = nullptr);    // Listen 상태에서 새 클라이언트 접속 시, 그와 통신하는 socket 반환
+        bool Bind(const Endpoint& addr);
         bool Connect(const Endpoint& endpoint);
         void Close();
-        SOCKET Release();
+        bool Listen(int maxBacklog = SOMAXCONN);       // Bind를 성공한 상태에서 client를 받을 상태로 전환
+        bool Recv(void* data, std::int32_t bufferSize, std::int32_t& bytesRead);
+        SOCKET ReleaseNativeSocket();
+        bool Send(const void* data, std::int32_t count, std::int32_t& bytesSent);
+
+    private:
+        template<typename T>
+        bool SetSocketOption(std::int32_t optionName, T optionValue, std::int32_t level = IPPROTO_TCP)
+        {
+            if (::setsockopt(_handle, level, optionName, (const char*)&optionValue, sizeof(T)) == 0)
+            {
+                return true;
+            }
+
+            _error = ::WSAGetLastError();
+            return false;
+        }
 
     private:
         SOCKET _handle;
