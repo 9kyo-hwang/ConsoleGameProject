@@ -260,7 +260,7 @@ void Server::IOLoop()
         // 대기시간을 INFINITE로 넘기면 네트워크 이벤트가 올 때까지 영원히 sleep
         // 따라서 다음 tick까지 남은 시간으로 변경
         const BOOL dequeueSuccess = ::GetQueuedCompletionStatus(_completionPort, &bytesTransferred, &completionKey, &overlapped, timeoutMs);
-        const DWORD completionError = dequeueSuccess ? ERROR_SUCCESS : ::WSAGetLastError();
+        const DWORD completionError = dequeueSuccess ? ERROR_SUCCESS : ::GetLastError();
         
         // 실패 원인이 TIMEOUT이라면?
         if (!dequeueSuccess && completionError == WAIT_TIMEOUT)

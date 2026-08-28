@@ -11,9 +11,9 @@
 - 서버 권위형 시뮬레이션으로 옮기는 순서
 - 첫 구현에서 의도적으로 제외할 기능과 확장 조건
 
-이 문서는 목표 설계와 실제 진행 상태를 함께 기록한다. 설계상 `SocketAPI` 경계의 실제 프로젝트 이름은 현재 `Sockets`이며, 네트워크 Z1 클라이언트는 아직 구현하지 않았다. 구현 도중 계약이 달라지면 코드와 이 문서를 같은 변경에서 갱신한다.
+이 문서는 목표 설계와 실제 진행 상태를 함께 기록한다. 설계상 `SocketAPI` 경계의 실제 프로젝트 이름은 현재 `Sockets`이다. Z1에는 `select` 기반 `NetworkClient` transport와 연결 HUD까지 구현되어 있으나, 입력 전송과 복제 Actor 표현은 아직 구현하지 않았다. 구현 도중 계약이 달라지면 코드와 이 문서를 같은 변경에서 갱신한다.
 
-## 현재 구현 진행 상황 (2026-08-27)
+## 현재 구현 진행 상황 (2026-08-28)
 
 이 절은 목표 구조가 아니라 현재 작업 트리와 실제 확인 결과를 기준으로 한다. 다음 에이전트나 모델은 이 절과 코드의 차이가 있으면 코드를 우선 확인하고, 작업을 이어갈 때 이 절을 갱신한다.
 
@@ -24,8 +24,8 @@
 - `Sockets`에는 `Net::Runtime`, `Net::Endpoint`, 이동 전용 `Net::Socket`이 있다.
   - `Runtime`: 프로세스의 `WSAStartup`/`WSACleanup` 수명 관리
   - `Endpoint`: 공개 API에서 `SOCKADDR_IN`을 숨기고 `Any`, `Loopback`, IPv4 파싱 제공
-  - `Socket`: `CreateTcp`, `Bind`, `Listen`, `Accept`, `Connect`, `SetNonBlocking`, `Close`, `Release`와 유효성·이동 의미 제공
-- 현재 `Sockets`는 필요한 WinSock 링크(`Ws2_32.lib`)를 갖는다. 추가 `getsockopt`/`setsockopt` 추상화는 아직 넣지 않았고, 실제 요구가 생길 때 추가한다.
+  - `Socket`: `CreateTcp`, `Bind`, `Listen`, `Accept`, `Connect`, `SetNonBlocking`, `SetNoDelay`, `Send`, `Recv`, `Close`, `ReleaseNativeSocket`와 유효성·이동 의미 제공
+- `Sockets`는 필요한 WinSock 링크(`Ws2_32.lib`)를 갖는다. `SetNoDelay`은 내부의 최소 `setsockopt` helper로 제공하며, 일반 `getsockopt`/`setsockopt` 공개 API는 아직 필요하지 않다.
 - `Z1Server` 콘솔 프로젝트를 추가하고 `Sockets`와 WinSock에 링크했다. `Server`가 listen socket과 raw IOCP `HANDLE`을 직접 소유하는 최소 구조이며, IOCP를 `SocketAPI` 공개 API로 올리지는 않았다.
 - `Z1Shared/Protocol.h`, `Z1Shared/Serialization.h`를 실제 공유 헤더 디렉터리로 추가했다. 고정 길이 정수는 network byte order(`htons`/`htonl`, `ntohs`/`ntohl`)로 직렬화하며, raw struct/`bool` 메모리를 그대로 전송하지 않는다.
 - `Server::Start`는 TCP socket 생성 → `Bind` → `Listen` → completion port 생성 순으로 동작하고, blocking `AcceptLoop`와 IOCP `IOLoop`을 각각 스레드로 시작한다.
@@ -74,6 +74,20 @@
   - `-SendInput [-InputDirection Up|Down|Left|Right|None] [-HoldMilliseconds N]`: 입력과 정지 입력 전송
   - `-ReadSnapshots N`: Snapshot N개를 파싱해 Player/Enemy/Projectile count와 Player 상태 출력
 
+### 현재 구현된 Z1 클라이언트 transport
+
+- `Z1`은 `Sockets` DLL/lib와 `Z1Shared` 헤더를 참조하고, 실행 파일 옆에 `Sockets.dll`을 staging한다. Z1 PCH는 `Windows.h`보다 먼저 `WinSock2.h`를 포함해 WinSock 재정의 충돌을 막는다.
+- `NetworkClient`는 `Game`의 직접 멤버이며 `Net::Runtime`과 단일 TCP socket을 소유한다. `Game::StartNewGame`은 현재 개발용 loopback `127.0.0.1:7777`에 접속을 한 번 시도한다. 서버가 없으면 접속만 실패하고 기존 싱글플레이 흐름은 계속된다.
+- 연결 성공 뒤 `NetworkClient`는 `TCP_NODELAY`와 non-blocking을 설정하고, protocol version만 담은 `C2S_Enter`를 outgoing queue에 넣은 뒤 network thread를 시작한다.
+- network thread는 `select`(50ms timeout)로 read/write readiness를 기다린다.
+  - 게임 main thread는 직렬화된 packet만 mutex 보호 outgoing queue에 넣는다.
+  - network thread는 이를 전용 pending-send queue로 옮기고 partial send offset을 유지해 `Send`한다.
+  - 수신 byte는 누적 buffer에서 `[size][type][payload]` framing을 거쳐 `S2C_Enter`와 `S2C_WorldSnapshot`으로 역직렬화한다.
+  - 역직렬화한 `EnterMessage`/`WorldSnapshot`은 mutex 보호 incoming queue로만 넘긴다. 두 queue의 현재 상한은 각 64 packet/message다.
+- `NetworkClient::Stop`은 종료 요청 후 network thread를 join한다. socket close와 `_connected = false` 전환은 network thread가 loop를 빠져나오는 한 곳에서 수행하므로 main thread와 socket handle을 동시에 조작하지 않는다.
+- `OverworldLevel::Tick`의 시작에서 main thread가 `Game::PumpNetwork`으로 incoming queue를 비운다. 현재는 Enter의 `playerId`와 최신 `WorldSnapshot`만 `Game`에 저장하며 Actor/Transform을 직접 갱신하지 않는다.
+- `OverworldLevel::Draw`는 기존 Renderer HUD 경로로 연결 상태를 표시한다. 표시 순서는 `[OFFLINE]` → `[Connecting...]` → `[ONLINE] Player <id>` → `[ONLINE] Player <id> Tick <tick> Num <count>`이다. network thread는 Renderer를 호출하지 않는다.
+
 ### 실제 확인 결과
 
 - Enter packet을 한 번에 보내거나 header/body를 나누어 보내도 서버가 `Client Connected! → C2S_Enter received → Client Disconnected` 순으로 처리했다.
@@ -81,10 +95,11 @@
 - `Up(sequence=1) → 300ms 유지 → None(sequence=2)` 입력에서 서버가 입력을 저장하고 Player y가 `395 → 388`로 이동한 것을 확인했다. 이 차이는 50ms tick 간격 동안 7회 실행된 결과다.
 - Snapshot 수신에서 새 Player의 기본 상태 `position=(1190,395)`, `facing=Up(1)`, `hp=20`, `flags=0`, `Enemies=0`, `Projectiles=0`을 확인했다.
 - PowerShell dummy client 두 개를 겹쳐 실행해 양쪽 snapshot에 `playerId=1,2`, `players=2`가 기록되고, 두 번째 연결 종료 뒤 남은 클라이언트 snapshot이 `players=1`로 돌아오는 것을 확인했다.
+- 실제 Z1과 Z1Server를 함께 실행해 서버의 `Client Connected!`, `C2S_Enter received` 로그와 Z1 Overworld HUD의 `[ONLINE] Player 1 Tick 640 Num 1` 표시를 확인했다. 즉 실제 EXE에서도 connect → Enter → snapshot 수신 → main-thread HUD 반영 경로가 동작한다.
 
 ### 7일 플랜 기준 현재 위치
 
-일주일 범위를 확정한 `25c3733` 이후 오늘 다음 여섯 기능 커밋으로 서버 payload vertical slice를 연결했다.
+일주일 범위를 확정한 `25c3733` 이후 서버 payload vertical slice를 만든 뒤, 8월 28일 다음 네 커밋으로 실제 Z1 transport와 HUD 확인까지 연결했다.
 
 ```text
 72bff3c  recv 누적 buffer와 TCP framing
@@ -93,6 +108,10 @@
 d53f8a0  C2S_Input과 ServerPlayerState
 925304a  서버 권위형 Player 이동
 d42e0a9  S2C_WorldSnapshot과 accepted socket queue
+33de0e1  Socket Send/Recv와 TCP_NODELAY
+8528b22  Z1 select 기반 NetworkClient
+948f40f  Game의 NetworkClient 소유와 main-thread queue 소비
+7bc882f  실제 Z1 접속 smoke test와 HUD
 ```
 
 현재 진척은 기능 축에 따라 다음처럼 판단한다. 수치는 일정 관리를 위한 대략적인 값이며 완료 판정은 각 묶음의 실제 완료 기준을 우선한다.
@@ -101,14 +120,16 @@ d42e0a9  S2C_WorldSnapshot과 accepted socket queue
 | --- | --- | ---: |
 | Socket payload 경로 | framing, Enter 왕복, partial send, send queue, 다중 dummy client 확인 완료. 안전한 종료 drain과 Session 제거 미완료 | 80~85% |
 | 서버 OverworldSimulation | Player 상태·입력·기본 이동·Snapshot 완료. blocking map, Room, Enemy, Projectile, 전투 미완료 | 20~25% |
-| Z1 NetworkClient와 Actor 표현 | 실제 클라이언트 transport와 replicated Actor 모두 미착수 | 0% |
-| 통합·검증 | PowerShell 다중 클라이언트 검증만 완료. 실제 Z1 두 개 통합은 미착수 | 5~10% |
+| Z1 NetworkClient와 Actor 표현 | select transport, Enter/Snapshot parsing, thread queue, Game 저장, HUD 확인 완료. 입력 송신과 replicated Actor는 미착수 | 40~45% |
+| 통합·검증 | PowerShell 다중 client와 실제 Z1 1개 접속·HUD를 확인. 실제 Z1 2개와 위치 표현 검증은 미착수 | 15~20% |
 
-전체 MVP의 관찰 가능한 기능 기준으로는 약 25~30% 지점이다. 서버만 보면 단계 4의 Player 이동/Snapshot 절반까지 왔지만, end-to-end 기준으로는 단계 2를 거의 마치고 단계 3의 실제 Z1 클라이언트 연결에 진입하는 시점이다. 남은 일정의 큰 작업은 클라이언트 표현, Overworld collision/Room, Enemy/Projectile과 전투다.
+전체 MVP의 관찰 가능한 기능 기준으로는 약 35~40% 지점이다. 서버 기준으로는 단계 4의 이동/Snapshot 기반을 만들었고, end-to-end 기준으로도 단계 3의 transport·HUD 확인까지 끝났다. 다음 병목은 C2S input 전송과 서버 snapshot을 표현 Actor에 반영하는 경로이며, 그 뒤 Overworld collision/Room, Enemy/Projectile과 전투가 남는다.
 
 ### 남아 있는 제약과 다음 재개 지점
 
-- Z1은 아직 `Sockets`를 링크하거나 `Z1Shared` protocol header를 실제 코드에서 사용하지 않는다. `NetworkClient`, select thread, incoming/outgoing queue, `NetworkPlayer`, `MyPlayer`가 없고 PowerShell dummy client만 서버와 통신한다.
+- Z1 transport는 연결·Enter·Snapshot 수신까지만 사용한다. 기존 로컬 `Player`와 Overworld의 입력·이동·공격·적 AI는 그대로 실행되며 `C2S_Input`을 보내지 않는다. 따라서 현재 HUD의 snapshot 좌표는 화면 Player에 반영되지 않는다.
+- `NetworkPlayer`, `MyPlayer`, playerId→Actor map은 아직 없다. snapshot에 새 Player가 나타나거나 사라져도 Z1 Actor를 만들거나 제거하지 않는다.
+- `NetworkClient`의 incoming queue가 가득 차면 현재는 연결을 끊는다. snapshot을 최신 하나로 합치는 정책은 실제 복제 표현이 동작한 뒤 필요할 때만 추가한다.
 - Snapshot의 Enemy/Projectile 배열은 예약된 빈 배열이며, 공격 flag는 입력 검증만 한다. 공격·피격·HP 변화·사망·Enemy/Projectile simulation은 아직 없다.
 - 서버 이동은 전체 Map 사각형 경계만 검사한다. `OverworldCollisionMap`의 blocking tile, Room 판정과 Room lifecycle은 아직 없다.
 - `Session`은 닫힌 뒤 `_sessions` vector에서 아직 제거하지 않고 `playerId`도 유지한다. 따라서 이후 snapshot broadcast가 닫힌 entered Session에 다시 `Send`를 시도하고 `CloseSession`을 반복할 수 있으며, 장시간 실행하면 registry가 계속 커진다.
@@ -116,8 +137,8 @@ d42e0a9  S2C_WorldSnapshot과 accepted socket queue
 - `CompletionPort.h/.cpp`는 빈 stub이고 사용하지 않는다. 현재 `Server`가 raw completion-port `HANDLE`을 직접 소유한다.
 - `S2C_Disconnect`는 packet type만 선언했고 아직 보내지 않는다.
 - 계약에 적은 `MaxPlayers`, `MaxEnemies`, `MaxProjectiles`와 snapshot count 상한은 아직 구현하지 않았다. 현재 Player count는 `players.size()`를 `uint16_t`로 변환한다.
-- 네트워크 작업 전 Z1, SokobanGame, ShootingGame의 Debug|x64 빌드·실행 기준선은 확인했지만, 오늘 프로젝트 설정과 서버 코드를 반영한 뒤 세 게임 전체를 다시 회귀 확인한 기록은 아직 없다.
-- 다음 재개 단위는 **Z1 클라이언트 transport**다. `Game` 소유 `NetworkClient`를 추가해 `Sockets`로 접속하고, 별도 select thread가 `S2C_Enter`/`S2C_WorldSnapshot`을 framing·역직렬화하여 incoming queue에 넣는다. Z1 메인 thread가 그 queue를 소비해 이후 `NetworkPlayer`/`MyPlayer` 표현을 만들도록 한다.
+- 네트워크 작업 전 Z1, SokobanGame, ShootingGame의 Debug|x64 빌드·실행 기준선은 확인했다. 8월 28일 변경 뒤에는 Z1Server+Z1 실제 접속 smoke test를 확인했으나, 세 게임 전체 회귀 빌드·실행 기록은 아직 없다.
+- 다음 재개 단위는 **C2S_Input 전송**이다. `NetworkClient`에 main thread용 input packet 생성 API를 추가하고, local Player의 방향/공격 input을 sequence와 함께 queue에 넣는다. 우선 서버 콘솔과 dummy client snapshot에서 서버 Player 위치가 변하는지 확인한 뒤 `MyPlayer`/`NetworkPlayer` 표현으로 진행한다.
 
 ## 일주일 MVP 합의 범위 (2026-08-27)
 
@@ -518,7 +539,7 @@ flowchart LR
 - Accept thread에서 ServerLoop로 accepted socket을 넘기는 queue 하나
 - queue는 `std::mutex`와 `std::deque`로 구현
 
-`ServerLoop`는 다음 simulation tick까지 남은 시간을 `GetQueuedCompletionStatus` timeout으로 사용한다. completion이 계속 들어와도 매 반복에서 tick 시각을 확인하며, 늦어진 경우에도 한 번에 최대 3 Tick까지만 수행한다. accepted socket은 ServerLoop가 Session으로 만들고 IOCP에 연결한 뒤 recv를 등록한다. Accept thread는 `_sessions`와 게임 월드를 직접 변경하지 않는다.
+`ServerLoop`는 다음 simulation tick까지 남은 시간을 `GetQueuedCompletionStatus` timeout으로 사용한다. completion이 계속 들어와도 매 반복에서 tick 시각을 확인하며, 늦어진 경우에도 한 번에 최대 5 Tick까지만 수행한다. accepted socket은 ServerLoop가 Session으로 만들고 IOCP에 연결한 뒤 recv를 등록한다. Accept thread는 `_sessions`와 게임 월드를 직접 변경하지 않는다.
 
 접속자 수나 프로파일링 결과가 요구하기 전에는 `AcceptEx`, worker pool, lock-free queue를 추가하지 않는다.
 
@@ -613,6 +634,132 @@ Header 확인 가능
 이 방식은 전송 순서를 보존하면서 Session 내부 동기화를 단순하게 유지한다.
 
 전송 중인 byte buffer는 completion 전까지 immutable하게 유지한다. 모든 클라이언트가 동일한 전체 snapshot을 받으므로 snapshot은 tick마다 한 번만 직렬화하고 여러 Session이 같은 immutable buffer를 참조할 수 있다. Session별 queued byte에는 상한을 두고, 상한을 넘긴 느린 Session은 연결을 종료한다. MVP에서는 전송 중 snapshot 교체나 delta 병합 정책을 만들지 않는다.
+
+### 후속 학습: 고접속·고처리량 확장과 별도 고가용성
+
+이 절은 일주일 MVP의 구현 범위를 넓히지 않는 **후속 학습 경로**다. 먼저 용어를 구분한다.
+
+- **고접속/고처리량**: 한 서버 프로세스가 많은 socket completion과 게임 update를 처리하는 능력이다. IOCP worker, interest management, 월드 분할이 주 대상이다.
+- **고가용성**: 프로세스·노드·배포 실패 뒤에도 서비스가 계속 접속을 받거나 복구되는 능력이다. 다중 프로세스/노드, 재접속, 상태 저장과 운영이 주 대상이다.
+
+현재 Z1Server는 비동기 `WSARecv`/`WSASend`를 쓰지만, completion 처리와 20Hz simulation을 단일 `IOLoop`가 함께 소유한다. 따라서 thread-per-client는 아니나, packet handler·월드 tick·매 tick 전체 snapshot broadcast가 모두 한 CPU core의 시간 안에 들어가야 하는 MVP 구조다. 접속자가 늘면 전체 Session 순회와 packet 복사, 느린 Session의 send queue, 단일 thread의 simulation 시간이 차례로 병목이 된다.
+
+```text
+현재 MVP
+
+Accept thread ── accepted socket queue ──> 단일 ServerLoop
+                                           ├─ IOCP completion
+                                           ├─ packet handler
+                                           ├─ 20Hz simulation
+                                           └─ 모든 Session에 snapshot
+
+후속 고접속 구조
+
+AcceptEx ──> IOCP worker pool ──> inbound command queue ──> Simulation owner
+                  │                                                │
+                  └──────── Session send queue <── snapshot/event ┘
+```
+
+#### 0. worker pool 이전의 안전한 Session 수명
+
+worker 수를 늘리기 전에 현재 단일 loop에서도 다음을 완료해야 한다.
+
+- `Active → Closing → Closed` 상태를 명시하고 `CloseSession`을 idempotent하게 만든다.
+- recv/send를 등록할 때 outstanding operation 수를 증가시키고, 성공·실패·0-byte completion 모두에서 정확히 감소시킨다.
+- closing 뒤에는 새 recv/send를 등록하지 않는다. socket을 close한 뒤 이미 등록된 completion을 모두 drain하고 outstanding이 0일 때만 registry에서 Session을 제거한다.
+- Session별 수신 누적 byte, 완성 packet queue, 송신 packet/byte queue의 상한과 초과 정책을 둔다.
+- 서버 종료는 listener 종료, accept 중지, 모든 Session closing, completion drain, worker join, completion port close 순서로 수행한다.
+
+이 단계는 성능 최적화가 아니라 use-after-free, 중복 Player 제거, memory growth를 막기 위한 전제다. `Session*` completion key를 유지하려면 completion이 남아 있는 동안 그 주소의 Session을 절대 파괴하지 않는다는 계약이 특히 중요하다.
+
+#### 1. 고접속 I/O: AcceptEx와 IOCP worker pool
+
+접속 burst 또는 단일 `IOLoop`의 completion 처리 시간이 실제 병목으로 측정되면, blocking accept thread를 `AcceptEx` 기반 listener로 바꾼다.
+
+- listener socket과 accepted socket을 IOCP에 등록한다.
+- `AcceptEx`용 `IocpEvent`를 여러 개 미리 post한다. 완료 하나를 처리할 때마다 다음 accept를 즉시 post해 연결 대기 빈틈을 없앤다.
+- accepted socket에는 `SO_UPDATE_ACCEPT_CONTEXT`를 설정한 뒤 peer address를 확정하고 첫 recv를 등록한다.
+- socket은 `WSASocket(..., WSA_FLAG_OVERLAPPED)`로 만든다.
+
+worker는 CPU core 수와 프로파일링을 기준으로 소수만 만든다. 각 worker는 보통 `GetQueuedCompletionStatus(..., INFINITE)`로 sleep하다 completion 하나를 받아 처리한다. `timeout = 0` polling은 게임 main loop가 매 반복 update를 실행해야 할 때는 쓸 수 있지만, 전용 I/O worker에서는 idle busy-spin이 되므로 사용하지 않는다. simulation tick을 위해 worker timeout을 계산하지도 않는다.
+
+Rookiss의 `IocpEvent` 방식은 이 단계에서 유용한 참고다. completion key를 0으로 두고, `OVERLAPPED*`를 `IocpEvent*`로 되돌려 event의 `type`과 `owner`로 `Session` 또는 `Listener`를 dispatch한다. 반대로 현재처럼 `completionKey = Session*`과 Session 멤버 recv/send operation을 유지해도 된다. 둘 중 하나를 일관되게 선택하면 되며, 단일 Z1 서버에 `Service`/범용 `IocpObject` 계층까지 반드시 가져올 필요는 없다.
+
+참고 중인 Rookiss의 `ServerCore`는 여러 thread가 같은 IOCP에서 completion을 dispatch할 수 있는 구조를 제공한다. 다만 현재 `Server` 실행 예제 자체는 한 thread에서 `Dispatch(0)`과 `GameRoom::Update()`를 함께 호출한다. 다중 worker는 `ServerCore`가 제공하는 확장 가능성과 `DummyClient`의 사용 예를 참고하되, 현재 `Server` 예제가 이미 다중 worker 서버라고 해석하지 않는다.
+
+#### 2. I/O와 권위형 simulation 분리
+
+여러 IOCP worker가 `OverworldSimulation`을 직접 동시에 변경하면 lock 경합, 이벤트 순서 역전, 같은 Actor를 두 번 갱신하는 문제가 생긴다. worker pool을 도입한 뒤의 기본 경계는 다음과 같다.
+
+```text
+IOCP worker
+  → framing, packet 크기·범위 검증
+  → Session/playerId에 연결된 InputCommand를 inbound queue에 기록
+
+단일 Simulation thread
+  → tick 시작 시 inbound queue를 정해진 순서로 소비
+  → 모든 Player/Enemy/Projectile 판정
+  → snapshot 또는 event 생성
+
+단일 Simulation thread
+  → thread-safe Session::QueueSend에 완성된 immutable byte buffer를 전달
+
+임의의 IOCP worker
+  → send completion에서 partial send와 다음 packet 전송을 진행
+```
+
+- simulation은 처음에는 계속 단일 writer다. 여러 client 사이의 전역 도착 순서를 재구성하지 않고, tick 시작까지 도착한 command를 소비한다.
+- Session당 outstanding `WSARecv`는 하나만 유지한다. 완료된 recv의 누적 buffer를 packet 순서대로 끝까지 파싱한 뒤 다음 recv를 등록한다. `inputSequence`는 같은 Session의 중복·역행 입력을 거부하는 검증값으로 사용한다. 나중에 recv를 여러 개 동시에 post하려면 별도의 per-Session 직렬화 또는 재정렬 규약이 필요하므로 초기 확장 범위에서는 하지 않는다.
+- IO worker와 simulation 사이 queue는 처음에는 mutex 보호 MPSC queue로 충분하다. lock-free queue는 contention 측정 뒤에만 검토한다.
+- simulation이 만든 snapshot은 `shared_ptr<const PacketBuffer>` 같은 immutable 전송 단위로 공유할 수 있다. send queue는 특정 worker가 아니라 Session이 소유하며, 각 Session은 자기 offset과 queue 상태만 보관한다.
+- Session당 outstanding `WSASend`도 하나만 유지한다. `QueueSend`는 어느 producer thread에서 호출해도 안전해야 하고, send completion을 받은 임의의 worker가 partial send와 다음 packet 전송을 이어 간다.
+- 같은 Session의 recv와 send completion은 서로 다른 worker에서 동시에 실행될 수 있다. 따라서 `sendQueue`, `isSending`, `closeState`, outstanding operation 수 같은 transport 상태는 처음에는 Session 내부 mutex로 보호한다. per-Session strand나 lock-free 구조는 실제 lock contention이 측정된 뒤에만 검토한다.
+- simulation thread는 socket API를 직접 호출하지 않고, IO worker도 Actor/Room 상태를 직접 만지지 않는다.
+
+#### 3. 트래픽 제어와 관심 영역
+
+고접속에서 먼저 터지는 것은 recv completion 수보다 outbound snapshot 대역폭인 경우가 많다. “모든 객체를 모든 클라이언트에게 20Hz로 전송”하는 현재 MVP 방식을 다음 순서로 축소한다.
+
+1. Player의 Room·시야 범위·instance를 기준으로 관심 객체만 선택한다.
+2. 전체 상태 대신 spawn/despawn와 변경된 상태만 보내는 delta snapshot을 도입한다.
+3. 느린 Session에는 오래된 snapshot을 계속 쌓지 않고, 아직 전송을 시작하지 않은 최신 snapshot으로 교체한다. 중요한 이벤트(사망·획득·전환)는 별도 순서 보장 queue로 둔다.
+4. Session별 queued byte, 입력 빈도, malformed packet에 rate limit을 적용하고, 초과 peer는 disconnect한다.
+5. bandwidth, packet rate, queue depth, tick duration, completion latency를 측정·로그화해 추측이 아니라 수치로 병목을 찾는다.
+
+클라이언트 예측, 보간, UDP 분리는 이 단계와 독립된 사용자 경험/전송 정책이다. TCP snapshot이 실제로 head-of-line blocking 또는 지연 문제를 보일 때만 별도로 판단한다.
+
+#### 4. 월드 병렬화와 shard
+
+단일 simulation thread가 실제 CPU 병목이 된 뒤에만 월드를 소유권 단위로 나눈다.
+
+- 가장 작은 분할 단위는 독립 Room, Dungeon instance, 또는 Map shard다.
+- 각 shard는 한 simulation owner thread만 변경한다. 이것은 Room마다 thread를 하나씩 만든다는 뜻이 아니다. 고정된 소수의 owner thread가 여러 shard를 나눠 소유하고, 다른 shard로의 이동, global chat, party처럼 경계를 넘는 일은 공유 상태를 직접 잠그지 않고 message queue로 전달한다.
+- Player와 Enemy/Projectile은 어느 tick에 어느 shard가 소유하는지 명확해야 한다. Room 전환은 source가 제거하고 target이 추가하는 명시적 transfer로 처리한다.
+- 모든 Actor에 lock을 두는 방식은 피한다. 작은 Z1 월드에서는 lock 비용과 디버깅 비용이 분할 이익보다 크다.
+
+#### 5. 프로세스·노드 수준 고가용성
+
+단일 프로세스의 worker pool은 고처리량을 높일 뿐, process crash나 배포 중단을 해결하지 않는다. 서비스 가용성까지 학습하려면 별도 단계가 필요하다.
+
+- process supervisor와 health check로 비정상 종료를 감지·재시작한다.
+- listener를 drain mode로 전환해 새 접속을 다른 프로세스로 보내고, 기존 Session은 제한 시간 동안 종료한다.
+- gateway/login과 game-world process를 분리하고, gateway는 접속을 특정 world/instance에 sticky하게 라우팅한다.
+- Player 영속 상태와 world 변경을 DB 또는 durable event log에 기록한다. snapshot은 복제용이지 crash 복구용 저장본이 아니다.
+- client에는 재접속 token과 서버 발급 player/session identity를 두고, 재접속 후 authoritative snapshot으로 복구한다.
+- 노드가 여러 개가 된 뒤에만 load balancer, world shard 배치, standby/failover, session migration을 검토한다. 실시간 전투 중 session migration은 난도가 높으므로 초기 목표로 두지 않는다.
+
+#### 도입 판단 순서
+
+| 관측된 문제 | 먼저 할 변경 | 아직 하지 않을 것 |
+| --- | --- | --- |
+| disconnect 뒤 Session/Player가 남음, 종료 중 crash | closing/outstanding drain과 registry 제거 | worker pool |
+| 접속 burst에서 accept 지연 | 다중 pending `AcceptEx` | 월드 shard |
+| completion 처리만으로 한 core가 포화 | `INFINITE` 대기 IOCP worker pool과 단일 simulation owner 분리 | worker의 월드 직접 변경 |
+| tick 시간이 예산을 넘김 | simulation 분리와 profiling | 모든 Actor lock |
+| 송신 queue·대역폭이 증가 | interest management, delta, slow-client 정책 | 무조건 UDP 전환 |
+| process/host failure가 서비스 중단 | supervisor, 재접속, persistence, 다중 process | 즉시 session migration |
+
+MVP가 이 구조로 리팩터링될 필요는 없다. `Input → replicated Player → 전투`를 먼저 끝내고, 위 표의 관측값이 실제로 나타나는 시점에 해당 단계만 선택한다.
 
 ## 서버 권위형 시뮬레이션
 
@@ -914,18 +1061,18 @@ CraftEngine
 
 ### 단계 3: Z1 프로토콜과 클라이언트 연결
 
-현재 상태: 공유 protocol과 서버 측 handler/serializer는 구현했지만, Z1 클라이언트 transport는 아직 시작하지 않았다.
+현재 상태: `Z1Shared` protocol/serializer와 `Sockets` 참조를 Z1에 연결했고, `Game` 소유 `NetworkClient`가 `select` network thread·incoming/outgoing queue·framing을 구현했다. 실제 Z1에서 `C2S_Enter`, `S2C_Enter`, `S2C_WorldSnapshot` 수신과 HUD 표시까지 확인했다. `Stop`은 thread join 뒤 socket을 network thread에서 닫도록 했지만, 재접속 정책과 종료 시나리오의 반복 검증은 아직 남아 있다.
 
 - `C2S_Enter`/`S2C_Enter`와 protocol version
 - Z1 `Game`이 소유하는 `NetworkClient`
 - `select` 기반 network thread와 incoming/outgoing queue
 - HUD 또는 로그에 연결 상태와 playerId 표시
 
-완료 기준: Z1을 종료하거나 Overworld 실행을 끝내도 네트워크 thread와 socket 수명이 안전하다.
+완료 기준: Z1을 종료하거나 Overworld 실행을 끝내도 네트워크 thread와 socket 수명이 안전하고, server disconnect 뒤 HUD가 offline으로 전환되는 것을 확인한다.
 
 ### 단계 4: 두 플레이어 이동 vertical slice
 
-현재 상태: 서버 측 PlayerState, 20Hz Tick, 입력 저장, 전체 Map 사각형 경계 이동, 전체 Player Snapshot broadcast까지 구현했다. Z1 클라이언트 입력 전송과 replicated Actor 표현은 아직 없다.
+현재 상태: 서버 측 PlayerState, 20Hz Tick, 입력 저장, 전체 Map 사각형 경계 이동, 전체 Player Snapshot broadcast와 Z1의 snapshot 수신까지 구현했다. Z1 클라이언트 입력 전송과 replicated Actor 표현은 아직 없다.
 
 - 서버 PlayerState와 20Hz 고정 Tick
 - 클라이언트 방향 입력 전송
@@ -1043,12 +1190,11 @@ CraftEngine
 
 ## 다음 구현 단위
 
-다음 재개 작업은 Z1 클라이언트 transport의 최소 골격이다.
+다음 재개 작업은 **Z1에서 `C2S_Input`을 보내는 최소 경로**다. transport의 수신 경로는 이미 있으므로 이 단계에서 아직 Actor 계층을 바꾸지 않는다.
 
-1. `Z1` 프로젝트가 `Sockets` DLL과 `Z1Shared` 헤더를 참조하도록 build/include/staging을 설정한다.
-2. `Game`이 소유하는 `NetworkClient`를 만들고, 연결/해제와 select 기반 network thread를 구현한다. 네트워크 thread는 CraftEngine Actor/Level을 직접 만지지 않는다.
-3. 클라이언트 recv 누적 buffer에서 동일한 header framing을 수행하고 `S2C_Enter`, `S2C_WorldSnapshot`을 역직렬화한다.
-4. 역직렬화 결과를 mutex 보호 incoming queue에 넣고, Z1 메인 thread가 `Game` 또는 네트워크 Overworld 경로의 Tick에서 이를 소비한다.
-5. 우선 HUD/로그로 `localPlayerId`, snapshot tick, Player 목록 수신을 확인한다. `NetworkPlayer`/`MyPlayer` Actor 생성과 입력 전송은 transport 수신 확인 뒤에 연결한다.
+1. `NetworkClient`에 main thread용 `SendInput` 또는 `QueueInput` API를 추가한다. API 내부에서 `InputCommand{sequence, moveDirection, actionFlags}`를 payload로 직렬화하고, 기존 `QueuePacket`에 `C2S_Input` packet을 넣는다. socket은 network thread만 계속 소유한다.
+2. local Player의 현재 방향과 공격 눌림을 main thread에서 읽고, 마지막으로 전송한 값과 다를 때만 증가하는 sequence와 함께 위 API를 호출한다. 방향이 멈춘 순간에도 `MoveDirection::None` packet을 한 번 보내 서버의 마지막 입력을 해제한다.
+3. 첫 검증에서는 기존 local Player의 화면 이동을 바꾸지 않는다. 서버 콘솔의 `C2S_Input` 로그와 PowerShell dummy client 또는 HUD snapshot의 server Player 좌표가 움직이는지만 확인한다.
+4. input 전송이 확인되면 `MyPlayer`와 `NetworkPlayer`를 도입한다. `MyPlayer`만 input을 전송하고, 모든 Player 표현의 Transform은 main thread에서 받은 서버 snapshot으로 갱신한다. 이때 기존 로컬 Player의 이동·충돌·공격 경로를 네트워크 모드에서 분리한다.
 
-이 다음 구현 단위에서도 기존 싱글플레이 `Player`, Enemy, Overworld Level 로직을 네트워크 스레드에서 재사용하거나 변경하지 않는다. 서버의 blocking map/Room/전투와 안전한 Session 종료 수명은 이후 별도 단계로 남는다.
+이 다음 구현 단위에서도 network thread는 기존 싱글플레이 `Player`, Enemy, Overworld Level을 직접 재사용하거나 변경하지 않는다. 서버의 blocking map/Room/전투와 안전한 Session 종료 수명은 이후 별도 단계로 남는다.
