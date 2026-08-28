@@ -59,15 +59,15 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(SolutionDir);..\Includes\CraftEngine;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);..\Includes\CraftEngine;..\Includes\Sockets;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>..\Libraries\CraftEngine\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>CraftEngine.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\Libraries\CraftEngine\$(Configuration)\;..\Libraries\Sockets\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>CraftEngine.lib;Sockets.lib;Ws2_32.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
@@ -76,8 +76,9 @@
       <Command>xcopy ..\Content\* $(OutDir)..\Content\ /e /y /i</Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir)\ /e /y /i
-xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y /i</Command>
+      <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir) /e /y /i
+xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir) /e /y /i
+xcopy ..\Libraries\Sockets\$(Configuration)\Sockets.dll $(OutDir) /e /y /i</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -90,15 +91,15 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(SolutionDir);..\Includes\CraftEngine;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);..\Includes\CraftEngine;..\Includes\Sockets;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>..\Libraries\CraftEngine\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>CraftEngine.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\Libraries\CraftEngine\$(Configuration)\;..\Libraries\Sockets\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>CraftEngine.lib;Sockets.lib;Ws2_32.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
@@ -107,13 +108,15 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
       <Command>xcopy ..\Content\* $(OutDir)..\Content\ /e /y /i</Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir)\ /e /y /i
-xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y /i</Command>
+      <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir) /e /y /i
+xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir) /e /y /i
+xcopy ..\Libraries\Sockets\$(Configuration)\Sockets.dll $(OutDir) /e /y /i</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Actor\Enemy.cpp" />
     <ClCompile Include="Actor\SwordSprite.cpp" />
+    <ClCompile Include="Network\NetworkClient.cpp" />
     <ClCompile Include="World\CaveMap.cpp" />
     <ClCompile Include="Component\CellStepComponent.cpp" />
     <ClCompile Include="Actor\Aquamentus.cpp" />
@@ -145,6 +148,7 @@ xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir)\ /e /y
   <ItemGroup>
     <ClInclude Include="Actor\Enemy.h" />
     <ClInclude Include="Actor\SwordSprite.h" />
+    <ClInclude Include="Network\NetworkClient.h" />
     <ClInclude Include="World\CaveMap.h" />
     <ClInclude Include="Component\CellStepComponent.h" />
     <ClInclude Include="Actor\Aquamentus.h" />

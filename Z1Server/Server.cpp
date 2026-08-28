@@ -438,7 +438,7 @@ void Server::BroadcastWorldSnapshot()
     const auto players = _overworld.BuildPlayerSnapshot();
 
     std::vector<Byte> payload;
-    WriteU32(payload, _serverTick); // 얜 뭘 넣는 거지?
+    WriteU32(payload, _serverTick);
     WriteU16(payload, (std::uint16_t)players.size());
 
     for (const SnapshotPlayerState& player : players)

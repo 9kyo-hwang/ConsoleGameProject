@@ -6,9 +6,9 @@ namespace Z1::Protocol
 {
     enum class PacketType : std::uint16_t
     {
-        C2S_Enter = 1,
+        C2S_Enter = 1,              // [size:uint16][type:uint16][version:uint16]
         C2S_Input = 2,
-        S2C_Enter = 101,
+        S2C_Enter = 101,            // [size:uint16][type:uint16][version:uint16][id:uint32]
         S2C_WorldSnapshot = 102,
         S2C_Disconnect = 103
     };
