@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 namespace Z1::Protocol
 {
@@ -16,6 +17,12 @@ namespace Z1::Protocol
     inline constexpr std::uint16_t ProtocolVersion = 1;
     inline constexpr std::size_t PacketHeaderSize = 4;
     inline constexpr std::uint16_t MaxPacketSize = 4096;
+
+    struct PacketHeader
+    {
+        std::uint16_t size = 0; // header를 포함한 전체 패킷 크기
+        std::uint16_t type = 0; // raw type. PacketType 유효성 검사는 서버/클라 핸들러 또는 codec 함수에서.
+    };
 
     // 헤더 구조: [size(uint16): 헤더 포함 전체 크기][type(uint16): 패킷 종류][payload..]
 
@@ -63,5 +70,11 @@ namespace Z1::Protocol
         MoveDirection facing = MoveDirection::Up;
         std::int32_t hp = 0;
         std::uint8_t flags = 0;
+    };
+
+    struct WorldSnapshot
+    {
+        std::uint32_t serverTick = 0;   // 확인용
+        std::vector<Z1::Protocol::SnapshotPlayerState> players;
     };
 }

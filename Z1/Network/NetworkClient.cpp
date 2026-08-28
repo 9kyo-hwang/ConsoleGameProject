@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "NetworkClient.h"
 #include <array>
+#include <Z1Shared/PacketCodec.h>
 
 using namespace Z1::Protocol;
 using namespace Net;
@@ -82,11 +83,8 @@ bool NetworkClient::Start(const Net::Endpoint& endpoint)
     }
 
     // C2S_Enter packet 생성: 서버 접속 성공 시(S2C_Enter) id가 발급됨
-    std::vector<Byte> payload;
-    WriteU16(payload, ProtocolVersion);
-
     std::vector<Byte> packet;
-    if (!BuildPacket(PacketType::C2S_Enter, payload, packet))
+    if (!BuildPacket_C2SEnter(packet))
     {
         return false;
     }
@@ -389,17 +387,8 @@ bool NetworkClient::HandleEnter(std::span<const Byte> payload)
         return false;
     }
 
-    std::size_t offset = 0;
-    std::uint16_t version = 0;
     std::uint32_t playerId = 0;
-
-    if (!ReadU16(payload, offset, version) || !ReadU32(payload, offset, playerId))
-    {
-        return false;
-    }
-
-    // 읽은 크기가 페이로드 크기와 다르거나, 버전이 안맞거나, playerId가 1 이상이 아니면 false
-    if (offset != payload.size() || version != ProtocolVersion || playerId == 0)
+    if (!ParsePayload_S2CEnter(payload, playerId))
     {
         return false;
     }
@@ -410,75 +399,7 @@ bool NetworkClient::HandleEnter(std::span<const Byte> payload)
 bool NetworkClient::HandleWorldSnapshot(std::span<const Byte> payload)
 {
     WorldSnapshot snapshot;
-    std::size_t offset = 0;
-
-    // payload로 서버 틱 + 플레이어 수 + [id, x, y, facing, hp, flags] 반복 + 적 수 + 투사체 수
-    std::uint16_t playerCount = 0;
-    if (!ReadU32(payload, offset, snapshot.serverTick) || !ReadU16(payload, offset, playerCount))
-    {
-        return false;
-    }
-
-    constexpr std::size_t playerArrayWidth 
-        = sizeof(std::uint32_t) // id 
-        + sizeof(std::int32_t)  // x
-        + sizeof(std::int32_t)  // y
-        + sizeof(std::uint8_t)  // facing
-        + sizeof(std::int32_t)  // hp
-        + sizeof(std::uint8_t); // flags
-
-    constexpr std::size_t enemyProjectileCountWidth
-        = sizeof(std::uint16_t)     // numEnemy
-        + sizeof(std::uint16_t);    // numProjectile
-
-    // 현재 offset: payload 시작 위치
-    if (offset > payload.size() || payload.size() - offset < enemyProjectileCountWidth)
-    {
-        return false;
-    }
-
-    const std::size_t playerBytes = payload.size() - offset - enemyProjectileCountWidth;
-    if (playerCount > playerBytes / playerArrayWidth)
-    {
-        return false;
-    }
-
-    snapshot.players.reserve(playerCount);
-    for (std::uint16_t i = 0; i < playerCount; ++i)
-    {
-        SnapshotPlayerState player;
-        
-        std::uint8_t facing = 0;
-        if (!ReadU32(payload, offset, player.playerId) ||
-            !Read32(payload, offset, player.x) ||
-            !Read32(payload, offset, player.y) ||
-            !ReadU8(payload, offset, facing) ||
-            !Read32(payload, offset, player.hp) ||
-            !ReadU8(payload, offset, player.flags))
-        {
-            return false;
-        }
-
-        if (facing > (std::uint8_t)MoveDirection::Right ||
-            (player.flags & ~(PlayerStateDead | PlayerStateAttacking)) != 0)
-        {
-            return false;
-        }
-
-        player.facing = (MoveDirection)facing;
-        snapshot.players.push_back(player);
-    }
-
-    std::uint16_t enemyCount = 0;
-    std::uint16_t projectileCount = 0;
-
-    if (!ReadU16(payload, offset, enemyCount) || !ReadU16(payload, offset, projectileCount))
-    {
-        return false;
-    }
-
-    // 지금은 0, 0만 넘어오므로 
-    if (offset != payload.size() || enemyCount != 0 || projectileCount != 0)
+    if (!ParsePayload_S2CWorldSnapshot(payload, snapshot)) 
     {
         return false;
     }

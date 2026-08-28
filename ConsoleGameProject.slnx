@@ -6,6 +6,8 @@
     <File Path=".editorconfig" />
   </Folder>
   <Folder Name="/Z1Shared/">
+    <File Path="Z1Shared/PacketCodec.h" />
+    <File Path="Z1Shared/PacketFramer.h" />
     <File Path="Z1Shared/Protocol.h" />
     <File Path="Z1Shared/Serialization.h" />
   </Folder>

@@ -19,12 +19,9 @@ struct EnterMessage
     std::uint32_t playerId = 0;
 };
 
-struct WorldSnapshot
-{
-    std::uint32_t serverTick = 0;   // 확인용
-    std::vector<Z1::Protocol::SnapshotPlayerState> players;
-};
 
+
+using WorldSnapshot = Z1::Protocol::WorldSnapshot;
 using IncomingMessage = std::variant<EnterMessage, WorldSnapshot>;
 
 /// <summary>

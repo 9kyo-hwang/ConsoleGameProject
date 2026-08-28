@@ -2,6 +2,7 @@
 #include "Server.h"
 #include <Sockets/Endpoint.h>
 #include <chrono>
+#include <Z1Shared/PacketCodec.h>
 
 using namespace Net;
 
@@ -90,20 +91,6 @@ bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> p
         return false;
     }
 
-    std::size_t offset = 0;
-    std::uint16_t version = 0;
-
-    if (!ReadU16(payload, offset, version))
-    {
-        return false;
-    }
-
-    // 읽은 크기가 페이로드 크기와 다르거나, 버전이 안맞으면 false
-    if (offset != payload.size() || version != ProtocolVersion)
-    {
-        return false;
-    }
-
     if (!session.Enter(_playerId++))
     {
         return false;
@@ -125,12 +112,9 @@ bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> p
     * - 00 01: 1 -> ProtocolVersion
     * - 00 00 00 01: 1 -> 서버가 세션에 할당한 플레이어 ID
     */
-    std::vector<Byte> enterPayload;
-    WriteU16(enterPayload, ProtocolVersion);
-    WriteU32(enterPayload, *session.GetPlayerId()); // 패킷 페이로드가 됨
 
     std::vector<Byte> enterPacket;
-    if (!BuildPacket(PacketType::S2C_Enter, enterPayload, enterPacket))
+    if (!BuildPacket_S2CEnter(playerId, enterPacket))
     {
         return false;
     }
@@ -158,34 +142,12 @@ bool Server::HandleInput(Session& session, std::span<const Z1::Protocol::Byte> p
         return false;
     }
 
-    std::size_t offset = 0;
-    std::uint32_t sequence = 0;
-    std::uint8_t direction = 0, actionFlags = 0;
-
-    if (!ReadU32(payload, offset, sequence) || !ReadU8(payload, offset, direction) || !ReadU8(payload, offset, actionFlags))
+    InputCommand input;
+    if (!ParsePayload_C2SInput(payload, input))
     {
         return false;
     }
 
-    // 4 + 1 + 1 읽었는데 offset이 payload 크기랑 다르면 문제
-    if (offset != payload.size())
-    {
-        return false;
-    }
-
-    // 0 ~ 4 의 값이 아니라면 문제
-    if (direction > (std::uint8_t)(MoveDirection::Right))
-    {
-        return false;
-    }
-
-    // [11111...0]이랑 & 했는데 0이 아니라면 flag로 2 이상의 값이 들어왔다는 뜻
-    if ((actionFlags & ~ValidInputActions) != 0)
-    {
-        return false;
-    }
-
-    const InputCommand input{ sequence, (MoveDirection)direction, actionFlags };
     return _overworld.SetInput(*session.GetPlayerId(), input);
 }
 
@@ -435,27 +397,12 @@ void Server::Tick()
 /// </summary>
 void Server::BroadcastWorldSnapshot()
 {
-    const auto players = _overworld.BuildPlayerSnapshot();
-
-    std::vector<Byte> payload;
-    WriteU32(payload, _serverTick);
-    WriteU16(payload, (std::uint16_t)players.size());
-
-    for (const SnapshotPlayerState& player : players)
-    {
-        WriteU32(payload, player.playerId);
-        Write32(payload, player.x);
-        Write32(payload, player.y);
-        WriteU8(payload, (std::uint8_t)player.facing);
-        Write32(payload, player.hp);
-        WriteU8(payload, player.flags);
-    }
-
-    WriteU16(payload, 0);   // 적 수
-    WriteU16(payload, 0);   // 투사체 수
+    WorldSnapshot snapshot;
+    snapshot.serverTick = _serverTick;
+    snapshot.players = _overworld.BuildPlayerSnapshot();
 
     std::vector<Byte> snapshotPacket;
-    if (!BuildPacket(PacketType::S2C_WorldSnapshot, payload, snapshotPacket))
+    if (!BuildPacket_S2CWorldSnapshot(snapshot, snapshotPacket))
     {
         return;
     }
