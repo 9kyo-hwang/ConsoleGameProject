@@ -211,6 +211,7 @@ void OverworldLevel::Tick(float deltaTime)
 void OverworldLevel::Draw()
 {
     Renderer& renderer = Renderer::Get();
+    Game& game = dynamic_cast<Game&>(Engine::Get());
 
     const Vector2 roomCellOrigin = GetRoomCellOrigin(_currentRoom);
     renderer.SetView(roomCellOrigin, RoomScreenOffset);
@@ -236,6 +237,37 @@ void OverworldLevel::Draw()
         const std::string sword = _player->HasSword() ? "[SWORD]" : "[NO SWORD]";
         renderer.Submit(Sprite::Create(sword), Vector2(30, 1));
     }
+
+    const Vector2 NetHUDPos(46, 1);
+    std::string netText;
+    
+    if (!game.IsServerConnected())
+    {
+        netText = "[OFFLINE]";
+    }
+    else
+    {
+        const auto localPlayerId = game.GetLocalPlayerId();
+        const auto& snapshot = game.GetLatestSnapshot();
+
+        if (!localPlayerId.has_value())
+        {
+            netText = "[Connecting...]";
+        }
+        else if (!snapshot.has_value())
+        {
+            // PlayerId는 받았는데 snapshot 받기 전
+            netText = "[ONLINE] Player " + std::to_string(*localPlayerId);
+        }
+        else
+        {
+            netText = "[ONLINE] Player " + std::to_string(*localPlayerId)
+                + " Tick " + std::to_string(snapshot->serverTick)
+                + " Num " + std::to_string(snapshot->players.size());
+        }
+    }
+
+    renderer.Submit(Sprite::Create(netText), NetHUDPos);
 }
 
 void OverworldLevel::EndPlay()

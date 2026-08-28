@@ -95,18 +95,10 @@ void Game::PumpNetwork()
                 if constexpr (std::is_same_v<T, EnterMessage>)
                 {
                     _localPlayerId = received.playerId;
-
-                    std::cout << "Conneced as player " << received.playerId << "\n";
                 }
                 else if constexpr (std::is_same_v<T, WorldSnapshot>)
                 {
                     _latestSnapshot = received;
-
-                    std::cout << "Snapshot: tick="
-                        << received.serverTick
-                        << ", players="
-                        << received.players.size()
-                        << "\n";
                 }
             }, message);
     }

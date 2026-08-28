@@ -42,6 +42,7 @@ public:
 public: // Network
     bool ConnectToServer();
     void PumpNetwork();
+    inline bool IsServerConnected() const noexcept { return _network.IsConnected(); }
 
     std::optional<std::uint32_t> GetLocalPlayerId() const;
     const std::optional<WorldSnapshot>& GetLatestSnapshot() const;
