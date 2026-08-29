@@ -34,67 +34,34 @@ bool Session::PostRecv()
     return false;
 }
 
-bool Session::HandleRecv(DWORD transferredBytes)
+bool Session::HandleRecv(DWORD bytesTransferred)
 {
-    if (transferredBytes == 0 || transferredBytes > _recvBuffer.size())
+    if (bytesTransferred == 0 || bytesTransferred > _recvBuffer.size())
     {
         return false;
     }
 
-    _recvdData.insert(_recvdData.end(), _recvBuffer.begin(), _recvBuffer.begin() + transferredBytes);
-
-    std::size_t consumed = 0;
-    while (true)
+    const std::span<const Byte> recvdBytes(_recvBuffer.data(), bytesTransferred);
+    if (!_framer.Append(recvdBytes))
     {
-        // 헤더도 못읽으면 break
-        const std::size_t available = _recvdData.size() - consumed;
-        if (available < PacketHeaderSize)
-        {
-            break;
-        }
-
-        std::span<const Byte> bytes(_recvdData.data() + consumed, available);
-
-        std::size_t offset = 0;
-        std::uint16_t packetSize = 0, rawType = 0;
-        if (!ReadU16(bytes, offset, packetSize) || !ReadU16(bytes, offset, rawType))
-        {
-            return false;
-        }
-
-        // 전체 패킷 크기가 헤더보다 작거나 최대 크기를 벗어나면 안됨
-        if (packetSize < PacketHeaderSize || packetSize > MaxPacketSize)
-        {
-            return false;
-        }
-
-        // 수신 데이터 크기가 패킷 크기보다 작으면
-        if (available < packetSize)
-        {
-            break;
-        }
-
-        RecvdPacket packet;
-        packet.rawType = rawType;
-
-        auto payloadBegin = _recvdData.begin() + consumed + PacketHeaderSize;
-        auto payloadEnd = _recvdData.begin() + consumed + packetSize;
-
-        packet.payload.assign(payloadBegin, payloadEnd);
-        _recvdPackets.push_back(std::move(packet));
-
-        consumed += packetSize;
+        return false;
     }
 
-    if (consumed > 0)
+    while (true)
     {
-        _recvdData.erase(_recvdData.begin(), _recvdData.begin() + consumed);
+        Packet packet;
+        switch (_framer.TryPop(packet))
+        {
+        case PacketFramer::PopResult::Ready: _recvdPackets.push_back(std::move(packet)); break;
+        case PacketFramer::PopResult::NeedMoreData: return true;
+        case PacketFramer::PopResult::Invalid: return false;
+        }
     }
 
     return true;
 }
 
-bool Session::TryPopRecvdPacket(RecvdPacket& outPacket)
+bool Session::TryPopRecvdPacket(Packet& outPacket)
 {
     if (_recvdPackets.empty())
     {

@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <Z1Shared/Protocol.h>
 #include <Z1Shared/Serialization.h>
+#include <Z1Shared/PacketFramer.h>
 #include <Sockets/Endpoint.h>
 #include <Sockets/Runtime.h>
 #include <Sockets/Socket.h>
@@ -18,8 +19,6 @@ struct EnterMessage
 {
     std::uint32_t playerId = 0;
 };
-
-
 
 using WorldSnapshot = Z1::Protocol::WorldSnapshot;
 using IncomingMessage = std::variant<EnterMessage, WorldSnapshot>;
@@ -74,9 +73,9 @@ private:
     std::deque<std::vector<Z1::Protocol::Byte>> _sendQueue; // 이동 input은 최신 방향으로 합치는 식으로 개선 가능할 듯?
 
     // Only NetworkThread
-    std::deque<std::vector<Z1::Protocol::Byte>> _pendingSendPackets;
+    Z1::Protocol::PacketFramer _framer;
     std::size_t _sendOffset = 0;
-    std::vector<Z1::Protocol::Byte> _recvdData;
+    std::deque<std::vector<Z1::Protocol::Byte>> _pendingSendPackets;
 
     // NetworkThread -> GameThread: 서버로부터 받은 걸 넘겨주는 역할
     std::mutex _recvMutex;

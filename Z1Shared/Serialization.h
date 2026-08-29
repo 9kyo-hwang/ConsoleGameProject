@@ -96,8 +96,8 @@ namespace Z1::Protocol
             _bytes.reserve(reserveSize);
         }
 
-        std::span<const Byte> Bytes() const noexcept { return { _bytes.data(), _bytes.size() }; }
-        std::vector<Byte> TakeBytes() const noexcept { return std::move(_bytes); }
+        std::span<const Byte> Bytes() const { return { _bytes.data(), _bytes.size() }; }
+        std::vector<Byte> TakeBytes() { return std::move(_bytes); }
 
         void Append(std::span<const Byte> bytes)
         {

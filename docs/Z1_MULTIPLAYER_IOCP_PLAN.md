@@ -13,7 +13,7 @@
 
 이 문서는 목표 설계와 실제 진행 상태를 함께 기록한다. 설계상 `SocketAPI` 경계의 실제 프로젝트 이름은 현재 `Sockets`이다. Z1에는 `select` 기반 `NetworkClient` transport와 연결 HUD까지 구현되어 있으나, 입력 전송과 복제 Actor 표현은 아직 구현하지 않았다. 구현 도중 계약이 달라지면 코드와 이 문서를 같은 변경에서 갱신한다.
 
-## 현재 구현 진행 상황 (2026-08-28)
+## 현재 구현 진행 상황 (2026-08-29)
 
 이 절은 목표 구조가 아니라 현재 작업 트리와 실제 확인 결과를 기준으로 한다. 다음 에이전트나 모델은 이 절과 코드의 차이가 있으면 코드를 우선 확인하고, 작업을 이어갈 때 이 절을 갱신한다.
 
@@ -71,8 +71,12 @@
 - `tools/test-z1-enter.ps1`은 PowerShell dummy client다.
   - 기본 실행: `C2S_Enter`/`S2C_Enter` framing과 응답 검증
   - `-SplitSend`: Enter packet을 2바이트와 4바이트로 나누어 header fragmentation 처리 확인
+  - `-SplitAt 1..5`: Enter packet의 header 또는 payload를 지정 위치에서 분할
+  - `-CoalescedEnterInput`: Enter와 Input을 연속 byte로 한 번에 전송
   - `-SendInput [-InputDirection Up|Down|Left|Right|None] [-HoldMilliseconds N]`: 입력과 정지 입력 전송
   - `-ReadSnapshots N`: Snapshot N개를 파싱해 Player/Enemy/Projectile count와 Player 상태 출력
+  - `-InvalidPacketSize 0|3|4097`, `-ProtocolVersion 2`: 잘못된 입력을 서버가 연결 종료로 거부하는지 확인
+  - `-RunServerFramingSuite`: 위 서버 framing 검증을 한 번에 실행
 
 ### 현재 구현된 Z1 클라이언트 transport
 
@@ -82,28 +86,28 @@
 - network thread는 `select`(50ms timeout)로 read/write readiness를 기다린다.
   - 게임 main thread는 직렬화된 packet만 mutex 보호 outgoing queue에 넣는다.
   - network thread는 이를 전용 pending-send queue로 옮기고 partial send offset을 유지해 `Send`한다.
-  - 수신 byte는 누적 buffer에서 `[size][type][payload]` framing을 거쳐 `S2C_Enter`와 `S2C_WorldSnapshot`으로 역직렬화한다.
+  - 수신 byte는 공용 `PacketFramer`에서 `[size][type][payload]` framing을 거쳐 `S2C_Enter`와 `S2C_WorldSnapshot`으로 역직렬화한다.
   - 역직렬화한 `EnterMessage`/`WorldSnapshot`은 mutex 보호 incoming queue로만 넘긴다. 두 queue의 현재 상한은 각 64 packet/message다.
 - `NetworkClient::Stop`은 종료 요청 후 network thread를 join한다. socket close와 `_connected = false` 전환은 network thread가 loop를 빠져나오는 한 곳에서 수행하므로 main thread와 socket handle을 동시에 조작하지 않는다.
 - `OverworldLevel::Tick`의 시작에서 main thread가 `Game::PumpNetwork`으로 incoming queue를 비운다. 현재는 Enter의 `playerId`와 최신 `WorldSnapshot`만 `Game`에 저장하며 Actor/Transform을 직접 갱신하지 않는다.
 - `OverworldLevel::Draw`는 기존 Renderer HUD 경로로 연결 상태를 표시한다. 표시 순서는 `[OFFLINE]` → `[Connecting...]` → `[ONLINE] Player <id>` → `[ONLINE] Player <id> Tick <tick> Num <count>`이다. network thread는 Renderer를 호출하지 않는다.
 
-### 미완 상태: Z1Shared wire layer 정리 (다음 재개 지점)
+### 완료: Z1Shared wire layer 정리 (2026-08-29)
 
-> 이 절은 `3df4c6a` 이후 작업 트리에 남은 **미완 리팩터링 상태**를 기록한다. 이 상태는 아직 빌드·실행 검증하지 않았으며, 다음 작업자는 Input 전송보다 먼저 여기의 항목을 완료해야 한다. 마지막으로 실제 Z1 접속과 HUD를 확인한 기준은 `7bc882f`의 코드 상태다.
+> `7dfccda`에서 중단됐던 공용 wire layer 리팩터링을 완료했다. 다음 재개 지점은 Z1 클라이언트의 `C2S_Input` 전송이다.
 
-Rookiss의 buffer/packet 아이디어 중 raw memory 직렬화나 범용 Session/Service는 가져오지 않고, Z1Shared에 다음의 작은 공용 wire layer만 도입 중이다.
+Rookiss의 buffer/packet 아이디어 중 raw memory 직렬화나 범용 Session/Service는 가져오지 않고, Z1Shared에 다음의 작은 공용 wire layer만 도입했다.
 
 | 파일 | 현재 상태 | 최종 책임 |
 | --- | --- | --- |
-| `Z1Shared/Protocol.h` | `PacketHeader`, 공용 `WorldSnapshot`을 추가함 | wire 계약 DTO와 enum만 선언. header를 raw struct로 전송하지 않음 |
-| `Z1Shared/Serialization.h` | 기존 전역 `Read*`/`Write*`를 `PacketReader`/`PacketWriter` 메서드로 옮김 | network byte order를 지키는 primitive read/write와 `BuildPacket` |
-| `Z1Shared/PacketCodec.h` | Enter, Input, 현재 Player-only Snapshot builder/parser를 작성함 | packet별 payload 형식·길이·enum/flag 검증 |
-| `Z1Shared/PacketFramer.h` | 타입 선언과 skeleton만 있음 | TCP 누적 byte에서 완성 packet을 분리 |
+| `Z1Shared/Protocol.h` | 완료 | wire 계약 DTO와 enum만 선언. header를 raw struct로 전송하지 않음 |
+| `Z1Shared/Serialization.h` | 완료 | network byte order를 지키는 `PacketReader`/`PacketWriter`와 `BuildPacket` |
+| `Z1Shared/PacketCodec.h` | 완료 | Enter, Input, Player-only Snapshot의 builder/parser와 payload 검증 |
+| `Z1Shared/PacketFramer.h` | 완료 | TCP 누적 byte에서 완성 `Packet`을 하나씩 분리 |
 
-#### 먼저 고칠 공유 코드
+#### 완료된 공유 코드 보강
 
-1. `PacketWriter::TakeBytes()`는 `const`를 제거한다. 현재 `const` 객체의 `_bytes`에 `std::move`를 적용하면 실제 move가 아니라 copy가 되며, `noexcept` 상태에서 그 copy가 할당 실패하면 terminate할 수 있다.
+1. `PacketWriter::TakeBytes()`에서 `const`와 `noexcept`를 제거했다. `const` 객체의 `_bytes`에 `std::move`를 적용하면 실제 move가 아니라 copy가 되고, 그 copy가 실패하면 `noexcept` 때문에 terminate할 수 있었기 때문이다.
 
    ```cpp
    std::vector<Byte> TakeBytes()
@@ -114,24 +118,24 @@ Rookiss의 buffer/packet 아이디어 중 raw memory 직렬화나 범용 Session
 
    `Bytes()`는 복사하지 않는 `std::span<const Byte>` view로 유지한다. Writer의 별도 offset 멤버는 필요 없다.
 
-2. signed 32-bit 메서드 이름은 `ReadI32`/`WriteI32`로 정리하거나, 현재의 `Read32`/`Write32`를 양쪽에서 일관되게 사용한다. 새 이름으로 바꾸면 codec의 모든 call site도 같은 변경에서 갱신한다.
+2. signed 32-bit 메서드는 기존 이름인 `Read32`/`Write32`를 유지하고 codec 양쪽에서 일관되게 사용한다.
 
-3. `PacketFramer.h`는 `Protocol.h`만 include하면 `Byte`, `PacketReader`, `std::span`을 알 수 없다. `<Z1Shared/Serialization.h>`를 직접 include한다. `Packet`과 `FramedPacket` 중 하나만 남기고 이름을 통일한다. 아래 문서에서는 `FramedPacket`을 사용한다.
+3. `PacketFramer.h`는 `<Z1Shared/Serialization.h>`를 직접 include한다. framing 결과 타입 이름은 현재 용도에 맞게 `Packet`으로 확정했다.
 
    ```cpp
-   struct FramedPacket
+   struct Packet
    {
        PacketHeader header;
        std::vector<Byte> payload;
    };
    ```
 
-4. Framer의 `TryPop`은 `bool`이 아니라 세 결과를 구분해야 한다. 분할 수신의 `NeedMoreData`는 정상이고, size 오류의 `Invalid`는 연결 종료 대상이다.
+4. Framer의 `TryPop`은 `bool`이 아니라 중첩 `PopResult`로 세 결과를 구분한다. 분할 수신의 `NeedMoreData`는 정상이고, size 오류의 `Invalid`는 연결 종료 대상이다.
 
    ```cpp
-   enum class PacketPopResult
+   enum class PopResult
    {
-       PacketReady,
+       Ready,
        NeedMoreData,
        Invalid
    };
@@ -141,21 +145,28 @@ Rookiss의 buffer/packet 아이디어 중 raw memory 직렬화나 범용 Session
 
 `PacketFramer`는 packet type이나 payload의 게임 의미를 알지 못한다. 다음만 책임진다.
 
-1. `Append(bytes)`는 이전 미소비 byte 뒤에 새 recv byte를 붙인다. `BufferedSize() + bytes.size()`가 `MaxBufferedReceiveBytes`를 넘으면 `false`를 반환한다.
+1. `Append(bytes)`는 이전 미소비 byte 뒤에 새 recv byte를 붙인다. `BufferedSize() + bytes.size()`가 `MaxBufferedRecvBytes`를 넘으면 `false`를 반환한다.
 2. 소비한 앞부분이 있으면 append 전에 한 번 compact한다. `_readOffset == _buffer.size()`이면 `clear`, 그 외에는 `[begin, begin + _readOffset)`만 erase하고 offset을 0으로 되돌린다.
 3. `TryPop`은 남은 byte가 `PacketHeaderSize`보다 작으면 `NeedMoreData`를 반환한다.
 4. `PacketReader`로 `PacketHeader.size`, `PacketHeader.type`을 읽고, `size < PacketHeaderSize` 또는 `size > MaxPacketSize`면 `Invalid`를 반환한다.
 5. 완성 packet byte가 아직 `header.size`보다 적으면 `NeedMoreData`를 반환한다.
-6. 충분하면 header 뒤 `header.size - PacketHeaderSize` byte를 `FramedPacket::payload`로 복사하고 `_readOffset += header.size` 후 `PacketReady`를 반환한다.
+6. 충분하면 header 뒤 `header.size - PacketHeaderSize` byte를 `Packet::payload`로 복사하고 `_readOffset += header.size` 후 `Ready`를 반환한다.
 
-의도한 public API는 다음이다.
+확정한 public API는 다음이다.
 
 ```cpp
 class PacketFramer
 {
 public:
+    enum class PopResult
+    {
+        Ready,
+        NeedMoreData,
+        Invalid
+    };
+
     bool Append(std::span<const Byte> bytes);
-    PacketPopResult TryPop(FramedPacket& outPacket);
+    PopResult TryPop(Packet& outPacket);
     std::size_t BufferedSize() const noexcept;
 
 private:
@@ -166,26 +177,26 @@ private:
 };
 ```
 
-`MaxBufferedReceiveBytes`의 첫 값은 `MaxPacketSize * 2`면 충분하다. caller가 매 `Append` 뒤 `TryPop`을 `NeedMoreData`까지 반복한다는 전제에서, 한 packet의 잔여 byte와 다음 recv를 동시에 보관할 수 있다. 이후 packet queue를 비동기로 별도 소비하게 되면 이 상한과 별도 ready-packet 상한을 다시 검토한다.
+`MaxBufferedRecvBytes`의 첫 값은 `MaxPacketSize * 2`다. caller가 매 `Append` 뒤 `TryPop`을 `NeedMoreData`까지 반복한다는 전제에서, 한 packet의 잔여 byte와 다음 recv를 동시에 보관할 수 있다. 이후 packet queue를 비동기로 별도 소비하게 되면 이 상한과 별도 ready-packet 상한을 다시 검토한다.
 
-#### Server 수신 경로를 Framer로 교체
+#### 완료된 Server 수신 경로 전환
 
-`Z1Server/Session`은 기존 `_recvdData`를 제거하고 `PacketFramer _framer`를 소유한다. 기존 `RecvdPacket`은 `FramedPacket`으로 대체하거나 alias로 유지한다. `HandleRecv`의 순서는 다음과 같다.
+`Z1Server/Session`은 기존 `_recvdData`를 제거하고 `PacketFramer _framer`를 소유한다. 수신 queue는 공용 `Packet`을 보관한다. `HandleRecv`의 순서는 다음과 같다.
 
 ```text
 WSARecv completion byte
   → _framer.Append(recvBuffer span)
   → TryPop 반복
-      PacketReady   : _recvdPackets에 move
+      Ready         : _recvdPackets에 move
       NeedMoreData  : HandleRecv 성공 반환
       Invalid       : HandleRecv 실패 반환
 ```
 
-Server I/O loop의 `TryPopRecvdPacket` 구조는 유지해도 된다. `HandleClientPacket`만 `packet.rawType` 대신 `packet.header.type`을 switch한다. `Server::HandleEnter`는 현재 payload size만 검사하고 있으므로 반드시 `ParsePayload_C2SEnter(payload, version)`을 호출해 protocol version까지 검증해야 한다. `HandleInput`, S2C Enter, WorldSnapshot은 이미 codec 호출 형태로 일부 전환되어 있다.
+Server I/O loop의 `TryPopRecvdPacket` 구조는 유지하고, `HandleClientPacket`은 `packet.header.type`을 switch한다. `Server::HandleEnter`는 Player를 생성하기 전에 `ParsePayload_C2SEnter(payload, version)`을 호출해 protocol version까지 검증한다. `HandleInput`, S2C Enter, WorldSnapshot도 공용 codec을 사용한다.
 
-#### Client 수신 경로를 Framer로 교체
+#### 완료된 Client 수신 경로 전환
 
-`NetworkClient`도 `_recvdData`를 `PacketFramer _framer`로 교체한다. `TryRecvPacketFromServer`는 recv 성공 뒤 `_framer.Append({ buffer.data(), bytesRead })`를 호출하고, `TryPop`을 `NeedMoreData`까지 반복한다. `PacketReady`마다 다음을 호출한다.
+`NetworkClient`도 `_recvdData`를 `PacketFramer _framer`로 교체했다. `TryRecvPacketFromServer`는 recv 성공 뒤 `_framer.Append({ buffer.data(), bytesRead })`를 호출하고, `TryPop`을 `NeedMoreData`까지 반복한다. `Ready`마다 다음을 호출한다.
 
 ```cpp
 HandleServerPacket(
@@ -194,17 +205,16 @@ HandleServerPacket(
 );
 ```
 
-기존 `ProcessRecvdData()`의 수동 header parse, consumed 계산, `erase`는 제거한다. `HandleEnter`와 `HandleWorldSnapshot`은 각각 `ParsePayload_S2CEnter`, `ParsePayload_S2CWorldSnapshot`을 쓰도록 이미 일부 전환되어 있으므로 유지한다. Start의 `C2S_Enter`도 `BuildPacket_C2SEnter` 호출로 전환되어 있다.
+기존 `ProcessRecvdData()`의 수동 header parse, consumed 계산, `erase`는 제거했다. `HandleEnter`와 `HandleWorldSnapshot`은 각각 `ParsePayload_S2CEnter`, `ParsePayload_S2CWorldSnapshot`을 사용하고, Start의 `C2S_Enter`는 `BuildPacket_C2SEnter`로 생성한다.
 
-#### 완료 순서와 검증
+#### 완료 내용과 검증
 
-1. shared headers를 위 계약에 맞게 컴파일 가능한 상태로 마무리한다.
-2. Server `Session`의 framing을 Framer로 교체하고, Server handler가 codec만 사용하도록 정리한다.
-3. `NetworkClient`의 framing을 Framer로 교체한다.
-4. `Z1Server`와 `Z1`을 Debug|x64로 빌드한다. 새 header-only 파일은 각각의 `.vcxproj` compile item에 넣을 필요는 없지만, Solution Explorer에서 관리하려면 `.slnx`에 표시만 추가할 수 있다.
-5. `tools/test-z1-enter.ps1`, `-SplitSend`, `-ReadSnapshots`로 한 packet/분할 packet/연속 packet을 확인한다.
-6. Z1Server + 실제 Z1을 실행해 `C2S_Enter`, HUD의 playerId/tick/player count가 이전과 동일한지 확인한다.
-7. 위 검증 뒤에만 `NetworkClient::QueueInput`과 C2S Input 전송을 추가한다.
+1. shared headers와 Server/NetworkClient의 공용 Framer 전환을 완료했다.
+2. `Z1Server`와 `Z1`의 `Debug|x64` 솔루션 타깃 빌드가 성공했다.
+3. `tools/test-z1-enter.ps1`을 확장해 정상 Enter/Snapshot, header 분할, payload 분할, Enter+Input 연속 전송, Input 이동·정지를 확인했다.
+4. size `0`, `3`, `4097` packet과 protocol version `2`는 서버가 연결을 종료하며 거부했다.
+5. 연속 Enter+Input에서 서버 Player의 y가 `395 → 387`, 일반 Input에서 `395 → 389`로 이동한 뒤 정지했다.
+6. PowerShell 검증은 서버 수신 경로를 대상으로 한다. Z1 `NetworkClient`의 실제 HUD 확인은 다음 C2S Input 연결 작업의 통합 smoke test에도 포함한다.
 
 ### 실제 확인 결과
 
@@ -1308,12 +1318,12 @@ CraftEngine
 
 ## 다음 구현 단위
 
-다음 재개 작업은 먼저 위의 **Z1Shared wire layer 미완 리팩터링을 완료하는 것**이다. 그 검증이 끝난 다음에 `C2S_Input` 전송을 진행하며, 어느 단계에서도 Actor 계층을 바꾸지 않는다.
+Z1Shared wire layer와 Server/NetworkClient의 공용 Framer 전환은 완료됐다. 다음 재개 작업은 **Z1 클라이언트의 `C2S_Input` 전송**이며, 이 단계에서는 아직 Actor 계층이나 화면 이동의 원본을 바꾸지 않는다.
 
-1. `PacketFramer`와 shared codec/reader/writer를 마무리하고 Server와 NetworkClient의 수동 framing을 교체한다. split packet, 연속 packet, snapshot, 실제 Z1 HUD까지 기존 검증을 다시 통과시킨다.
-2. `NetworkClient`에 main thread용 `SendInput` 또는 `QueueInput` API를 추가한다. API 내부에서 `InputCommand{sequence, moveDirection, actionFlags}`를 payload로 직렬화하고, `BuildPacket_C2SInput` 결과를 기존 `QueuePacket`에 넣는다. socket은 network thread만 계속 소유한다.
-3. local Player의 현재 방향과 공격 눌림을 main thread에서 읽고, 마지막으로 전송한 값과 다를 때만 증가하는 sequence와 함께 위 API를 호출한다. 방향이 멈춘 순간에도 `MoveDirection::None` packet을 한 번 보내 서버의 마지막 입력을 해제한다.
-4. 첫 검증에서는 기존 local Player의 화면 이동을 바꾸지 않는다. 서버 콘솔의 `C2S_Input` 로그와 PowerShell dummy client 또는 HUD snapshot의 server Player 좌표가 움직이는지만 확인한다.
-5. input 전송이 확인되면 `MyPlayer`와 `NetworkPlayer`를 도입한다. `MyPlayer`만 input을 전송하고, 모든 Player 표현의 Transform은 main thread에서 받은 서버 snapshot으로 갱신한다. 이때 기존 로컬 Player의 이동·충돌·공격 경로를 네트워크 모드에서 분리한다.
+1. `NetworkClient`에 main thread용 `SendInput` 또는 `QueueInput` API를 추가한다. API 내부에서 `InputCommand{sequence, moveDirection, actionFlags}`를 `BuildPacket_C2SInput`으로 직렬화하고 기존 `QueuePacket`에 넣는다. socket은 network thread만 계속 소유한다.
+2. local Player의 현재 방향과 공격 눌림을 main thread에서 읽고, 마지막으로 전송한 상태와 달라질 때 증가하는 sequence와 함께 위 API를 호출한다. 방향이 멈춘 순간에도 `MoveDirection::None`을 한 번 보내 서버의 마지막 이동 입력을 해제한다.
+3. 첫 검증에서는 기존 local Player의 화면 이동을 바꾸지 않는다. 서버 콘솔의 `C2S_Input` 로그와 snapshot의 서버 Player 좌표 변화만 확인한다.
+4. Z1Server와 실제 Z1을 함께 실행해 Enter, Input, Snapshot 수신과 HUD의 playerId/tick/player count를 통합 확인한다. 서버가 없을 때 기존 싱글플레이가 계속되는지도 재확인한다.
+5. Input 전송이 확인되면 `MyPlayer`와 `NetworkPlayer`를 도입한다. `MyPlayer`만 input을 전송하고, 모든 Player 표현의 Transform은 main thread에서 받은 서버 snapshot으로 갱신한다. 이때 기존 로컬 Player의 이동·충돌·공격 경로를 네트워크 모드에서 분리한다.
 
 이 다음 구현 단위에서도 network thread는 기존 싱글플레이 `Player`, Enemy, Overworld Level을 직접 재사용하거나 변경하지 않는다. 서버의 blocking map/Room/전투와 안전한 Session 종료 수명은 이후 별도 단계로 남는다.

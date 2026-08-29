@@ -244,7 +244,12 @@ bool NetworkClient::TryRecvPacketFromServer()
             return false;   // 서버 연결 종료
         }
 
-        _recvdData.insert(_recvdData.end(), buffer.begin(), buffer.begin() + bytesRead);
+        const std::span<const Byte> recvdBytes(buffer.data(), bytesRead);
+        if (!_framer.Append(recvdBytes))
+        {
+            return false;
+        }
+
         if (!ProcessRecvdData())
         {
             return false;
@@ -307,49 +312,22 @@ bool NetworkClient::SendPacketsToServer()
 /// <returns></returns>
 bool NetworkClient::ProcessRecvdData()
 {
-    std::size_t consumed = 0;
     while (true)
     {
-        // 헤더도 못읽으면 break
-        const std::size_t remainingSize = _recvdData.size() - consumed;
-        if (remainingSize < PacketHeaderSize)
+        Packet packet;
+        switch (_framer.TryPop(packet))
         {
-            break;
-        }
-
-        std::span<const Byte> remaining(_recvdData.data() + consumed, remainingSize);
-
-        std::size_t offset = 0;
-        std::uint16_t packetSize = 0, rawType = 0;
-        if (!ReadU16(remaining, offset, packetSize) || !ReadU16(remaining, offset, rawType))
+        case PacketFramer::PopResult::Ready:
         {
-            return false;
+            if (!HandleServerPacket((PacketType)packet.header.type, packet.payload))
+            {
+                return false;
+            }
         }
-
-        // 전체 패킷 크기가 헤더보다 작거나 최대 크기를 벗어나면 안됨
-        if (packetSize < PacketHeaderSize || packetSize > MaxPacketSize)
-        {
-            return false;
+        break;
+        case PacketFramer::PopResult::NeedMoreData: return true;
+        case PacketFramer::PopResult::Invalid: return false;
         }
-
-        // 수신 데이터 크기가 패킷 크기보다 작으면
-        if (remainingSize < packetSize)
-        {
-            break;
-        }
-
-        std::span<const Byte> payload(_recvdData.begin() + consumed + PacketHeaderSize, packetSize - PacketHeaderSize);
-        if (!HandleServerPacket((PacketType)rawType, payload))
-        {
-            return false;
-        }
-
-        consumed += packetSize;
-    }
-
-    if (consumed > 0)
-    {
-        _recvdData.erase(_recvdData.begin(), _recvdData.begin() + consumed);
     }
 
     return true;

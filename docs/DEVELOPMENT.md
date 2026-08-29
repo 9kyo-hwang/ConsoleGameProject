@@ -11,7 +11,7 @@
 
 솔루션 파일은 `ConsoleGameProject.slnx`이며 Debug/Release, x64 구성만 정의되어 있다.
 
-Z1의 계획된 SocketAPI/IOCP 서버 확장은 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](Z1_MULTIPLAYER_IOCP_PLAN.md)를 참고한다. 해당 프로젝트가 실제로 추가되기 전까지 아래 빌드 순서는 현재 싱글플레이 구조를 기준으로 한다.
+Z1의 SocketAPI/IOCP 서버 구현 상태와 다음 단계는 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](Z1_MULTIPLAYER_IOCP_PLAN.md)를 참고한다. 실제 프로젝트 이름은 공용 socket DLL이 `Sockets`, 서버 실행 파일이 `Z1Server`다.
 
 ## 빌드 순서
 
@@ -19,16 +19,17 @@ Z1의 계획된 SocketAPI/IOCP 서버 확장은 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](
 
 1. `SoundSystem`
 2. `CraftEngine`
-3. `ShootingGame`, `SokobanGame`, `Z1` 중 작업 대상 콘텐츠 프로젝트
+3. `Sockets`
+4. `ShootingGame`, `SokobanGame`, `Z1`, `Z1Server` 중 작업 대상 프로젝트
 
-Visual Studio에서 위 프로젝트를 차례로 빌드하면 된다. 이후 산출물이 존재하는 상태에서는 솔루션 전체 빌드도 가능하다. 현재 `ConsoleGameProject.slnx`에는 게임에서 CraftEngine으로 가는 의존성만 있고 CraftEngine에서 SoundSystem으로 가는 빌드 의존성은 명시되어 있지 않으므로, 완전한 클린 병렬 빌드는 순서 경쟁이 날 수 있다.
+Visual Studio에서 위 프로젝트를 차례로 빌드하면 된다. `Sockets`는 앞의 두 DLL과 독립적이므로 먼저 빌드해도 된다. 이후 산출물이 존재하는 상태에서는 솔루션 전체 빌드도 가능하다. 현재 `ConsoleGameProject.slnx`에는 CraftEngine에서 SoundSystem으로 가는 의존성과 Z1에서 Sockets로 가는 의존성이 명시되어 있지 않으므로, 완전한 클린 병렬 빌드는 순서 경쟁이 날 수 있다. Z1Server에서 Sockets로 가는 의존성은 명시되어 있다.
 
 기본 출력 위치는 다음과 같다.
 
 ```text
 Binaries/x64/<Debug|Release>/<Project>/
 Intermediate/x64/<Debug|Release>/<Project>/
-Libraries/<CraftEngine|SoundSystem>/<Debug|Release>/
+Libraries/<CraftEngine|SoundSystem|Sockets>/<Debug|Release>/
 ```
 
 ## 실행과 상대 경로
@@ -99,4 +100,12 @@ Visual Studio의 프로젝트 디렉터리에서 실행하면 저장소 루트�
 - Z1 사운드 변경: 트라이포스 획득 후 Zelda Is Rescued 팬파레가 끝난 뒤 Clear Level의 Ending Theme으로 전환되는지 확인
 - 런타임 데이터 변경: 프로젝트 디렉터리와 출력 디렉터리 양쪽 실행 경로 확인
 
-자동 테스트 프로젝트는 아직 없다. 문서만 바꾼 경우에는 Markdown 링크와 코드 식별자가 현재 트리와 맞는지 확인하고, 코드나 프로젝트 설정을 바꾼 경우에는 관련 실행 파일을 직접 구동해 확인한다.
+자동 테스트 프로젝트는 아직 없다. 문서 변경은 `tools/Test-Documentation.ps1`로 Markdown 상대 링크와 UTF-8 인코딩을 검사한다. 코드 변경과 필수 문서의 동반 변경은 `-StrictChangeAudit`, 커밋할 staged 변경만 검사하려면 `-Staged`를 함께 사용한다.
+
+```powershell
+.\tools\Test-Documentation.ps1
+.\tools\Test-Documentation.ps1 -StrictChangeAudit
+.\tools\Test-Documentation.ps1 -Staged -StrictChangeAudit
+```
+
+Z1Server packet framing 변경은 서버 실행 뒤 `tools/test-z1-enter.ps1 -RunServerFramingSuite`로 정상·분할·연속·잘못된 size·protocol version 거부 경로를 일괄 확인한다. 코드나 프로젝트 설정을 바꾼 경우에는 이 스크립트 외에도 관련 실행 파일을 직접 구동해 확인한다.

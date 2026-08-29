@@ -5,16 +5,11 @@
 #include <Z1Shared/Protocol.h>
 #include <deque>
 #include <optional>
+#include <Z1Shared/PacketFramer.h>
 
 class Session
 {
 public:
-    struct RecvdPacket
-    {
-        std::uint16_t rawType = 0;  // no PacketType -> server의 switch에서 해석할 예정
-        std::vector<Z1::Protocol::Byte> payload;
-    };
-
     explicit Session(Net::Socket&& socket) noexcept;
 
     Session(const Session&) = delete;
@@ -27,7 +22,7 @@ public:
     // WSARecv 완료된 byte 수신 -> TCP 누적 -> 헤더 크기 검증 -> 완성된 패킷 분리 -> Server가 꺼낼 수 있도록 보관
     bool PostRecv();
     bool HandleRecv(DWORD bytesTransferred);
-    bool TryPopRecvdPacket(RecvdPacket& outPacket);
+    bool TryPopRecvdPacket(Z1::Protocol::Packet& outPacket);
 
     bool Send(std::vector<Z1::Protocol::Byte>&& packet);    // 이미 framing된, "완성된" 패킷만 받음
     bool HandleSend(DWORD bytesTransferred);
@@ -51,8 +46,8 @@ private:
     DWORD _recvFlags = 0;
 
     std::array<Z1::Protocol::Byte, 4096> _recvBuffer{}; // WSARecv가 직접 채우는 임시 버퍼
-    std::vector<Z1::Protocol::Byte> _recvdData;         // 수신 완료 후 누적하는 데이터. TCP Framing에 사용
-    std::deque<RecvdPacket> _recvdPackets;              // 수신 큐
+    Z1::Protocol::PacketFramer _framer;
+    std::deque<Z1::Protocol::Packet> _recvdPackets;              // 수신 큐
 
     inline static constexpr std::size_t MaxQueuedSendPackets = 64;
     OVERLAPPED _sendOverlapped{};

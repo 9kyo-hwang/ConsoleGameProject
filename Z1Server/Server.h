@@ -11,6 +11,11 @@
 #include <deque>
 #include <mutex>
 
+namespace Z1::Protocol
+{
+    struct Packet;
+}
+
 class Server
 {
 public:
@@ -20,7 +25,7 @@ public:
     void WaitForShutdown();
     void Stop();
 
-    bool HandleClientPacket(Session& session, const Session::RecvdPacket& packet);
+    bool HandleClientPacket(Session& session, const Z1::Protocol::Packet& packet);
     bool HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> payload);
     bool HandleInput(Session& session, std::span<const Z1::Protocol::Byte> payload);
 

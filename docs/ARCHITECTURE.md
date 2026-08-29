@@ -172,4 +172,4 @@ Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 
 
 ## 계획된 네트워크 확장
 
-Z1을 서버 권위형 멀티플레이로 확장하는 목표 구조와 단계별 계획은 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](Z1_MULTIPLAYER_IOCP_PLAN.md)에 기록한다. 현재 네트워크 프로젝트는 아직 구현되지 않았으며, CraftEngine은 네트워크에 의존하지 않는 클라이언트 엔진 경계를 유지한다.
+Z1을 서버 권위형 멀티플레이로 확장하는 목표 구조와 단계별 계획은 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](Z1_MULTIPLAYER_IOCP_PLAN.md)에 기록한다. 현재 `Sockets` DLL, `Z1Server` EXE, `Z1Shared` wire layer와 Z1의 `NetworkClient` transport가 구현되어 있고, 다음 작업은 클라이언트 입력 전송과 복제 Actor 표현이다. CraftEngine은 네트워크에 의존하지 않는 클라이언트 엔진 경계를 유지한다.

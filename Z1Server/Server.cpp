@@ -2,6 +2,7 @@
 #include "Server.h"
 #include <Sockets/Endpoint.h>
 #include <chrono>
+#include <Z1Shared/PacketFramer.h>
 #include <Z1Shared/PacketCodec.h>
 
 using namespace Net;
@@ -69,13 +70,12 @@ void Server::Stop()
 }
 
 // 수신 패킷의 타입을 보고 타입 별 핸들 함수를 호출하는 역할
-bool Server::HandleClientPacket(Session& session, const Session::RecvdPacket& packet)
+bool Server::HandleClientPacket(Session& session, const Packet& packet)
 {
-    std::span<const Byte> payload(packet.payload.data(), packet.payload.size());
-    switch ((PacketType)packet.rawType)
+    switch ((PacketType)packet.header.type)
     {
-    case PacketType::C2S_Enter: return HandleEnter(session, payload);
-    case PacketType::C2S_Input: return HandleInput(session, payload);
+    case PacketType::C2S_Enter: return HandleEnter(session, packet.payload);
+    case PacketType::C2S_Input: return HandleInput(session, packet.payload);
     default: return false;
     }
 }
@@ -87,6 +87,12 @@ bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> p
     // 2. protocol version이 ProtocolVersion인지
 
     if (payload.size() != sizeof(std::uint16_t))
+    {
+        return false;
+    }
+
+    std::uint16_t version = 0;
+    if (!ParsePayload_C2SEnter(payload, version))
     {
         return false;
     }
@@ -273,7 +279,7 @@ void Server::IOLoop()
             }
 
             bool isValidSession = true;
-            Session::RecvdPacket packet;
+            Packet packet;
             while (session->TryPopRecvdPacket(packet))
             {
                 if (!HandleClientPacket(*session, packet))

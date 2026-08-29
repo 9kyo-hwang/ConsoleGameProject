@@ -6,6 +6,15 @@ param(
     [ValidateRange(1, 65535)]
     [int]$Port = 7777,
     [switch]$SplitSend,
+    [ValidateRange(0, 5)]
+    [int]$SplitAt = 0,
+    [switch]$CoalescedEnterInput,
+    [switch]$RunServerFramingSuite,
+    [switch]$ExpectMovement,
+    [ValidateSet(-1, 0, 3, 4097)]
+    [int]$InvalidPacketSize = -1,
+    [ValidateRange(0, 65535)]
+    [int]$ProtocolVersion = 1,
     [switch]$SendInput,
     [ValidateSet("None", "Up", "Down", "Left", "Right")]
     [string]$InputDirection = "Up",
@@ -19,6 +28,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$script:SawPlayerMovement = $false
 
 function Read-Exactly
 {
@@ -101,10 +111,38 @@ function Get-U32BigEndianBytes
     param([Parameter(Mandatory)][uint32]$Value)
 
     return [byte[]]@(
-        [byte]($Value -shr 24),
-        [byte]($Value -shr 16),
-        [byte]($Value -shr 8),
-        [byte]$Value
+        [byte](($Value -shr 24) -band 0xFF),
+        [byte](($Value -shr 16) -band 0xFF),
+        [byte](($Value -shr 8) -band 0xFF),
+        [byte]($Value -band 0xFF)
+    )
+}
+
+function Get-U16BigEndianBytes
+{
+    param([Parameter(Mandatory)][uint16]$Value)
+
+    return [byte[]]@(
+        [byte](($Value -shr 8) -band 0xFF),
+        [byte]($Value -band 0xFF)
+    )
+}
+
+function New-InputPacket
+{
+    param(
+        [Parameter(Mandatory)][uint32]$Sequence,
+        [Parameter(Mandatory)][string]$Direction
+    )
+
+    $directions = @{ None = 0; Up = 1; Down = 2; Left = 3; Right = 4 }
+    [byte[]]$sequenceBytes = Get-U32BigEndianBytes $Sequence
+
+    return [byte[]]@(
+        0x00, 0x0A, 0x00, 0x02,
+        $sequenceBytes[0], $sequenceBytes[1],
+        $sequenceBytes[2], $sequenceBytes[3],
+        [byte]$directions[$Direction], 0x00
     )
 }
 
@@ -116,17 +154,40 @@ function Send-Input
         [Parameter(Mandatory)][string]$Direction
     )
 
-    $directions = @{ None = 0; Up = 1; Down = 2; Left = 3; Right = 4 }
-    [byte[]]$sequenceBytes = Get-U32BigEndianBytes $Sequence
-    [byte[]]$packet = @(
-        0x00, 0x0A, 0x00, 0x02,
-        $sequenceBytes[0], $sequenceBytes[1],
-        $sequenceBytes[2], $sequenceBytes[3],
-        [byte]$directions[$Direction], 0x00
-    )
+    [byte[]]$packet = New-InputPacket $Sequence $Direction
 
     $Stream.Write($packet, 0, $packet.Length)
     Write-Output "Sent C2S_Input: sequence=$Sequence, direction=$Direction"
+}
+
+function Assert-ServerClosedConnection
+{
+    param(
+        [Parameter(Mandatory)][System.IO.Stream]$Stream,
+        [Parameter(Mandatory)][string]$Scenario
+    )
+
+    try
+    {
+        $value = $Stream.ReadByte()
+        if ($value -ne -1)
+        {
+            throw "$Scenario was accepted unexpectedly. First response byte: $value"
+        }
+    }
+    catch [System.IO.IOException]
+    {
+        $socketError = $_.Exception.InnerException
+        if ($socketError -is [System.Net.Sockets.SocketException] -and
+            $socketError.SocketErrorCode -eq [System.Net.Sockets.SocketError]::TimedOut)
+        {
+            throw "$Scenario did not close the connection before timeout."
+        }
+
+        # ConnectionReset 등 서버가 연결을 끊으며 발생한 오류는 정상적인 거부 결과다.
+    }
+
+    Write-Output "PASS: Server rejected $Scenario"
 }
 
 function Show-WorldSnapshot
@@ -173,6 +234,11 @@ function Show-WorldSnapshot
         $flags = $payload[$offset]
         ++$offset
 
+        if ($x -ne 1190 -or $y -ne 395)
+        {
+            $script:SawPlayerMovement = $true
+        }
+
         Write-Output ("  Player: id={0}, position=({1}, {2}), facing={3}, hp={4}, flags={5}" -f $playerId, $x, $y, $facing, $hp, $flags)
     }
 
@@ -194,6 +260,81 @@ function Show-WorldSnapshot
     Write-Output "  Enemies=$enemyCount, Projectiles=$projectileCount"
 }
 
+if ($RunServerFramingSuite)
+{
+    if ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or
+        $ExpectMovement -or $InvalidPacketSize -ne -1 -or $ProtocolVersion -ne 1 -or
+        $SendInput -or $InputDirection -ne 'Up' -or $HoldMilliseconds -ne 300 -or $ReadSnapshots -ne 0)
+    {
+        throw "-RunServerFramingSuite cannot be combined with individual test scenario options."
+    }
+
+    $commonArguments = @{
+        HostName = $HostName
+        Port = $Port
+        TimeoutMs = $TimeoutMs
+    }
+
+    $testCases = @(
+        @{ Name = 'normal'; Arguments = @{ ReadSnapshots = 2 } },
+        @{ Name = 'split-header'; Arguments = @{ SplitAt = 2; ReadSnapshots = 2 } },
+        @{ Name = 'split-payload'; Arguments = @{ SplitAt = 4; ReadSnapshots = 2 } },
+        @{ Name = 'coalesced'; Arguments = @{ CoalescedEnterInput = $true; ExpectMovement = $true; ReadSnapshots = 10 } },
+        @{ Name = 'invalid-size-0'; Arguments = @{ InvalidPacketSize = 0 } },
+        @{ Name = 'invalid-size-3'; Arguments = @{ InvalidPacketSize = 3 } },
+        @{ Name = 'invalid-size-4097'; Arguments = @{ InvalidPacketSize = 4097 } },
+        @{ Name = 'invalid-version'; Arguments = @{ ProtocolVersion = 2 } }
+    )
+
+    foreach ($testCase in $testCases)
+    {
+        Write-Output "=== $($testCase.Name) ==="
+
+        $invokeArguments = @{} + $commonArguments
+        foreach ($entry in $testCase.Arguments.GetEnumerator())
+        {
+            $invokeArguments[$entry.Key] = $entry.Value
+        }
+
+        & $PSCommandPath @invokeArguments
+        if (!$?)
+        {
+            throw "Server framing suite failed: $($testCase.Name)"
+        }
+    }
+
+    Write-Output "PASS: Server framing suite completed."
+    return
+}
+
+if ($SplitSend -and $SplitAt -ne 0)
+{
+    throw "Use either -SplitSend or -SplitAt, not both."
+}
+
+if ($CoalescedEnterInput -and ($SplitSend -or $SplitAt -ne 0 -or $SendInput))
+{
+    throw "-CoalescedEnterInput cannot be combined with -SplitSend, -SplitAt, or -SendInput."
+}
+
+if ($InvalidPacketSize -ne -1 -and
+    ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or $ProtocolVersion -ne 1 -or $ReadSnapshots -ne 0))
+{
+    throw "-InvalidPacketSize must be used by itself."
+}
+
+if ($ProtocolVersion -ne 1 -and
+    ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or $ReadSnapshots -ne 0))
+{
+    throw "A non-current -ProtocolVersion must be tested without split, input, or snapshot options."
+}
+
+$effectiveSplitAt = $SplitAt
+if ($SplitSend)
+{
+    $effectiveSplitAt = 2
+}
+
 $client = [System.Net.Sockets.TcpClient]::new()
 
 try
@@ -206,18 +347,45 @@ try
     $stream.ReadTimeout = $TimeoutMs
     $stream.WriteTimeout = $TimeoutMs
 
-    # C2S_Enter: size=6, type=1, protocol version=1
-    [byte[]]$enterPacket = 0x00, 0x06, 0x00, 0x01, 0x00, 0x01
-
-    if ($SplitSend)
+    if ($InvalidPacketSize -ne -1)
     {
-        $stream.Write($enterPacket, 0, 2)
+        [byte[]]$invalidSizeBytes = Get-U16BigEndianBytes ([uint16]$InvalidPacketSize)
+        [byte[]]$invalidPacket = @(
+            $invalidSizeBytes[0], $invalidSizeBytes[1],
+            0x00, 0x01
+        )
+
+        $stream.Write($invalidPacket, 0, $invalidPacket.Length)
+        Assert-ServerClosedConnection $stream "packet size $InvalidPacketSize"
+        return
+    }
+
+    # C2S_Enter: size=6, type=1, protocol version=ProtocolVersion
+    [byte[]]$versionBytes = Get-U16BigEndianBytes ([uint16]$ProtocolVersion)
+    [byte[]]$enterPacket = 0x00, 0x06, 0x00, 0x01, $versionBytes[0], $versionBytes[1]
+
+    if ($CoalescedEnterInput)
+    {
+        [byte[]]$inputPacket = New-InputPacket 1 $InputDirection
+        [byte[]]$combinedPacket = @($enterPacket) + @($inputPacket)
+        $stream.Write($combinedPacket, 0, $combinedPacket.Length)
+        Write-Output "Sent coalesced C2S_Enter + C2S_Input: direction=$InputDirection"
+    }
+    elseif ($effectiveSplitAt -ne 0)
+    {
+        $stream.Write($enterPacket, 0, $effectiveSplitAt)
         Start-Sleep -Milliseconds 100
-        $stream.Write($enterPacket, 2, 4)
+        $stream.Write($enterPacket, $effectiveSplitAt, $enterPacket.Length - $effectiveSplitAt)
     }
     else
     {
         $stream.Write($enterPacket, 0, $enterPacket.Length)
+    }
+
+    if ($ProtocolVersion -ne 1)
+    {
+        Assert-ServerClosedConnection $stream "protocol version $ProtocolVersion"
+        return
     }
 
     $enterResponse = Read-Packet $stream
@@ -258,11 +426,26 @@ try
             Send-Input $stream 2 "None"
         }
     }
+    elseif ($CoalescedEnterInput -and $InputDirection -ne "None" -and $HoldMilliseconds -gt 0)
+    {
+        Start-Sleep -Milliseconds $HoldMilliseconds
+        Send-Input $stream 2 "None"
+    }
 
     for ($index = 0; $index -lt $ReadSnapshots; ++$index)
     {
         $snapshot = Read-Packet $stream
         Show-WorldSnapshot $snapshot
+    }
+
+    if ($ExpectMovement)
+    {
+        if (!$script:SawPlayerMovement)
+        {
+            throw "No moved Player position was observed in the received snapshots."
+        }
+
+        Write-Output "PASS: Player movement was observed in a snapshot."
     }
 }
 finally

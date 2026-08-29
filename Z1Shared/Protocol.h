@@ -15,7 +15,7 @@ namespace Z1::Protocol
     };
 
     inline constexpr std::uint16_t ProtocolVersion = 1;
-    inline constexpr std::size_t PacketHeaderSize = 4;
+    inline constexpr std::size_t PacketHeaderSize = sizeof(std::uint16_t) + sizeof(std::uint16_t);
     inline constexpr std::uint16_t MaxPacketSize = 4096;
 
     struct PacketHeader
