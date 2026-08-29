@@ -40,12 +40,18 @@ public:
     void LoadPlayerState(Player& player) const;
 
 public: // Network
+    inline bool IsServerConnected() const noexcept { return _network.IsConnected(); }
     bool ConnectToServer();
     void PumpNetwork();
-    inline bool IsServerConnected() const noexcept { return _network.IsConnected(); }
 
     std::optional<std::uint32_t> GetLocalPlayerId() const;
     const std::optional<WorldSnapshot>& GetLatestSnapshot() const;
+
+    // Overworld Level에서 Game-Network에 데이터 밀어넣기 위한 래퍼
+    inline bool SendNetworkInput(Z1::Protocol::MoveDirection direction, std::uint8_t actionFlags)
+    {
+        return _network.QueueInput(direction, actionFlags);
+    }
 
 private:
     struct PlayerState

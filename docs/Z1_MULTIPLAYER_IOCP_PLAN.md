@@ -11,7 +11,7 @@
 - 서버 권위형 시뮬레이션으로 옮기는 순서
 - 첫 구현에서 의도적으로 제외할 기능과 확장 조건
 
-이 문서는 목표 설계와 실제 진행 상태를 함께 기록한다. 설계상 `SocketAPI` 경계의 실제 프로젝트 이름은 현재 `Sockets`이다. Z1에는 `select` 기반 `NetworkClient` transport와 연결 HUD까지 구현되어 있으나, 입력 전송과 복제 Actor 표현은 아직 구현하지 않았다. 구현 도중 계약이 달라지면 코드와 이 문서를 같은 변경에서 갱신한다.
+이 문서는 목표 설계와 실제 진행 상태를 함께 기록한다. 설계상 `SocketAPI` 경계의 실제 프로젝트 이름은 현재 `Sockets`이다. Z1에는 `select` 기반 `NetworkClient` transport, 연결 HUD, `C2S_Input` 전송까지 구현되어 있으나 복제 Actor 표현은 아직 구현하지 않았다. 구현 도중 계약이 달라지면 코드와 이 문서를 같은 변경에서 갱신한다.
 
 ## 현재 구현 진행 상황 (2026-08-29)
 
@@ -27,7 +27,7 @@
   - `Socket`: `CreateTcp`, `Bind`, `Listen`, `Accept`, `Connect`, `SetNonBlocking`, `SetNoDelay`, `Send`, `Recv`, `Close`, `ReleaseNativeSocket`와 유효성·이동 의미 제공
 - `Sockets`는 필요한 WinSock 링크(`Ws2_32.lib`)를 갖는다. `SetNoDelay`은 내부의 최소 `setsockopt` helper로 제공하며, 일반 `getsockopt`/`setsockopt` 공개 API는 아직 필요하지 않다.
 - `Z1Server` 콘솔 프로젝트를 추가하고 `Sockets`와 WinSock에 링크했다. `Server`가 listen socket과 raw IOCP `HANDLE`을 직접 소유하는 최소 구조이며, IOCP를 `SocketAPI` 공개 API로 올리지는 않았다.
-- `Z1Shared/Protocol.h`, `Z1Shared/Serialization.h`를 실제 공유 헤더 디렉터리로 추가했다. 고정 길이 정수는 network byte order(`htons`/`htonl`, `ntohs`/`ntohl`)로 직렬화하며, raw struct/`bool` 메모리를 그대로 전송하지 않는다.
+- `Z1Shared/Protocol.h`, `Z1Shared/Serialization.h`를 실제 공유 헤더 디렉터리로 추가했다. 고정 길이 정수는 WinSock 함수 없이 명시적인 endian 변환과 `memcpy`로 big-endian wire byte를 만들며, raw struct/`bool` 메모리를 그대로 전송하지 않는다.
 - `Server::Start`는 TCP socket 생성 → `Bind` → `Listen` → completion port 생성 순으로 동작하고, blocking `AcceptLoop`와 IOCP `IOLoop`을 각각 스레드로 시작한다.
 - 서버를 실행해 `Bind`/`Listen` 후 대기하는 상태를 확인했고, 별도 PowerShell에서 다음 명령으로 접속 경로를 검증했다.
 
@@ -90,19 +90,21 @@
   - 역직렬화한 `EnterMessage`/`WorldSnapshot`은 mutex 보호 incoming queue로만 넘긴다. 두 queue의 현재 상한은 각 64 packet/message다.
 - `NetworkClient::Stop`은 종료 요청 후 network thread를 join한다. socket close와 `_connected = false` 전환은 network thread가 loop를 빠져나오는 한 곳에서 수행하므로 main thread와 socket handle을 동시에 조작하지 않는다.
 - `OverworldLevel::Tick`의 시작에서 main thread가 `Game::PumpNetwork`으로 incoming queue를 비운다. 현재는 Enter의 `playerId`와 최신 `WorldSnapshot`만 `Game`에 저장하며 Actor/Transform을 직접 갱신하지 않는다.
+- `NetworkClient::QueueInput`은 main thread에서 방향과 action flag를 받아 sequence를 부여하고, `BuildPacket_C2SInput`으로 만든 packet을 기존 outgoing queue에 넣는다. queue 삽입에 성공한 경우에만 sequence를 증가시킨다.
+- `OverworldLevel`은 `Player::Tick`이 이번 frame의 이동 입력을 기록한 뒤 방향 변경과 공격 key-down edge만 `Game::SendNetworkInput`으로 전달한다. 방향키를 놓으면 `MoveDirection::None`을 한 번 보내 서버에 저장된 이동을 해제한다. 이번 단계에서는 기존 local Player 이동·공격도 그대로 실행한다.
 - `OverworldLevel::Draw`는 기존 Renderer HUD 경로로 연결 상태를 표시한다. 표시 순서는 `[OFFLINE]` → `[Connecting...]` → `[ONLINE] Player <id>` → `[ONLINE] Player <id> Tick <tick> Num <count>`이다. network thread는 Renderer를 호출하지 않는다.
 
 ### 완료: Z1Shared wire layer 정리 (2026-08-29)
 
-> `7dfccda`에서 중단됐던 공용 wire layer 리팩터링을 완료했다. 다음 재개 지점은 Z1 클라이언트의 `C2S_Input` 전송이다.
+> `7dfccda`에서 중단됐던 공용 wire layer 리팩터링을 완료했다. 이후 Z1 클라이언트의 `C2S_Input` 전송까지 연결했다.
 
 Rookiss의 buffer/packet 아이디어 중 raw memory 직렬화나 범용 Session/Service는 가져오지 않고, Z1Shared에 다음의 작은 공용 wire layer만 도입했다.
 
 | 파일 | 현재 상태 | 최종 책임 |
 | --- | --- | --- |
 | `Z1Shared/Protocol.h` | 완료 | wire 계약 DTO와 enum만 선언. header를 raw struct로 전송하지 않음 |
-| `Z1Shared/Serialization.h` | 완료 | network byte order를 지키는 `PacketReader`/`PacketWriter`와 `BuildPacket` |
-| `Z1Shared/PacketCodec.h` | 완료 | Enter, Input, Player-only Snapshot의 builder/parser와 payload 검증 |
+| `Z1Shared/Serialization.h` | 완료 | network byte order를 지키는 `PacketReader`/`PacketWriter` |
+| `Z1Shared/PacketCodec.h` | 완료 | 내부 `BuildPacket`과 Enter, Input, Player-only Snapshot의 builder/parser·payload 검증 |
 | `Z1Shared/PacketFramer.h` | 완료 | TCP 누적 byte에서 완성 `Packet`을 하나씩 분리 |
 
 #### 완료된 공유 코드 보강
@@ -120,7 +122,11 @@ Rookiss의 buffer/packet 아이디어 중 raw memory 직렬화나 범용 Session
 
 2. signed 32-bit 메서드는 기존 이름인 `Read32`/`Write32`를 유지하고 codec 양쪽에서 일관되게 사용한다.
 
-3. `PacketFramer.h`는 `<Z1Shared/Serialization.h>`를 직접 include한다. framing 결과 타입 이름은 현재 용도에 맞게 `Packet`으로 확정했다.
+3. `Serialization.h`는 WinSock에 의존하지 않는다. `EndianSwap`으로 정수를 big-endian 값으로 변환한 뒤 기존 `resize` + `memcpy` 구조로 byte vector에 기록하고, 읽을 때는 반대 순서로 복원한다.
+
+4. packet header와 payload를 결합하는 `BuildPacket`은 typed codec에서만 사용하므로 `Serialization.h`에서 `PacketCodec.h` 내부 구현으로 옮겼다. Server/Client handler의 고정 payload 크기 중복 검사는 제거하고, 각 parser의 필드 읽기와 `IsAtEnd()` 검증으로 일원화했다. parser는 지역 변수에 모두 읽고 검증에 성공한 경우에만 출력 인자를 갱신한다.
+
+5. `PacketFramer.h`는 `<Z1Shared/Serialization.h>`를 직접 include한다. framing 결과 타입 이름은 현재 용도에 맞게 `Packet`으로 확정했다.
 
    ```cpp
    struct Packet
@@ -130,7 +136,7 @@ Rookiss의 buffer/packet 아이디어 중 raw memory 직렬화나 범용 Session
    };
    ```
 
-4. Framer의 `TryPop`은 `bool`이 아니라 중첩 `PopResult`로 세 결과를 구분한다. 분할 수신의 `NeedMoreData`는 정상이고, size 오류의 `Invalid`는 연결 종료 대상이다.
+6. Framer의 `TryPop`은 `bool`이 아니라 중첩 `PopResult`로 세 결과를 구분한다. 분할 수신의 `NeedMoreData`는 정상이고, size 오류의 `Invalid`는 연결 종료 대상이다.
 
    ```cpp
    enum class PopResult
@@ -214,7 +220,7 @@ HandleServerPacket(
 3. `tools/test-z1-enter.ps1`을 확장해 정상 Enter/Snapshot, header 분할, payload 분할, Enter+Input 연속 전송, Input 이동·정지를 확인했다.
 4. size `0`, `3`, `4097` packet과 protocol version `2`는 서버가 연결을 종료하며 거부했다.
 5. 연속 Enter+Input에서 서버 Player의 y가 `395 → 387`, 일반 Input에서 `395 → 389`로 이동한 뒤 정지했다.
-6. PowerShell 검증은 서버 수신 경로를 대상으로 한다. Z1 `NetworkClient`의 실제 HUD 확인은 다음 C2S Input 연결 작업의 통합 smoke test에도 포함한다.
+6. PowerShell 검증 뒤 실제 Z1 `NetworkClient`의 Enter/Snapshot/HUD와 `C2S_Input` 송신 경로도 통합 확인했다.
 
 ### 실제 확인 결과
 
@@ -224,6 +230,8 @@ HandleServerPacket(
 - Snapshot 수신에서 새 Player의 기본 상태 `position=(1190,395)`, `facing=Up(1)`, `hp=20`, `flags=0`, `Enemies=0`, `Projectiles=0`을 확인했다.
 - PowerShell dummy client 두 개를 겹쳐 실행해 양쪽 snapshot에 `playerId=1,2`, `players=2`가 기록되고, 두 번째 연결 종료 뒤 남은 클라이언트 snapshot이 `players=1`로 돌아오는 것을 확인했다.
 - 실제 Z1과 Z1Server를 함께 실행해 서버의 `Client Connected!`, `C2S_Enter received` 로그와 Z1 Overworld HUD의 `[ONLINE] Player 1 Tick 640 Num 1` 표시를 확인했다. 즉 실제 EXE에서도 connect → Enter → snapshot 수신 → main-thread HUD 반영 경로가 동작한다.
+- 실제 Z1에서 방향키를 누르면 변경된 방향 packet 한 개가 전송되고, 키를 놓으면 `MoveDirection::None`이 전송되어 서버 이동이 멈추는 것을 확인했다. 방향 전환마다 sequence가 증가하고 서버 Player 좌표가 해당 방향으로 변했다.
+- 검을 얻은 뒤 `A`를 누르면 해당 key-down 순간의 packet 하나에 `actionFlags=1`이 기록됐다. 이동 중 공격 입력도 같은 `InputCommand`에 함께 담기며, 현재 서버는 flag를 파싱·저장할 뿐 공격 simulation에는 아직 적용하지 않는다.
 
 ### 7일 플랜 기준 현재 위치
 
@@ -248,14 +256,14 @@ d42e0a9  S2C_WorldSnapshot과 accepted socket queue
 | --- | --- | ---: |
 | Socket payload 경로 | framing, Enter 왕복, partial send, send queue, 다중 dummy client 확인 완료. 안전한 종료 drain과 Session 제거 미완료 | 80~85% |
 | 서버 OverworldSimulation | Player 상태·입력·기본 이동·Snapshot 완료. blocking map, Room, Enemy, Projectile, 전투 미완료 | 20~25% |
-| Z1 NetworkClient와 Actor 표현 | select transport, Enter/Snapshot parsing, thread queue, Game 저장, HUD 확인 완료. 입력 송신과 replicated Actor는 미착수 | 40~45% |
-| 통합·검증 | PowerShell 다중 client와 실제 Z1 1개 접속·HUD를 확인. 실제 Z1 2개와 위치 표현 검증은 미착수 | 15~20% |
+| Z1 NetworkClient와 Actor 표현 | select transport, Enter/Snapshot parsing, thread queue, Game 저장, HUD, 실제 입력 송신 완료. replicated Actor는 미착수 | 55~60% |
+| 통합·검증 | PowerShell 다중 client와 실제 Z1의 접속·HUD·입력 송신·서버 좌표 이동을 확인. 실제 Z1 2개의 위치 표현 검증은 미착수 | 20~25% |
 
-전체 MVP의 관찰 가능한 기능 기준으로는 약 35~40% 지점이다. 서버 기준으로는 단계 4의 이동/Snapshot 기반을 만들었고, end-to-end 기준으로도 단계 3의 transport·HUD 확인까지 끝났다. 다음 병목은 C2S input 전송과 서버 snapshot을 표현 Actor에 반영하는 경로이며, 그 뒤 Overworld collision/Room, Enemy/Projectile과 전투가 남는다.
+전체 MVP의 관찰 가능한 기능 기준으로는 약 40% 지점이다. 서버 기준으로는 단계 4의 이동/Snapshot 기반을 만들었고, end-to-end 기준으로 실제 Z1 입력이 서버 시뮬레이션까지 도달한다. 다음 병목은 서버 snapshot을 표현 Actor에 반영하는 경로이며, 그 뒤 Overworld collision/Room, Enemy/Projectile과 전투가 남는다.
 
 ### 남아 있는 제약과 다음 재개 지점
 
-- Z1 transport는 연결·Enter·Snapshot 수신까지만 사용한다. 기존 로컬 `Player`와 Overworld의 입력·이동·공격·적 AI는 그대로 실행되며 `C2S_Input`을 보내지 않는다. 따라서 현재 HUD의 snapshot 좌표는 화면 Player에 반영되지 않는다.
+- Z1은 기존 local `Player`의 방향 변경과 공격 key-down edge를 `C2S_Input`으로 보내지만, Overworld의 로컬 이동·공격·적 AI도 아직 그대로 실행한다. 서버 snapshot 좌표는 HUD용 최신 상태로만 저장되고 화면 Player에는 반영되지 않는다.
 - `NetworkPlayer`, `MyPlayer`, playerId→Actor map은 아직 없다. snapshot에 새 Player가 나타나거나 사라져도 Z1 Actor를 만들거나 제거하지 않는다.
 - `NetworkClient`의 incoming queue가 가득 차면 현재는 연결을 끊는다. snapshot을 최신 하나로 합치는 정책은 실제 복제 표현이 동작한 뒤 필요할 때만 추가한다.
 - Snapshot의 Enemy/Projectile 배열은 예약된 빈 배열이며, 공격 flag는 입력 검증만 한다. 공격·피격·HP 변화·사망·Enemy/Projectile simulation은 아직 없다.
@@ -266,7 +274,7 @@ d42e0a9  S2C_WorldSnapshot과 accepted socket queue
 - `S2C_Disconnect`는 packet type만 선언했고 아직 보내지 않는다.
 - 계약에 적은 `MaxPlayers`, `MaxEnemies`, `MaxProjectiles`와 snapshot count 상한은 아직 구현하지 않았다. 현재 Player count는 `players.size()`를 `uint16_t`로 변환한다.
 - 네트워크 작업 전 Z1, SokobanGame, ShootingGame의 Debug|x64 빌드·실행 기준선은 확인했다. 8월 28일 변경 뒤에는 Z1Server+Z1 실제 접속 smoke test를 확인했으나, 세 게임 전체 회귀 빌드·실행 기록은 아직 없다.
-- 다음 재개 단위는 **C2S_Input 전송**이다. `NetworkClient`에 main thread용 input packet 생성 API를 추가하고, local Player의 방향/공격 input을 sequence와 함께 queue에 넣는다. 우선 서버 콘솔과 dummy client snapshot에서 서버 Player 위치가 변하는지 확인한 뒤 `MyPlayer`/`NetworkPlayer` 표현으로 진행한다.
+- 다음 재개 단위는 **`MyPlayer`/`NetworkPlayer` 표현과 snapshot 반영**이다. `S2C_Enter`의 local playerId와 `S2C_WorldSnapshot`의 playerId를 대응시켜 Actor를 생성·갱신·제거하고, 모든 네트워크 Player Transform의 원본을 서버 좌표로 전환한다.
 
 ## 일주일 MVP 합의 범위 (2026-08-27)
 
@@ -1200,7 +1208,7 @@ CraftEngine
 
 ### 단계 4: 두 플레이어 이동 vertical slice
 
-현재 상태: 서버 측 PlayerState, 20Hz Tick, 입력 저장, 전체 Map 사각형 경계 이동, 전체 Player Snapshot broadcast와 Z1의 snapshot 수신까지 구현했다. Z1 클라이언트 입력 전송과 replicated Actor 표현은 아직 없다.
+현재 상태: 서버 측 PlayerState, 20Hz Tick, 입력 저장, 전체 Map 사각형 경계 이동, 전체 Player Snapshot broadcast와 Z1의 snapshot 수신을 구현했다. 실제 Z1의 방향 변경·정지·공격 edge 전송과 서버 방향 적용도 확인했으며, replicated Actor 표현은 아직 없다.
 
 - 서버 PlayerState와 20Hz 고정 Tick
 - 클라이언트 방향 입력 전송
@@ -1318,12 +1326,13 @@ CraftEngine
 
 ## 다음 구현 단위
 
-Z1Shared wire layer와 Server/NetworkClient의 공용 Framer 전환은 완료됐다. 다음 재개 작업은 **Z1 클라이언트의 `C2S_Input` 전송**이며, 이 단계에서는 아직 Actor 계층이나 화면 이동의 원본을 바꾸지 않는다.
+Z1Shared wire layer, 공용 Framer 전환, 실제 Z1의 `C2S_Input` 전송은 완료됐다. 다음 재개 작업은 **`MyPlayer`/`NetworkPlayer` 표현과 서버 snapshot 반영**이다.
 
-1. `NetworkClient`에 main thread용 `SendInput` 또는 `QueueInput` API를 추가한다. API 내부에서 `InputCommand{sequence, moveDirection, actionFlags}`를 `BuildPacket_C2SInput`으로 직렬화하고 기존 `QueuePacket`에 넣는다. socket은 network thread만 계속 소유한다.
-2. local Player의 현재 방향과 공격 눌림을 main thread에서 읽고, 마지막으로 전송한 상태와 달라질 때 증가하는 sequence와 함께 위 API를 호출한다. 방향이 멈춘 순간에도 `MoveDirection::None`을 한 번 보내 서버의 마지막 이동 입력을 해제한다.
-3. 첫 검증에서는 기존 local Player의 화면 이동을 바꾸지 않는다. 서버 콘솔의 `C2S_Input` 로그와 snapshot의 서버 Player 좌표 변화만 확인한다.
-4. Z1Server와 실제 Z1을 함께 실행해 Enter, Input, Snapshot 수신과 HUD의 playerId/tick/player count를 통합 확인한다. 서버가 없을 때 기존 싱글플레이가 계속되는지도 재확인한다.
-5. Input 전송이 확인되면 `MyPlayer`와 `NetworkPlayer`를 도입한다. `MyPlayer`만 input을 전송하고, 모든 Player 표현의 Transform은 main thread에서 받은 서버 snapshot으로 갱신한다. 이때 기존 로컬 Player의 이동·충돌·공격 경로를 네트워크 모드에서 분리한다.
+1. 기존 입력·로컬 판정을 수행하는 `Player`를 그대로 복제 Actor로 사용하지 않고, snapshot의 위치·방향·HP·flags만 표현하는 `NetworkPlayer`를 추가한다.
+2. `MyPlayer`는 `NetworkPlayer`의 로컬 playerId 역할을 나타낸다. 입력 전송 책임을 어디에 둘지는 현재 `OverworldLevel::SendNetworkInput` 경로와 비교해 결정하되, 중복 입력 reader를 만들지 않는다.
+3. `OverworldLevel`은 main thread에서 최신 `WorldSnapshot`을 소비하고 `playerId → NetworkPlayer` 대응을 관리한다. 새 ID는 `SpawnActor`, 기존 ID는 Transform과 표현 상태 갱신, snapshot에서 사라진 ID는 `Destroy`로 지연 제거한다.
+4. `S2C_Enter`로 받은 local playerId와 같은 항목은 `MyPlayer`, 나머지는 `NetworkPlayer`로 생성한다. 모든 네트워크 Player의 위치 원본은 서버 snapshot이며 network thread는 Actor를 직접 변경하지 않는다.
+5. 네트워크 연결 상태에서는 기존 local `Player`의 이동·충돌·공격 확정 경로를 분리한다. 서버가 없을 때 기존 싱글플레이가 계속되는 동작은 유지한다.
+6. Z1 클라이언트 두 개를 함께 실행해 서로의 생성·이동·정지·제거가 양쪽 화면에 서버 좌표로 보이는지 확인한다.
 
 이 다음 구현 단위에서도 network thread는 기존 싱글플레이 `Player`, Enemy, Overworld Level을 직접 재사용하거나 변경하지 않는다. 서버의 blocking map/Room/전투와 안전한 Session 종료 수명은 이후 별도 단계로 남는다.

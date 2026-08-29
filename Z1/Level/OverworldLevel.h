@@ -7,6 +7,8 @@
 #include <Actor/Octorok.h>
 #include <Util/Timer.h>
 
+#include <Z1Shared/Protocol.h>
+
 namespace Craft
 {
     class Sprite;
@@ -77,6 +79,9 @@ private:
     std::optional<EntranceType> ResolveEntrance(Craft::Vector2 destination, const Pawn& mover);
     bool TryEnterEntrance(Craft::Vector2 destination);
 
+private:    // Network
+    void SendNetworkInput(class Game& game);
+
 private:
     inline static constexpr RoomCoordinate StartRoom{ 7, 7 };
 
@@ -96,4 +101,17 @@ private:
     std::vector<std::shared_ptr<Enemy>> _roomEnemies;   // 현재 룸에 생성된 적 별도 보관
     std::vector<std::shared_ptr<Projectile>> _roomProjectiles;
     uint32_t _worldSeed = 12345u;
+
+    /************
+    * Network
+    ************/
+
+    // 서버는 마지막으로 기록한 input 방향을 매 tick 적용
+    // 따라서 아래의 경우에만 패킷 전송
+    // - 이동 시작: None -> up
+    // - 방향 변경: Up - Left
+    // - 키 놓아 이동 정지: Left -> None
+    // - 공격 키 눌림
+
+    Z1::Protocol::MoveDirection _lastSentDir = Z1::Protocol::MoveDirection::None;
 };

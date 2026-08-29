@@ -128,10 +128,13 @@ void OverworldLevel::Tick(float deltaTime)
 
     Level::Tick(deltaTime);
 
-    // 싱글플레이 로직
-
-    // TODO: 나중에 PlayerContoller 같은 걸로 다 이관시켜야 하나?
     if (!_player) return;
+
+    // Level::Tick()에서 Player::Tick()이 호출되며 입력 벡터가 기록됨
+    // 따라서 해당 입력 값이 기록된 직후 서버에 입력 정보를 전송
+    SendNetworkInput(game);
+
+    // 싱글플레이 로직
 
     if (_player->IsDead())
     {
@@ -893,4 +896,40 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
     }
 
     return false;
+}
+
+void OverworldLevel::SendNetworkInput(Game& game)
+{
+    using namespace Z1::Protocol;
+
+    MoveDirection dir = MoveDirection::None;
+    std::uint8_t actionFlags = 0;
+
+    // 불필요한 송신을 줄이기 위한 최소한의 필터
+    if (!_player->IsDead())
+    {
+        const Vector2 moveInputDir = _player->GetMovementInputDirection();
+        if (moveInputDir == Vector2::Up) dir = MoveDirection::Up;
+        else if (moveInputDir == Vector2::Up * -1) dir = MoveDirection::Down;
+        else if (moveInputDir == Vector2::Right) dir = MoveDirection::Right;
+        else if (moveInputDir == Vector2::Right * -1) dir = MoveDirection::Left;
+
+        // 공격 유무를 따로 검사: 공격 버튼을 눌렀다는 의도만 전송, 아래 판단은 서버 책임
+        // 검 보유 여부, 사망 여부, 공격 중인지, 쿨타임 끝났는지, ...
+        if (Input::Get().GetKeyDown('A'))
+        {
+            actionFlags |= InputActionAttack;
+        }
+    }
+
+    bool rotated = dir != _lastSentDir;
+    bool hasAction = actionFlags != 0;
+
+    if (!rotated && !hasAction) return;
+
+    // 현재는 이동 중에 A를 누르면 방향과 액션 플래그가 함께 전송됨 -> 서버에서 시뮬 후 이동+공격 동시 허용 결정
+    if (game.SendNetworkInput(dir, actionFlags))
+    {
+        _lastSentDir = dir;
+    }
 }

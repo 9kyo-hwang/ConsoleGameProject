@@ -140,12 +140,40 @@ bool NetworkClient::TryPopIncomingMessage(IncomingMessage& message)
     return true;
 }
 
+bool NetworkClient::QueueInput(Z1::Protocol::MoveDirection direction, std::uint8_t actionFlags)
+{
+    if (!IsConnected()) return false;
+
+    InputCommand input
+    {
+        .sequence = _inputSequence,
+        .moveDirection = direction,
+        .actionFlags = actionFlags
+    };
+
+    std::vector<Byte> packet;
+    if (!BuildPacket_C2SInput(input, packet))
+    {
+        return false;
+    }
+
+    if (!QueuePacket(std::move(packet)))
+    {
+        return false;
+    }
+
+    ++_inputSequence;
+    return true;
+}
+
 bool NetworkClient::QueuePacket(std::vector<Z1::Protocol::Byte>&& packet)
 {
     if (packet.empty())
     {
         return false;
     }
+
+    // lock으로 보호되는 전송 큐
 
     std::lock_guard lock(_sendMutex);
     if (_sendQueue.size() >= MaxQueuedPackets)

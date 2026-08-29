@@ -38,6 +38,9 @@ public:
 
     bool IsConnected() const noexcept;
     bool TryPopIncomingMessage(IncomingMessage& message);
+    
+    // C2S_Input 패킷을 Send하기 위해 Game에서 데이터를 밀어넣는 API
+    bool QueueInput(Z1::Protocol::MoveDirection direction, std::uint8_t actionFlags);
 
     inline int GetLastError() const noexcept { return _socket.GetLastError(); }
 
@@ -80,5 +83,10 @@ private:
     // NetworkThread -> GameThread: 서버로부터 받은 걸 넘겨주는 역할
     std::mutex _recvMutex;
     std::deque<IncomingMessage> _recvMessageQueue;  // 이전에 미처리한 snapshot 버리고 최신 것만 남기도록?
+
+    /***********
+    * C2S_Input
+    ***********/
+    std::uint32_t _inputSequence = 1;
 };
 
