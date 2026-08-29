@@ -85,14 +85,8 @@ bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> p
 {
     // 1. payload 크기가 sizeof(uint16_t)인지
     // 2. protocol version이 ProtocolVersion인지
-
-    if (payload.size() != sizeof(std::uint16_t))
-    {
-        return false;
-    }
-
-    std::uint16_t version = 0;
-    if (!ParsePayload_C2SEnter(payload, version))
+    // 이 검사는 내부적으로 사용하는 PacketReader에 의해(Read(), IsAtEnd()) 수행됨
+    if (!ParsePayload_C2SEnter(payload))
     {
         return false;
     }
@@ -138,12 +132,6 @@ bool Server::HandleInput(Session& session, std::span<const Z1::Protocol::Byte> p
 {
     // 입장하지 않은 플레이어
     if (!session.IsEntered())
-    {
-        return false;
-    }
-
-    // uint32(시퀀스) + uint8(이동 방향) + uint8(공격 유무)
-    if (payload.size() != sizeof(std::uint32_t) + 2)
     {
         return false;
     }

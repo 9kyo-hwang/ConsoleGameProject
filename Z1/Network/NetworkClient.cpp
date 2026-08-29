@@ -360,11 +360,6 @@ bool NetworkClient::HandleServerPacket(PacketType type, std::span<const Byte> pa
 
 bool NetworkClient::HandleEnter(std::span<const Byte> payload)
 {
-    if (payload.size() != sizeof(std::uint16_t) + sizeof(std::uint32_t))
-    {
-        return false;
-    }
-
     std::uint32_t playerId = 0;
     if (!ParsePayload_S2CEnter(payload, playerId))
     {

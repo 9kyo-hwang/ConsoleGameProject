@@ -1,7 +1,5 @@
 ﻿#pragma once
 
-#include <WinSock2.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -16,6 +14,24 @@
 namespace Z1::Protocol
 {
     using Byte = std::uint8_t;
+
+    namespace
+    {
+        constexpr uint16_t EndianSwap(uint16_t value) noexcept
+        {
+            return ((value << 8) | (value >> 8));
+        }
+
+        constexpr uint32_t EndianSwap(uint32_t value) noexcept
+        {
+            return (
+                ((value & 0x000000FFu) << 24) |
+                ((value & 0x0000FF00u) << 8) |
+                ((value & 0x00FF0000u) >> 8) |
+                ((value & 0xFF000000u) >> 24)
+                );
+        }
+    }
 
     // span + offset
     class PacketReader
@@ -40,7 +56,7 @@ namespace Z1::Protocol
         bool ReadU16(std::uint16_t& output)
         {
             // 읽으려는 위치가 전체 input을 넘어갔거나, 읽으려는 크기가 uint16 크기가 안되는 케이스 거르기
-            if (_offset > _bytes.size() || _bytes.size() - _offset < sizeof(std::uint16_t))
+            if (_offset + sizeof(std::uint16_t) > _bytes.size())
             {
                 return false;
             }
@@ -49,15 +65,14 @@ namespace Z1::Protocol
             std::memcpy(&netshort, _bytes.data() + _offset, sizeof(netshort));
 
             _offset += sizeof(netshort);
-            output = ::ntohs(netshort);    // pc little-endian
+            output = EndianSwap(netshort);
 
             return true;
         }
 
         bool ReadU32(std::uint32_t& output)
         {
-            // 읽으려는 위치가 전체 input을 넘어갔거나, 읽으려는 크기가 uint16 크기가 안되는 케이스 거르기
-            if (_offset > _bytes.size() || _bytes.size() - _offset < sizeof(std::uint32_t))
+            if (_offset + sizeof(std::uint32_t) > _bytes.size())
             {
                 return false;
             }
@@ -66,7 +81,7 @@ namespace Z1::Protocol
             std::memcpy(&netlong, _bytes.data() + _offset, sizeof(netlong));
 
             _offset += sizeof(netlong);
-            output = ::ntohl(netlong);    // pc little-endian
+            output = EndianSwap(netlong);   // big -> little
 
             return true;
         }
@@ -111,7 +126,7 @@ namespace Z1::Protocol
 
         void WriteU16(std::uint16_t value)
         {
-            const u_short netshort = ::htons((u_short)value);    // network big-endian
+            const std::uint16_t netshort = EndianSwap(value);
 
             const std::size_t offset = _bytes.size();
             _bytes.resize(offset + sizeof(netshort));
@@ -121,8 +136,8 @@ namespace Z1::Protocol
 
         void WriteU32(std::uint32_t value)
         {
-            const u_long netlong = ::htonl((u_long)value);
-
+            const uint32_t netlong = EndianSwap(value);
+            
             const std::size_t offset = _bytes.size();
             _bytes.resize(offset + sizeof(netlong));
 
@@ -142,23 +157,4 @@ namespace Z1::Protocol
     private:
         std::vector<Byte> _bytes{};
     };
-
-    inline bool BuildPacket(PacketType type, std::span<const Byte> payload, std::vector<Byte>& outPacket)
-    {
-        // 패킷 내용물이 너무 크면 안됨
-        if (payload.size() > MaxPacketSize - PacketHeaderSize)
-        {
-            return false;
-        }
-
-        const std::uint16_t packetSize = (std::uint16_t)(PacketHeaderSize + payload.size());
-
-        PacketWriter writer(packetSize);
-        writer.WriteU16(packetSize);
-        writer.WriteU16((std::uint16_t)type);
-        writer.Append(payload);
-
-        outPacket = writer.TakeBytes();
-        return true;
-    }
 }

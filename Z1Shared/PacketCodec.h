@@ -7,6 +7,27 @@
 namespace Z1::Protocol
 {
     // Header-Only라 전부 인라인
+    namespace
+    {
+        inline bool BuildPacket(PacketType type, std::span<const Byte> payload, std::vector<Byte>& outPacket)
+        {
+            // 패킷 내용물이 너무 크면 안됨
+            if (payload.size() > MaxPacketSize - PacketHeaderSize)
+            {
+                return false;
+            }
+
+            const std::uint16_t packetSize = (std::uint16_t)(PacketHeaderSize + payload.size());
+
+            PacketWriter writer(packetSize);
+            writer.WriteU16(packetSize);
+            writer.WriteU16((std::uint16_t)type);
+            writer.Append(payload);
+
+            outPacket = writer.TakeBytes();
+            return true;
+        }
+    }
 
     // 0 ~ 4 의 값이 아니라면 문제
     inline bool IsValidMoveDirection(std::uint8_t direction) noexcept
@@ -22,9 +43,10 @@ namespace Z1::Protocol
         return BuildPacket(PacketType::C2S_Enter, payload.Bytes(), packet);
     }
 
-    inline bool ParsePayload_C2SEnter(std::span<const Byte> payload, std::uint16_t& version)
+    inline bool ParsePayload_C2SEnter(std::span<const Byte> payload)
     {
         PacketReader reader(payload);
+        std::uint16_t version = 0;
 
         if (!reader.ReadU16(version) || !reader.IsAtEnd())
         {
@@ -50,12 +72,19 @@ namespace Z1::Protocol
         PacketReader reader(payload);
 
         std::uint16_t version = 0;
-        if (!reader.ReadU16(version) || !reader.ReadU32(playerId) || !reader.IsAtEnd())
+        std::uint32_t id = 0;
+        if (!reader.ReadU16(version) || !reader.ReadU32(id) || !reader.IsAtEnd())
         {
             return false;
         }
 
-        return version == ProtocolVersion && playerId != 0;
+        if (version != ProtocolVersion || id == 0)
+        {
+            return false;
+        }
+
+        playerId = id;
+        return true;
     }
 
     inline bool BuildPacket_C2SInput(const InputCommand& input, std::vector<Byte>& packet)
@@ -74,25 +103,26 @@ namespace Z1::Protocol
         return BuildPacket(PacketType::C2S_Input, payload.Bytes(), packet);
     }
 
-    inline bool ParsePayload_C2SInput(std::span<const Byte> payload, InputCommand& input)
+    inline bool ParsePayload_C2SInput(std::span<const Byte> payload, InputCommand& out)
     {
         PacketReader reader(payload);
-        std::uint8_t direction = 0, actionFlags = 0;
+        InputCommand input{};
+        std::uint8_t direction = 0;
 
         if (!reader.ReadU32(input.sequence) || !reader.ReadU8(direction)
-            || !reader.ReadU8(actionFlags) || !reader.IsAtEnd())
+            || !reader.ReadU8(input.actionFlags) || !reader.IsAtEnd())
         {
             return false;
         }
 
         // [11111...0]이랑 & 했는데 0이 아니라면 flag로 2 이상의 값이 들어왔다는 뜻
-        if (!IsValidMoveDirection(direction) || (actionFlags & ~ValidInputActions) != 0)
+        if (!IsValidMoveDirection(direction) || (input.actionFlags & ~ValidInputActions) != 0)
         {
             return false;
         }
 
         input.moveDirection = (MoveDirection)direction;
-        input.actionFlags = actionFlags;
+        out = input;
         
         return true;
     }
