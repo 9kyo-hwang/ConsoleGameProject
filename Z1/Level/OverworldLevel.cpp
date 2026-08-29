@@ -18,6 +18,9 @@
 #include <Game/Game.h>
 #include <World/MapGeometry.h>
 
+#include <unordered_set>
+#include <Network/NetworkPlayer.h>
+
 using namespace Craft;
 using FilePath = std::filesystem::path;
 
@@ -124,7 +127,14 @@ void OverworldLevel::Tick(float deltaTime)
 {
     Game& game = dynamic_cast<Game&>(Engine::Get());
     game.PumpNetwork(); // OverworldLevel에서, 메인 스레드가 네트워크 큐를 소비하도록
-    // 이후 Player/MyPlayer 위치 설정할 때 Actor::Tick 보다 먼저 서버 확정 상태를 반영할 수 있음
+    if (game.IsServerConnected())
+    {
+        ApplyLatestNetworkSnapshot(game);   // 서버로부터 받은 정보를 Actor::Tick 보다 먼저 반영
+    }
+    else
+    {
+        ClearNetworkPlayers();
+    }
 
     Level::Tick(deltaTime);
 
@@ -277,6 +287,8 @@ void OverworldLevel::EndPlay()
 {
     Level::EndPlay();
 
+    ClearNetworkPlayers();  // Level 나갈 때도 정리하자.
+
     if (_player)
     {
         Game& game = dynamic_cast<Game&>(Engine::Get());
@@ -328,6 +340,77 @@ std::shared_ptr<Enemy> OverworldLevel::SpawnEnemy(const EnemySpawnData& spawn)
     default:
         return nullptr;
     }
+}
+
+void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
+{
+    using namespace Z1::Protocol;
+
+    auto localPlayerId = game.GetLocalPlayerId();
+    const auto& snapshot = game.GetLatestSnapshot();
+
+    if (!localPlayerId || !snapshot)
+    {
+        return;
+    }
+
+    // game의 snapshot은 단순히 마지막 값을 기록하는 용도라서 serverTick 기준 진짜 최신값인지 확인해야 함
+    if (_lastAppliedServerTick && *_lastAppliedServerTick == snapshot->serverTick)
+    {
+        return;
+    }
+
+    // 1. 서버로부터 받은 플레이어 정보 기반 생성 및 갱신
+    std::unordered_set<std::uint32_t> recvdPlayers;
+    for (const SnapshotPlayerState& state : snapshot->players)
+    {
+        // 원격 플레이어만 생성해야 하므로 나 자신은 제외
+        if (state.playerId == *localPlayerId)
+        {
+            continue;
+        }
+
+        recvdPlayers.emplace(state.playerId);
+
+        if (_networkPlayers.contains(state.playerId))
+        {
+            _networkPlayers[state.playerId]->ApplySnapshot(state);
+            continue;
+        }
+
+        auto remotePlayer = SpawnActor<NetworkPlayer>(Vector2(state.x, state.y), state.playerId);
+        remotePlayer->ApplySnapshot(state);
+        _networkPlayers.emplace(state.playerId, std::move(remotePlayer));
+    }
+
+    // 2. 새로 받은 플레이어가 기존 플레이어 명단에 없다면 제거
+    for (auto it = _networkPlayers.begin(); it != _networkPlayers.end();)
+    {
+        if (!recvdPlayers.contains(it->first))
+        {
+            it->second->Destroy();
+            it = _networkPlayers.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    // 서버로부터 정상적으로 스냅샷 수신한 틱을 기록해 최신값 판별
+    _lastAppliedServerTick = snapshot->serverTick;
+}
+
+// 서버 연결 끊겼을 때 snapshot 날려버리는 역할
+void OverworldLevel::ClearNetworkPlayers()
+{
+    for (auto& [playerId, player] : _networkPlayers)
+    {
+        player->Destroy();
+    }
+
+    _networkPlayers.clear();
+    _lastAppliedServerTick.reset();
 }
 
 bool OverworldLevel::LoadMap()
@@ -398,10 +481,7 @@ RoomCoordinate OverworldLevel::GetRoomCoordinate(const Vector2& mapCellPosition)
     return RoomCoordinate(mapCellPosition.x / roomCellWidth, mapCellPosition.y / roomCellHeight);
 }
 
-RoomCoordinate OverworldLevel::GetRoomCoordinateAtLeadingEdge(
-    const Vector2& destination,
-    const Pawn& pawn,
-    const Vector2& direction) const
+RoomCoordinate OverworldLevel::GetRoomCoordinateAtLeadingEdge(Vector2 destination, const Pawn& pawn, Vector2 direction) const
 {
     const auto box = pawn.GetComponent<BoxComponent>();
     if (!box)
@@ -434,9 +514,7 @@ Vector2 OverworldLevel::GetRoomCellOrigin(RoomCoordinate room) const
     };
 }
 
-void OverworldLevel::SnapPlayerIntoRoom(
-    RoomCoordinate room,
-    const Vector2& direction)
+void OverworldLevel::SnapPlayerIntoRoom(RoomCoordinate room, Vector2 direction)
 {
     if (!_player)
     {
@@ -480,10 +558,7 @@ void OverworldLevel::SnapPlayerIntoRoom(
     _player->SetPosition(position);
 }
 
-bool OverworldLevel::CanMoveTo(
-    const Craft::Vector2& destination,
-    const Pawn& mover,
-    bool allowContactEscape)
+bool OverworldLevel::CanMoveTo(Vector2 destination, const Pawn& mover, bool allowContactEscape)
 {
     const auto& moverBox = mover.GetComponent<BoxComponent>();
     if (!moverBox)
@@ -501,8 +576,7 @@ bool OverworldLevel::CanMoveTo(
     }
 
     if (!mover.IsA<Tektite>() &&
-        !_map.CanPlaceBox(
-            Box2D{ moverPosition, moverBox->GetSize() }))
+        !_map.CanPlaceBox(Box2D{ moverPosition, moverBox->GetSize() }))
     {
         return false;
     }
@@ -541,13 +615,9 @@ bool OverworldLevel::CanMoveTo(
     {
         if (IsOverlapping(enemy))
         {
-            const auto enemyBox =
-                enemy->GetComponent<BoxComponent>();
+            const auto enemyBox = enemy->GetComponent<BoxComponent>();
 
-            const bool isEscapingContact =
-                mover.IsA<Player>() &&
-                allowContactEscape &&
-                enemyBox &&
+            const bool isEscapingContact = mover.IsA<Player>() && allowContactEscape && enemyBox &&
                 Box2D{
                     mover.GetWorldPosition() + moverBox->GetOffset(),
                     moverBox->GetSize()
@@ -590,11 +660,7 @@ bool OverworldLevel::UpdatePawnKnockback(Pawn& pawn, float deltaTime)
         RoomCoordinate nextRoom = _currentRoom;
         if (pawn.IsA<Player>())
         {
-            nextRoom = GetRoomCoordinateAtLeadingEdge(
-                destination,
-                pawn,
-                direction
-            );
+            nextRoom = GetRoomCoordinateAtLeadingEdge(destination, pawn, direction);
 
             if (!IsAccessibleRoom(nextRoom))
             {
@@ -640,7 +706,6 @@ void OverworldLevel::SpawnRoomEnemies()
         {
             _roomEnemies.emplace_back(enemy);
         }
-        //_roomEnemies.push_back(SpawnActor<Enemy>(spawn.mapCellPosition, spawn.maxHp));
     }
 }
 
@@ -731,7 +796,6 @@ void OverworldLevel::UpdateEnemyMovement(float deltaTime)
         const int moveSteps = enemy->ConsumeMoveSteps(deltaTime);
         for (int i = 0; i < moveSteps; ++i)
         {
-            //const Vector2 delta = enemy->GetChaseDelta(_player->GetWorldPosition());
             const Vector2 candidate = enemy->GetWorldPosition() + delta;
 
             if (!CanMoveTo(candidate, *enemy))
@@ -764,8 +828,7 @@ bool OverworldLevel::IsInsideCurrentRoom(Craft::Vector2 boxPosition, Craft::Vect
     const Vector2 origin = GetRoomCellOrigin(_currentRoom);
     const Vector2 roomSize{ RoomTileWidth * TileCellSize.x, RoomTileHeight * TileCellSize.y };
 
-    return Box2D{ boxPosition, boxSize }.IsInside(
-        Box2D{ origin, roomSize }
+    return Box2D{ boxPosition, boxSize }.IsInside(Box2D{ origin, roomSize }
     );
 }
 
@@ -893,6 +956,7 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
 
         return true;
     }
+
     }
 
     return false;

@@ -11,7 +11,7 @@
 
 솔루션 파일은 `ConsoleGameProject.slnx`이며 Debug/Release, x64 구성만 정의되어 있다.
 
-Z1의 SocketAPI/IOCP 서버 구현 상태와 다음 단계는 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](Z1_MULTIPLAYER_IOCP_PLAN.md)를 참고한다. 실제 프로젝트 이름은 공용 socket DLL이 `Sockets`, 서버 실행 파일이 `Z1Server`다.
+Z1의 SocketAPI/IOCP 아키텍처와 구현 계획은 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](Z1_MULTIPLAYER_IOCP_PLAN.md), 현재 구현 상태와 다음 단계는 [`Z1_MULTIPLAYER_PROGRESS.md`](Z1_MULTIPLAYER_PROGRESS.md)를 참고한다. 실제 프로젝트 이름은 공용 socket DLL이 `Sockets`, 서버 실행 파일이 `Z1Server`다.
 
 ## 빌드 순서
 

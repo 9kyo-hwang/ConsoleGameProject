@@ -109,7 +109,7 @@ Attach 동작은 다음 계약을 가진다.
 
 ### 입력
 
-`Input` 싱글톤은 Win32 `GetAsyncKeyState`로 0~255 가상 키를 매 프레임 폴링한다. 현재/이전 상태 조합으로 `GetKey`, `GetKeyDown`, `GetKeyUp`을 제공한다.
+`Input` 싱글톤은 Win32 `GetAsyncKeyState`로 0~255 가상 키를 매 프레임 폴링한다. 현재/이전 상태 조합으로 `GetKey`, `GetKeyDown`, `GetKeyUp`을 제공한다. 이 방식은 같은 PC의 여러 console client가 같은 물리 키 상태를 동시에 읽을 수 있다. 원인, Rookiss Win32 client와의 차이, `KEY_EVENT_RECORD`를 포함한 개선 후보는 [`CONSOLE_INPUT_DESIGN.md`](CONSOLE_INPUT_DESIGN.md)에 기록한다.
 
 ### 렌더링
 
@@ -172,4 +172,4 @@ Player Transform은 전체 Map 기준 월드 셀 좌표를 보관한다. 이동 
 
 ## 계획된 네트워크 확장
 
-Z1을 서버 권위형 멀티플레이로 확장하는 목표 구조와 단계별 계획은 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](Z1_MULTIPLAYER_IOCP_PLAN.md)에 기록한다. 현재 `Sockets` DLL, `Z1Server` EXE, `Z1Shared` wire layer와 Z1의 `NetworkClient` transport가 구현되어 있고, 다음 작업은 클라이언트 입력 전송과 복제 Actor 표현이다. CraftEngine은 네트워크에 의존하지 않는 클라이언트 엔진 경계를 유지한다.
+Z1을 서버 권위형 멀티플레이로 확장하는 목표 구조와 단계별 계획은 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](Z1_MULTIPLAYER_IOCP_PLAN.md)에 기록한다. 현재 구현 상태, 검증 결과와 다음 작업은 [`Z1_MULTIPLAYER_PROGRESS.md`](Z1_MULTIPLAYER_PROGRESS.md)에서 관리한다. CraftEngine은 네트워크에 의존하지 않는 클라이언트 엔진 경계를 유지한다.

@@ -6,6 +6,7 @@
 #include <Level/EnemySpawner.h>
 #include <Actor/Octorok.h>
 #include <Util/Timer.h>
+#include <optional>
 
 #include <Z1Shared/Protocol.h>
 
@@ -19,6 +20,9 @@ class Player;
 class Enemy;
 class Projectile;
 struct ProjectileSpec;
+
+class NetworkPlayer;
+class Game;
 
 enum class EntranceType
 {
@@ -40,28 +44,21 @@ public:
     std::shared_ptr<Projectile> SpawnProjectile(Craft::Vector2 position, const ProjectileSpec& spec, const std::shared_ptr<Pawn>& instigator);
     std::shared_ptr<Enemy> SpawnEnemy(const EnemySpawnData& spawn);
 
+    void ApplyLatestNetworkSnapshot(Game& game);
+    void ClearNetworkPlayers();
+
 private:
     bool LoadMap();
     bool TryChangeRoom(RoomCoordinate room);
     void BuildRoomSprite();
     
     RoomCoordinate GetRoomCoordinate(const Craft::Vector2& mapCellPosition) const;
-    RoomCoordinate GetRoomCoordinateAtLeadingEdge(
-        const Craft::Vector2& destination,
-        const Pawn& pawn,
-        const Craft::Vector2& direction
-    ) const;
-    Craft::Vector2 GetRoomCellOrigin(RoomCoordinate room) const;
-    void SnapPlayerIntoRoom(
-        RoomCoordinate room,
-        const Craft::Vector2& direction
-    );
+    RoomCoordinate GetRoomCoordinateAtLeadingEdge(Craft::Vector2 destination, const Pawn& pawn, Craft::Vector2 direction) const;
 
-    bool CanMoveTo(
-        const Craft::Vector2& destination,
-        const Pawn& mover,
-        bool allowContactEscape = false
-    );
+    Craft::Vector2 GetRoomCellOrigin(RoomCoordinate room) const;
+    void SnapPlayerIntoRoom(RoomCoordinate room, Craft::Vector2 direction);
+
+    bool CanMoveTo(Craft::Vector2 destination, const Pawn& mover, bool allowContactEscape = false);
     bool UpdatePawnKnockback(Pawn& pawn, float deltaTime);
 
     void SpawnRoomEnemies();
@@ -113,5 +110,7 @@ private:
     // - 키 놓아 이동 정지: Left -> None
     // - 공격 키 눌림
 
+    std::unordered_map<std::uint32_t, std::shared_ptr<NetworkPlayer>> _networkPlayers;
+    std::optional<std::uint32_t> _lastAppliedServerTick;
     Z1::Protocol::MoveDirection _lastSentDir = Z1::Protocol::MoveDirection::None;
 };

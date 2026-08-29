@@ -104,16 +104,6 @@ void Game::PumpNetwork()
     }
 }
 
-std::optional<std::uint32_t> Game::GetLocalPlayerId() const
-{
-    return _localPlayerId;
-}
-
-const std::optional<WorldSnapshot>& Game::GetLatestSnapshot() const
-{
-    return _latestSnapshot;
-}
-
 void Game::ChangeLevel(State state)
 {
     if (_state == state)

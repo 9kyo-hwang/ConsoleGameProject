@@ -44,8 +44,8 @@ public: // Network
     bool ConnectToServer();
     void PumpNetwork();
 
-    std::optional<std::uint32_t> GetLocalPlayerId() const;
-    const std::optional<WorldSnapshot>& GetLatestSnapshot() const;
+    inline std::optional<std::uint32_t> GetLocalPlayerId() const { return _localPlayerId; }
+    inline const std::optional<WorldSnapshot>& GetLatestSnapshot() const { return _latestSnapshot; }
 
     // Overworld Level에서 Game-Network에 데이터 밀어넣기 위한 래퍼
     inline bool SendNetworkInput(Z1::Protocol::MoveDirection direction, std::uint8_t actionFlags)

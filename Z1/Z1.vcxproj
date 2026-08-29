@@ -116,6 +116,7 @@ xcopy ..\Libraries\Sockets\$(Configuration)\Sockets.dll $(OutDir) /e /y /i</Comm
   <ItemGroup>
     <ClCompile Include="Actor\Enemy.cpp" />
     <ClCompile Include="Actor\SwordSprite.cpp" />
+    <ClCompile Include="Network\NetworkPlayer.cpp" />
     <ClCompile Include="Network\NetworkClient.cpp" />
     <ClCompile Include="World\CaveMap.cpp" />
     <ClCompile Include="Component\CellStepComponent.cpp" />
@@ -148,6 +149,7 @@ xcopy ..\Libraries\Sockets\$(Configuration)\Sockets.dll $(OutDir) /e /y /i</Comm
   <ItemGroup>
     <ClInclude Include="Actor\Enemy.h" />
     <ClInclude Include="Actor\SwordSprite.h" />
+    <ClInclude Include="Network\NetworkPlayer.h" />
     <ClInclude Include="Network\NetworkClient.h" />
     <ClInclude Include="World\CaveMap.h" />
     <ClInclude Include="Component\CellStepComponent.h" />
