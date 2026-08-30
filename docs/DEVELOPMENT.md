@@ -1,4 +1,8 @@
-# 빌드와 개발 메모
+# 빌드와 개발
+
+## 문서 범위
+
+이 문서는 전체 솔루션에 적용되는 개발 환경, 빌드 경계, 변경 위치와 공통 검증 방법을 설명한다. 프로젝트별 게임 동선과 세부 회귀 시나리오는 해당 프로젝트 문서에서 관리한다. Z1 전용 검증은 [Z1 검증](z1/TESTING.md)을 참고한다.
 
 ## 요구 환경
 
@@ -7,22 +11,22 @@
 - MSVC platform toolset `v145`
 - Windows 10 SDK
 - x64, C++20
-- XAudio2를 포함한 Windows SDK 라이브러리
+- XAudio2와 WinSock2를 포함한 Windows SDK 라이브러리
 
-솔루션 파일은 `ConsoleGameProject.slnx`이며 Debug/Release, x64 구성만 정의되어 있다.
+솔루션 파일은 `ConsoleGameProject.slnx`이며 Debug/Release, x64 구성만 정의한다.
 
-Z1의 SocketAPI/IOCP 아키텍처와 구현 계획은 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](Z1_MULTIPLAYER_IOCP_PLAN.md), 현재 구현 상태와 다음 단계는 [`Z1_MULTIPLAYER_PROGRESS.md`](Z1_MULTIPLAYER_PROGRESS.md)를 참고한다. 실제 프로젝트 이름은 공용 socket DLL이 `Sockets`, 서버 실행 파일이 `Z1Server`다.
+## 빌드 순서와 의존성
 
-## 빌드 순서
-
-현재 프로젝트는 import library와 공개 헤더를 중간 staging 디렉터리에 복사해 다음 프로젝트가 소비한다. 깨끗한 checkout에서는 다음 순서가 안전하다.
+빌드가 공개 헤더와 라이브러리를 staging한 뒤 다음 프로젝트가 이를 참조한다. 깨끗한 checkout에서는 다음 순서가 안전하다.
 
 1. `SoundSystem`
 2. `CraftEngine`
 3. `Sockets`
-4. `ShootingGame`, `SokobanGame`, `Z1`, `Z1Server` 중 작업 대상 프로젝트
+4. 작업 대상인 `ShootingGame`, `SokobanGame`, `Z1`, `Z1Server`
 
-Visual Studio에서 위 프로젝트를 차례로 빌드하면 된다. `Sockets`는 앞의 두 DLL과 독립적이므로 먼저 빌드해도 된다. 이후 산출물이 존재하는 상태에서는 솔루션 전체 빌드도 가능하다. 현재 `ConsoleGameProject.slnx`에는 CraftEngine에서 SoundSystem으로 가는 의존성과 Z1에서 Sockets로 가는 의존성이 명시되어 있지 않으므로, 완전한 클린 병렬 빌드는 순서 경쟁이 날 수 있다. Z1Server에서 Sockets로 가는 의존성은 명시되어 있다.
+`Sockets`는 SoundSystem/CraftEngine과 독립적이므로 1~2보다 먼저 빌드해도 된다.
+
+현재 `ConsoleGameProject.slnx`에는 콘텐츠 EXE에서 CraftEngine으로 가는 의존성과 Z1Server에서 Sockets로 가는 의존성이 있다. CraftEngine에서 SoundSystem, Z1에서 Sockets로 가는 의존성은 명시되어 있지 않다. 따라서 필요한 staging 산출물이 없는 상태에서 솔루션을 병렬 빌드하면 순서 경쟁이 날 수 있다.
 
 기본 출력 위치는 다음과 같다.
 
@@ -30,77 +34,79 @@ Visual Studio에서 위 프로젝트를 차례로 빌드하면 된다. `Sockets`
 Binaries/x64/<Debug|Release>/<Project>/
 Intermediate/x64/<Debug|Release>/<Project>/
 Libraries/<CraftEngine|SoundSystem|Sockets>/<Debug|Release>/
+Includes/<CraftEngine|SoundSystem|Sockets>/
 ```
 
 ## 실행과 상대 경로
 
-엔진과 게임은 아래 상대 경로를 사용한다.
+런타임은 현재 작업 디렉터리를 기준으로 다음 상대 경로를 사용한다.
 
 - 설정: `../Config/Setting.txt`
-- 스테이지: `../Content/Stages/<파일>`
-- 사운드: `../Content/Sound/<파일>`
+- Sokoban 스테이지: `../Content/Stages/<파일>`
+- 공용 사운드: `../Content/Sound/<파일>`
+- Z1 데이터: `../Content/Z1/<파일>`
 
-Visual Studio의 프로젝트 디렉터리에서 실행하면 저장소 루트의 원본 Config/Content를 찾는다. 빌드된 EXE 디렉터리에서 실행하면 빌드 이벤트가 `Binaries/x64/<구성>/Config`와 `Content`에 복사한 파일을 찾는다. 다른 작업 디렉터리에서 직접 실행하면 설정 파일 open assertion이 발생하거나 Content 로드에 실패할 수 있다.
-
-`Config/Setting.txt`는 목표 FPS, 화면 너비와 높이를 정의한다. 값은 양수여야 하며 알 수 없는 키는 현재 무시된다.
+Visual Studio의 프로젝트 디렉터리나 각 빌드 출력 디렉터리에서 실행하는 구성을 전제로 한다. 다른 작업 디렉터리에서 직접 실행하면 설정 assertion 또는 Content 로드 실패가 발생할 수 있다.
 
 ## 변경 위치 찾기
 
-- 루프 순서와 시스템 조정: `CraftEngine/Engine/Engine.*`
-- Actor 보유 및 지연 생성/삭제: `CraftEngine/Level/Level.*`
-- Actor 이벤트와 Component 전달: `CraftEngine/Actor/Actor.*`
-- 부모/자식, 로컬/월드 좌표: `CraftEngine/Component/TransformComponent.*`
-- 화면 합성: `CraftEngine/Render/Renderer.*`, `Sprite.*`
-- 충돌 판정: `CraftEngine/Physics/CollisionSystem.*`, `BoxComponent.*`
-- 타일 저장·좌표 변환·점유 판정·Sprite 합성: `CraftEngine/Tilemaps/Tilemap.*`
-- 타입 시스템: `CraftEngine/Core/CObject.h`, `CClass.h`
-- 사운드 로드와 voice 수명: `SoundSystem/SoundSystem/Sound.*`
-- Z1 맵 원본 파싱과 Tile 매핑: `Z1/World/OverworldMap.*`, `DungeonMap.*`, `CaveMap.*`
-- 게임 규칙: 각 콘텐츠의 `Level/`, 구체 행동: 각 콘텐츠의 `Actor/`
+| 변경 대상 | 주요 위치 |
+| --- | --- |
+| 루프 순서와 시스템 초기화 | `CraftEngine/Engine/Engine.*` |
+| Actor 보유와 지연 생성·삭제 | `CraftEngine/Level/Level.*` |
+| Actor 이벤트와 Component 전달 | `CraftEngine/Actor/Actor.*` |
+| 부모·자식과 로컬·월드 좌표 | `CraftEngine/Component/TransformComponent.*` |
+| 화면 합성 | `CraftEngine/Render/Renderer.*`, `Sprite.*` |
+| 충돌 판정 | `CraftEngine/Physics/CollisionSystem.*`, `BoxComponent.*` |
+| 타일 저장·좌표·점유·합성 | `CraftEngine/Tilemaps/Tilemap.*` |
+| 커스텀 RTTI | `CraftEngine/Core/CObject.h`, `CClass.h` |
+| WAV와 voice 수명 | `SoundSystem/SoundSystem/Sound.*` |
+| 소켓 자원과 주소 | `Sockets/Sockets/*` |
+| Z1 wire 계약 | `Z1Shared/*` |
+| Z1 클라이언트 transport | `Z1/Network/*` |
+| Z1 IOCP와 서버 simulation | `Z1Server/*` |
+| 게임 규칙과 구체 Actor | 각 콘텐츠의 `Level/`, `Actor/` |
 
 ## 기능 추가 패턴
 
 ### 새 Actor
 
 1. 콘텐츠의 `Actor/`에 `Craft::Actor` 파생 타입을 둔다.
-2. 기본 생성이 필요한 RTTI 타입이면 `TYPE_DECLARATIONS`를 선언한다.
-3. 생성자에서 SpriteRenderer/Box 등 데이터 Component를 추가한다.
-4. 다른 Actor나 Level이 필요한 작업은 `BeginPlay`에서 한다.
-5. Level에서 `SpawnActor<T>`로 생성한다.
-6. 새 파일을 프로젝트와 filters 파일에 등록한다.
+2. 런타임 타입 정보가 필요하면 `TYPE_DECLARATIONS`를 선언한다.
+3. 생성자에서는 SpriteRenderer, Box 등 자기 구성만 추가한다.
+4. Level이나 다른 Actor가 필요한 작업은 `BeginPlay`에서 한다.
+5. Level의 `SpawnActor<T>`로 생성한다.
+6. 새 파일을 `.vcxproj`와 `.vcxproj.filters`에 등록한다.
 
 ### 새 Component
 
-여러 Actor가 공유할 독립 데이터/동작 책임이 실제로 있을 때만 `ActorComponent`를 파생한다. 이벤트를 오버라이드하고 owner는 `GetOwner()`의 약한 참조를 잠가 사용한다. Transform은 Actor가 자동 생성하므로 일반 Component처럼 추가하지 않는다.
+여러 Actor가 공유하는 실제 데이터·동작 책임이 있을 때만 `ActorComponent`를 파생한다. 이벤트를 오버라이드하고 owner는 `GetOwner()`의 약한 참조를 잠가 사용한다. Transform은 Actor가 자동 생성하므로 일반 Component처럼 추가하지 않는다.
 
-### Scene Graph 사용
+### Scene Graph
 
-자식 Actor를 Level에서 먼저 생성한 뒤 부모 Actor에 attach한다. 자식 생성자에 넘긴 위치를 부모 기준 오프셋으로 쓰려면 `AttachTo(parent, false)`, 현재 화면 위치를 유지하려면 기본값 `true`를 쓴다. 자식을 독립시키면서 화면 위치를 유지하려면 `DetachFromParent()`를 쓴다.
+자식 Actor를 Level에서 먼저 생성한 뒤 `AttachTo`를 사용한다. 부모 기준 오프셋을 유지하려면 `false`, 현재 월드 위치를 유지하려면 `true`를 전달한다. 부모·자식 컨테이너를 직접 변경하지 않는다.
 
-## 검증 체크리스트
+### 네트워크 코드
 
-- 엔진 또는 공개 헤더 변경: SoundSystem, CraftEngine, 두 게임을 순서대로 x64 빌드
-- Transform 변경: 부모 이동 시 총구/엔진 이펙트가 함께 이동하는지, 발사 위치가 월드 좌표인지 확인
-- 생명주기 변경: 프레임 중 spawn/destroy에서 순회 무효화나 파괴 Actor의 추가 이벤트가 없는지 확인
-- 렌더링 변경: Sprite 투명 셀, X/Y 화면 경계 clipping, sorting order, buffer swap 확인
-- 충돌 변경: 2D Box 크기/offset, 빠른 탄환, 파괴된 Actor, Component 없는 Actor 확인
-- Tilemap 변경: 직사각형 맵 인덱싱, 셀/월드 좌표 변환, Map 경계와 blocked 점유 판정, 부분 구간 Sprite 합성 확인
-- Z1 실행: 타이틀의 `Press Enter To Play` 안내 뒤 `Enter` 키로 새 게임을 시작하고, 방향키로 이동하며 HUD에 HP·검 보유 상태가 표시되는지 확인
-- Z1 Overworld 변경: `Content/Z1/Maps/Overworld`를 출력 Content 경로에서도 읽는지, Room `(7, 7)` 배경과 플레이어가 보이는지 확인
-- Z1 Overworld 변경: BlockingMap의 막힌 타일·Map 바깥으로 이동할 수 없고, 이동 가능한 타일에서는 플레이어 Box 크기만큼 정상 이동하는지 확인
-- Z1 Overworld 변경: Room 전환 뒤 Player Box/Sprite가 새 Room 안에 완전히 보이는지, `(7,7) → (7,6) → (8,6) → (8,5) → (8,4) → (8,3) → (7,3)` 이외의 Room 경계는 넘을 수 없는지, 넉백으로도 제한 밖에 나가지 않는지 확인
-- Z1 Room/Enemy 변경: 시작 Room에는 적이 없고, 다른 Room은 같은 좌표·시드에서 같은 계획으로 스폰되며 Room 전환 시 이전 적과 투사체가 제거되는지 확인
-- Z1 동굴/던전 변경: 오버월드 `(7, 7)`의 검 동굴에서 Player Box가 검 타일에 닿을 때 검을 얻고 다시 나올 수 있는지, 검 없이 `(7, 3)`의 Dungeon 1 입구에 들어갈 수 없고 검 획득 후에는 던전 입구와 던전 출구가 정상 전환되는지 확인
-- Z1 던전 변경: Room 전환 뒤 Player Box/Sprite가 새 Room 안에 완전히 보이고, 넉백 전환에도 같은 위치 보정이 적용되는지 확인
-- Z1 전투 변경: `A` 검 공격이 이동 시 취소되고 공격당 한 번만 피해를 주는지, 풀 HP 검기와 Octorok 돌·Moblin 창·Aquamentus 화염구가 발사자 Box 가장자리에서 생성되는지 확인
-- Z1 전투 변경: Player·Octorok·Moblin·Tektite의 8×5 Sprite와 Box가 함께 움직이는지, Tektite가 대기와 대각선 도약을 반복하며 BlockingMap 지형은 넘고 Player에 닿아 피해를 주는지, 피격된 Player의 넉백이 겹친 Tektite에 막히지 않는지 확인
-- Z1 전투 변경: 투사체가 벽·Room 경계를 통과하지 않는지, 적 투사체가 맞는 방향의 Player 방패에 막히는지, 적 사망 이펙트가 보이는지 확인
-- Z1 피해/클리어 변경: 벽을 통과하지 않는 넉백, 무적 시간 중 중복 피해 방지와 깜빡임, HP 0의 Game Over 전환, 보스 처치 후 Player Box가 하트·트라이포스 Sprite 영역에 닿을 때의 하트 회복과 Clear 전환을 확인
-- Z1 사운드 변경: 검 획득, 검·검기 공격, 방패 방어, Player/일반 적/보스의 피격·사망 효과음과 Title·Overworld·Dungeon·Game Over·Clear BGM 전환을 확인
-- Z1 사운드 변경: 트라이포스 획득 후 Zelda Is Rescued 팬파레가 끝난 뒤 Clear Level의 Ending Theme으로 전환되는지 확인
-- 런타임 데이터 변경: 프로젝트 디렉터리와 출력 디렉터리 양쪽 실행 경로 확인
+범용 WinSock 자원 관리는 `Sockets`, Z1 packet 표현과 직렬화는 `Z1Shared`, IOCP와 권위형 상태는 `Z1Server`, 클라이언트 queue와 표현은 `Z1/Network`에 둔다. transport thread가 Actor나 Level을 직접 변경하지 않도록 한다.
 
-자동 테스트 프로젝트는 아직 없다. 문서 변경은 `tools/Test-Documentation.ps1`로 Markdown 상대 링크와 UTF-8 인코딩을 검사한다. 코드 변경과 필수 문서의 동반 변경은 `-StrictChangeAudit`, 커밋할 staged 변경만 검사하려면 `-Staged`를 함께 사용한다.
+## 공통 검증 원칙
+
+| 변경 범위 | 최소 검증 |
+| --- | --- |
+| 문서 | Markdown UTF-8과 상대 링크 검사 |
+| `.slnx`, `.vcxproj`, filters | 프로젝트 파일 등록 검사와 영향받는 프로젝트 빌드 |
+| SoundSystem/CraftEngine 공개 경계 | DLL부터 모든 영향받는 콘텐츠까지 순서대로 빌드 |
+| Transform·생명주기·렌더링·충돌·Tilemap | 관련 최소 장면과 세 콘텐츠의 핵심 회귀 확인 |
+| Sockets/Z1Shared | Z1Server와 Z1 빌드, packet/framing 검증 |
+| 콘텐츠 한정 변경 | 해당 EXE 빌드와 관련 수동 동작 확인 |
+| 런타임 데이터 | 프로젝트 디렉터리와 출력 디렉터리 양쪽 경로 확인 |
+
+자동화되지 않은 실행 확인을 빌드 성공으로 대체하지 않는다. 확인하지 않은 수동 동작은 완료로 기록하지 않는다.
+
+## 저장소 검사 도구
+
+Markdown 인코딩과 상대 링크는 다음 명령으로 검사한다. `-StrictChangeAudit`는 변경된 경로와 필수 문서의 동반 변경도 검사하며 `-Staged`는 staged 변경만 대상으로 한다.
 
 ```powershell
 .\tools\Test-Documentation.ps1
@@ -108,4 +114,10 @@ Visual Studio의 프로젝트 디렉터리에서 실행하면 저장소 루트�
 .\tools\Test-Documentation.ps1 -Staged -StrictChangeAudit
 ```
 
-Z1Server packet framing 변경은 서버 실행 뒤 `tools/test-z1-enter.ps1 -RunServerFramingSuite`로 정상·분할·연속·잘못된 size·protocol version 거부 경로를 일괄 확인한다. 코드나 프로젝트 설정을 바꾼 경우에는 이 스크립트 외에도 관련 실행 파일을 직접 구동해 확인한다.
+소스 파일의 `.vcxproj`/`.vcxproj.filters` 등록과 솔루션 프로젝트 경로는 다음 명령으로 검사한다.
+
+```powershell
+.\tools\Test-ProjectFiles.ps1
+```
+
+Z1의 싱글플레이 동선과 서버 framing 검증은 [Z1 검증 문서](z1/TESTING.md)에 기록한다.

@@ -2,7 +2,7 @@
 
 ## 문서 목적
 
-이 문서는 CraftEngine의 현재 키 입력 방식이 같은 PC에서 실행한 여러 Z1 클라이언트에 미치는 영향과 개선 후보를 기록한다. Z1 멀티플레이의 protocol이나 서버 입력 검증은 [`Z1_MULTIPLAYER_IOCP_PLAN.md`](Z1_MULTIPLAYER_IOCP_PLAN.md)에서 다루고, 여기서는 클라이언트가 어느 키 입력을 자신의 입력으로 받아들일지만 다룬다.
+이 문서는 CraftEngine의 현재 키 입력 방식이 같은 PC에서 실행한 여러 Z1 클라이언트에 미치는 영향과 개선 후보를 기록한다. Z1 protocol과 서버 입력 검증은 [멀티플레이 설계](MULTIPLAYER_DESIGN.md)에서 다루고, 여기서는 클라이언트가 어느 키 입력을 자신의 입력으로 받아들일지만 다룬다.
 
 현재 결론은 다음과 같다.
 
@@ -33,9 +33,9 @@ player=2, sequence=1, direction=Left
 
 `MyPlayer`가 도입되면 입력 polling 위치는 `OverworldLevel`에서 각 프로세스의 `MyPlayer` 하나로 이동한다. 이 변경으로 한 프로세스 안의 원격 `NetworkPlayer`가 입력을 읽는 일은 막지만, 두 프로세스의 `MyPlayer`가 같은 `GetAsyncKeyState` 결과를 읽는 현상은 그대로 남는다.
 
-## Rookiss 클라이언트에서 같은 현상이 드러나지 않은 이유
+## GUI message 입력과의 차이
 
-참고 중인 `C:\Workspace\Rookiss\Server\Client\GameCoding` 소스의 현재 버전은 `GetAsyncKeyState`가 아니라 다음 구조를 사용한다.
+일반적인 Win32 GUI 게임 클라이언트는 다음처럼 창의 message queue와 로컬 플레이어의 입력 책임을 함께 사용한다.
 
 1. `Game`이 Win32 GUI `HWND`와 message loop를 가진다.
 2. `InputManager::Update`는 `GetKeyboardState`로 256개 가상 키 상태를 복사한다.
@@ -44,7 +44,7 @@ player=2, sequence=1, direction=Left
 
 `GetKeyboardState`가 반환하는 상태는 호출 thread가 keyboard message를 message queue에서 제거하면서 갱신된다. 하드웨어의 비동기 현재 상태를 직접 묻는 `GetAsyncKeyState`와 다르다. 자세한 계약은 Microsoft의 [`GetKeyboardState`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getkeyboardstate)와 [`GetKeyState`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getkeystate) 설명을 기준으로 한다.
 
-따라서 Rookiss 구조에서는 두 경계가 동시에 작동한다.
+이 구조에서는 두 경계가 동시에 작동한다.
 
 ```text
 Win32 focus와 message queue
@@ -54,9 +54,7 @@ MyPlayer만 TickInput
   → 한 client 안에서는 자기 Player만 입력 처리
 ```
 
-강의의 다른 시점이나 별도 예제에서 `GetAsyncKeyState`를 사용했을 가능성은 있지만, 현재 로컬 참고 소스의 멀티플레이 `GameCoding` 구현은 `GetKeyboardState` 기반이다. 또한 강의에서 실제 GUI client 하나와 입력을 생성하지 않는 dummy client를 함께 사용했다면 여러 실제 client가 같은 물리 키를 polling하는 문제 자체가 드러나지 않는다.
-
-Z1은 Win32 GUI message window가 아니라 Windows console/Windows Terminal에서 실행된다. 따라서 Rookiss 코드를 따라 `GetKeyboardState` 호출만 바꾸면 같은 focus 경계가 자동으로 생긴다고 가정하면 안 된다.
+Z1은 Win32 GUI message window가 아니라 Windows console/Windows Terminal에서 실행된다. 따라서 `GetKeyboardState` 호출로 바꾸기만 하면 GUI와 같은 focus 경계가 자동으로 생긴다고 가정하면 안 된다. 실제 Z1 하나와 입력을 생성하지 않는 dummy client 조합에서는 여러 실제 client가 같은 키를 polling하는 문제도 드러나지 않으므로, 입력 구현 자체를 별도로 검증해야 한다.
 
 ## 개선 후보
 
@@ -182,4 +180,3 @@ Rookiss처럼 각 client가 실제 `HWND`와 message loop를 소유하고 `GetKe
 - 짧은 press/release가 같은 frame에 들어와도 `GetKeyDown`과 `GetKeyUp` edge를 잃지 않는다.
 - Z1, ShootingGame, SokobanGame의 기존 키 입력 동작에 회귀가 없다.
 - stdin이 console이 아닌 환경의 동작이 명시적이며 전역 polling으로 조용히 fallback하지 않는다.
-

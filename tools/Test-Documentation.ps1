@@ -107,7 +107,7 @@ function Get-ChangedPaths
 function Test-RequiredDocumentChange
 {
     param(
-        [Parameter(Mandatory)][string[]]$ChangedPaths,
+        [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$ChangedPaths,
         [Parameter(Mandatory)][string[]]$SourcePatterns,
         [Parameter(Mandatory)][string]$RequiredDocument
     )
@@ -141,7 +141,11 @@ if (!(Test-Path -LiteralPath $docsRoot -PathType Container))
     throw "Documentation directory was not found: $docsRoot"
 }
 
-$markdownFiles = @(Get-ChildItem -LiteralPath $docsRoot -Recurse -File -Filter '*.md')
+$markdownFiles = @(
+    Get-Item -LiteralPath (Join-Path $repositoryRoot 'README.md')
+    Get-Item -LiteralPath (Join-Path $repositoryRoot 'AGENTS.md')
+    Get-ChildItem -LiteralPath $docsRoot -Recurse -File -Filter '*.md'
+)
 foreach ($file in $markdownFiles)
 {
     Test-MarkdownEncoding $file
@@ -154,7 +158,7 @@ if ($StrictChangeAudit)
 
     Test-RequiredDocumentChange $changedPaths `
         @('Z1Shared/*', 'Z1Server/*', 'Z1/Network/*', 'tools/test-z1-enter.ps1') `
-        'docs/Z1_MULTIPLAYER_IOCP_PLAN.md'
+        'docs/z1/MULTIPLAYER_STATUS.md'
 
     Test-RequiredDocumentChange $changedPaths `
         @('*.slnx', '*.vcxproj', '*.vcxproj.filters', '*/*.vcxproj', '*/*.vcxproj.filters') `
