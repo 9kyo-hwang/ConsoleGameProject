@@ -37,7 +37,7 @@ Z1 EXE
 
 ## 서버와 클라이언트 상태
 
-서버의 최소 권위 상태는 다음과 같다.
+목표로 하는 서버의 최소 권위 상태는 다음과 같다.
 
 ```text
 Player: playerId, position, facing, hp, dead, input sequence, action state
@@ -73,17 +73,17 @@ TCP 위에 고정 4바이트 header를 사용한다.
 - header/payload 분할 수신과 한 번에 여러 packet을 받은 경우를 모두 처리한다.
 - 잘못된 size, version, enum, flag 또는 payload 길이는 연결 오류로 처리한다.
 
-현재 packet 종류는 다음과 같다.
+현재 protocol에 선언된 packet 종류는 다음과 같다. 선언 여부와 실제 payload 구현 범위는 다를 수 있으며, 구현 완료 범위는 [멀티플레이 현황](MULTIPLAYER_STATUS.md)을 따른다.
 
 | 방향 | Packet | 역할 |
 | --- | --- | --- |
 | C→S | `C2S_Enter` | protocol version 제시와 입장 요청 |
 | S→C | `S2C_Enter` | protocol version과 local playerId 할당 |
 | C→S | `C2S_Input` | sequence, 이동 방향과 공격 edge |
-| S→C | `S2C_WorldSnapshot` | server tick과 객체 상태 배열 |
+| S→C | `S2C_WorldSnapshot` | server tick과 객체 상태 배열. 현재는 Player만 직렬화하며 Enemy·Projectile은 확장 목표 |
 | S→C | `S2C_Disconnect` | 서버 주도 연결 종료 통지용 예약 packet |
 
-Snapshot의 Player, Enemy, Projectile은 별도 packet 종류가 아니라 하나의 전체 상태 배열이다. count와 남은 payload 길이를 객체 접근 전에 검증하고 전체 packet 크기에서 계산한 상한을 넘지 않는다.
+목표 wire format에서 Player, Enemy, Projectile은 별도 packet 종류가 아니라 하나의 전체 상태 Snapshot에 포함한다. 현재 codec은 Player 배열 뒤에 Enemy와 Projectile의 count를 예약해 두었으며 두 값이 모두 0인 packet만 허용한다. 객체 payload를 추가할 때는 count와 남은 길이를 객체 접근 전에 검증하고 전체 packet 크기에서 계산한 상한을 넘지 않는다.
 
 ## 동시성과 소유권
 
@@ -118,7 +118,7 @@ Snapshot의 Player, Enemy, Projectile은 별도 packet 종류가 아니라 하�
 
 첫 구현은 Player가 있는 Room만 active 상태로 유지한다. 마지막 Player가 나간 Room의 Enemy와 Projectile은 제거하고 다시 입장하면 결정적인 계획으로 생성한다. 객체 수가 작으므로 관심 영역 packet을 별도로 만들지 않고, 클라이언트가 자신의 Room에 필요한 표현만 선택한다.
 
-서버는 `Content/Z1/Maps/Overworld/BlockingMap.txt`의 통행 데이터만 읽는다. TileId, Sprite와 Color는 읽지 않으며 CraftEngine Tilemap을 링크하지 않는다. 클라이언트와 서버의 중복 parser가 실제 유지보수 문제가 될 때만 렌더링 독립적인 MapData 공유를 검토한다.
+서버에 맵 충돌을 구현할 때는 `Content/Z1/Maps/Overworld/BlockingMap.txt`의 통행 데이터만 읽도록 한다. TileId, Sprite와 Color는 읽지 않으며 CraftEngine Tilemap을 링크하지 않는다. 클라이언트와 서버의 중복 parser가 실제 유지보수 문제가 될 때만 렌더링 독립적인 MapData 공유를 검토한다. 현재 구현 여부는 [멀티플레이 현황](MULTIPLAYER_STATUS.md)을 기준으로 판단한다.
 
 ## 신뢰 경계
 
