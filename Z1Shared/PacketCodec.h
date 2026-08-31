@@ -35,6 +35,11 @@ namespace Z1::Protocol
         return direction <= (std::uint8_t)MoveDirection::Right;
     }
 
+    inline bool IsValidEnemyKind(std::uint8_t kind) noexcept
+    {
+        return kind <= (std::uint8_t)EnemyKind::Tektite;
+    }
+
     inline bool BuildPacket_C2SEnter(std::vector<Byte>& packet)
     {
         PacketWriter payload(sizeof(std::uint16_t));
@@ -109,8 +114,7 @@ namespace Z1::Protocol
         InputCommand input{};
         std::uint8_t direction = 0;
 
-        if (!reader.ReadU32(input.sequence) || !reader.ReadU8(direction)
-            || !reader.ReadU8(input.actionFlags) || !reader.IsAtEnd())
+        if (!reader.ReadU32(input.sequence) || !reader.ReadU8(direction) || !reader.ReadU8(input.actionFlags) || !reader.IsAtEnd())
         {
             return false;
         }
@@ -135,6 +139,15 @@ namespace Z1::Protocol
         + sizeof(std::int32_t)  // hp
         + sizeof(std::uint8_t); // flags
 
+    inline constexpr std::size_t SnapshotEnemyStateSize
+        = sizeof(std::uint32_t) // id 
+        + sizeof(std::uint8_t)  // kind
+        + sizeof(std::int32_t)  // x
+        + sizeof(std::int32_t)  // y
+        + sizeof(std::uint8_t)  // facing
+        + sizeof(std::int32_t)  // hp
+        + sizeof(std::uint8_t); // flags
+
     inline constexpr std::size_t WorldSnapshotFixedPayloadSize
         = sizeof(std::uint32_t)     // serverTick
         + sizeof(std::uint16_t)     // playerCount
@@ -152,16 +165,25 @@ namespace Z1::Protocol
             return false;
         }
 
-        const std::size_t payloadSize = WorldSnapshotFixedPayloadSize + snapshot.players.size() * SnapshotPlayerStateSize;
+        const std::size_t payloadSize
+            = WorldSnapshotFixedPayloadSize // tick + playerCnt + enemyCnt + projCnt
+            + snapshot.players.size() * SnapshotPlayerStateSize
+            + snapshot.enemies.size() * SnapshotEnemyStateSize;
+        // 나중에 projectile 포함되면 projectiles.size() * SnapshotProjectileStateSize
+
+        if (payloadSize > MaxPacketSize - PacketHeaderSize)
+        {
+            return false;
+        }
 
         PacketWriter payload(payloadSize);
         payload.WriteU32(snapshot.serverTick);
-        payload.WriteU16((std::uint16_t)snapshot.players.size());
 
+        payload.WriteU16((std::uint16_t)snapshot.players.size());
         for (const SnapshotPlayerState& player : snapshot.players)
         {
             const std::uint8_t facing = (std::uint8_t)player.facing;
-            if (!IsValidMoveDirection(facing) || (player.flags & ~(PlayerStateDead | PlayerStateAttacking)) != 0)
+            if (!IsValidMoveDirection(facing) || (player.flags & ~(ValidPlayerState)) != 0)
             {
                 return false;
             }
@@ -174,7 +196,28 @@ namespace Z1::Protocol
             payload.WriteU8(player.flags);
         }
 
-        payload.WriteU16(0);    // enemy
+        payload.WriteU16((std::uint16_t)snapshot.enemies.size());    // enemy
+        for (const SnapshotEnemyState& enemy : snapshot.enemies)
+        {
+            const std::uint8_t facing = (std::uint8_t)enemy.facing;
+            const std::uint8_t kind = (std::uint8_t)enemy.kind;
+            if (enemy.id == 0 
+                || !IsValidMoveDirection(facing) 
+                || !IsValidEnemyKind(kind) 
+                || (enemy.flags & ~(ValidEnemyState)) != 0)
+            {
+                return false;
+            }
+
+            payload.WriteU32(enemy.id);
+            payload.WriteU8(kind);
+            payload.Write32(enemy.x);
+            payload.Write32(enemy.y);
+            payload.WriteU8(facing);
+            payload.Write32(enemy.hp);
+            payload.WriteU8(enemy.flags);
+        }
+
         payload.WriteU16(0);    // projectile
 
         return BuildPacket(PacketType::S2C_WorldSnapshot, payload.Bytes(), packet);
@@ -193,23 +236,17 @@ namespace Z1::Protocol
             return false;
         }
 
-        // Player 배열 뒤에는 Enemy/Projectile count 4바이트가 반드시 남아야 한다.
-        constexpr std::size_t TailSize = sizeof(std::uint16_t) + sizeof(std::uint16_t);
-
-        if (reader.Remaining() < TailSize)
-        {
-            return false;
-        }
-
-        const std::size_t playerBytes = reader.Remaining() - TailSize;
-
-        if (playerCount > MaxSnapshotPlayers || playerCount > playerBytes / SnapshotPlayerStateSize)
+        // 최소한 [players...][enemyCount(0)][projectileCount(0)] 만큼은 있어야 함
+        constexpr std::size_t CountTailSize = sizeof(std::uint16_t) + sizeof(std::uint16_t);
+        const std::size_t requiredPlayersBytes = (std::size_t)playerCount * SnapshotPlayerStateSize;
+        
+        if (reader.Remaining() < requiredPlayersBytes + CountTailSize
+            || playerCount > MaxSnapshotPlayers)
         {
             return false;
         }
 
         parsed.players.reserve(playerCount);
-
         for (std::uint16_t i = 0; i < playerCount; ++i)
         {
             SnapshotPlayerState player;
@@ -225,7 +262,7 @@ namespace Z1::Protocol
                 return false;
             }
 
-            if (!IsValidMoveDirection(rawFacing) || (player.flags & ~(PlayerStateDead | PlayerStateAttacking)) != 0)
+            if (!IsValidMoveDirection(rawFacing) || (player.flags & ~(ValidPlayerState)) != 0)
             {
                 return false;
             }
@@ -235,15 +272,46 @@ namespace Z1::Protocol
         }
 
         std::uint16_t enemyCount = 0;
-        std::uint16_t projectileCount = 0;
-
-        if (!reader.ReadU16(enemyCount) || !reader.ReadU16(projectileCount) || !reader.IsAtEnd())
+        if (!reader.ReadU16(enemyCount))
         {
             return false;
         }
 
-        // 현재 protocol contract.
-        if (enemyCount != 0 || projectileCount != 0)
+        const std::size_t requiredEnemiesBytes = (std::size_t)enemyCount * SnapshotEnemyStateSize;
+        if (reader.Remaining() < requiredEnemiesBytes + sizeof(std::uint16_t))  // projectile count
+        {
+            return false;
+        }
+
+        parsed.enemies.reserve(enemyCount);
+        for (std::uint16_t i = 0; i < enemyCount; ++i)
+        {
+            SnapshotEnemyState enemy;
+            std::uint8_t rawKind = 0, rawFacing = 0;
+
+            if (!reader.ReadU32(enemy.id) ||
+                !reader.ReadU8(rawKind) ||
+                !reader.Read32(enemy.x) ||
+                !reader.Read32(enemy.y) ||
+                !reader.ReadU8(rawFacing) ||
+                !reader.Read32(enemy.hp) ||
+                !reader.ReadU8(enemy.flags))
+            {
+                return false;
+            }
+
+            if (enemy.id == 0 || !IsValidMoveDirection(rawFacing) || !IsValidEnemyKind(rawKind) || (enemy.flags & ~(ValidEnemyState)) != 0)
+            {
+                return false;
+            }
+
+            enemy.kind = (EnemyKind)rawKind;
+            enemy.facing = (MoveDirection)rawFacing;
+            parsed.enemies.push_back(enemy);
+        }
+
+        std::uint16_t projectileCount = 0;
+        if (!reader.ReadU16(projectileCount) || projectileCount != 0 || !reader.IsAtEnd())
         {
             return false;
         }

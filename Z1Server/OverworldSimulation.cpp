@@ -2,6 +2,8 @@
 #include "OverworldSimulation.h"
 #include <algorithm>
 #include <fstream>
+#include <array>
+#include <random>
 
 namespace
 {
@@ -10,21 +12,71 @@ namespace
     // 클라쪽 크기를 일단 가져왔는데...
     constexpr std::int32_t PlayerBoxWidth = 8;
     constexpr std::int32_t PlayerBoxHeight = 5;
+    constexpr std::int32_t EnemyBoxWidth = 8;
+    constexpr std::int32_t EnemyBoxHeight = 5;
+    constexpr std::int32_t EnemiesPerRoom = 6;
+    constexpr std::int32_t MaxSpawnAttempts = 30;
+
+    std::uint32_t MakeRoomSeed(ServerRoomCoordinate room, std::uint32_t seed)
+    {
+        return seed ^ (std::uint32_t)room.x * 73856093u ^ (std::uint32_t)room.y * 19349663u;
+    }
     
+    // 타일 하나를 구성하는 셀
     constexpr std::int32_t TileCellWidth = 10;
     constexpr std::int32_t TileCellHeight = 5;
     
-    constexpr std::int32_t RoomTileWidth = 16;
-    constexpr std::int32_t RoomTileHeight = 11;
+    // Room 하나를 구성하는 논리적 칸 개수
+    constexpr std::int32_t RoomWidth = 16;
+    constexpr std::int32_t RoomHeight = 11;
+
+    // Room 하나를 구성하는 셀
+    constexpr std::int32_t RoomCellWidth = RoomWidth * TileCellWidth;
+    constexpr std::int32_t RoomCellHeight = RoomHeight * TileCellHeight;
     
+    // Map을 구성하는 Room 개수
     constexpr std::int32_t OverworldRoomColumns = 16;
     constexpr std::int32_t OverworldRoomRows = 8;
 
-    static constexpr std::int32_t MapWidth = OverworldRoomColumns * RoomTileWidth;
-    static constexpr std::int32_t MapHeight = OverworldRoomRows * RoomTileHeight;
+    // Map을 구성하는 논리적 칸 개수
+    constexpr std::int32_t MapWidth = OverworldRoomColumns * RoomWidth;
+    constexpr std::int32_t MapHeight = OverworldRoomRows * RoomHeight;
 
-    constexpr std::int32_t MapTileWidth = MapWidth * TileCellWidth;
-    constexpr std::int32_t MapTileHeight = MapHeight * TileCellHeight;
+    // Map을 구성하는 셀 칸 개수
+    constexpr std::int32_t MapCellWidth = MapWidth * TileCellWidth;
+    constexpr std::int32_t MapCellHeight = MapHeight * TileCellHeight;
+
+    const ServerRoomCoordinate StartRoom{ 7, 7 };
+
+    SnapshotPlayerState ToSnapshot(const OverworldSimulation::ServerPlayerState& state)
+    {
+        SnapshotPlayerState snapshot;
+        snapshot.playerId = state.playerId;
+        snapshot.x = state.x;
+        snapshot.y = state.y;
+        snapshot.hp = state.hp;
+        snapshot.facing = state.facing;
+
+        if (state.dead)
+        {
+            snapshot.flags |= PlayerStateDead;
+        }
+
+        return snapshot;
+    }
+
+    SnapshotEnemyState ToSnapshot(const OverworldSimulation::ServerEnemyState& state)
+    {
+        SnapshotEnemyState snapshot;
+        snapshot.id = state.id;
+        snapshot.kind = state.kind;
+        snapshot.x = state.x;
+        snapshot.y = state.y;
+        snapshot.hp = state.hp;
+        snapshot.facing = state.facing;
+        snapshot.flags = 0;    // Enemy는 공격 상태 구현하기 전까지 0
+        return snapshot;
+    }
 }
 
 bool OverworldSimulation::LoadBlockingMap(const FilePath& path, std::string& errorMessage)
@@ -88,6 +140,63 @@ bool OverworldSimulation::LoadBlockingMap(const FilePath& path, std::string& err
     return true;
 }
 
+bool OverworldSimulation::SpawnEnemies(std::uint32_t seed)
+{
+    using RNG = std::mt19937;
+    using DistInt = std::uniform_int_distribution<std::int32_t>;
+
+    if (!_hasBlockingMap) return false;
+
+    _enemies.clear();
+    _enemyId = 1;
+
+    for (std::int32_t roomY = 0; roomY < OverworldRoomRows; ++roomY)
+    {
+        for (std::int32_t roomX = 0; roomX < OverworldRoomColumns; ++roomX)
+        {
+            const ServerRoomCoordinate room{ roomX, roomY };
+            if (room == StartRoom)
+            {
+                continue;
+            }
+
+            // TODO: InitialEnemySpawn 기반 Build?
+            // 좌표 검증은 범용 CanPlaceBox() 추가해서 진행하기?
+
+            RNG rng(MakeRoomSeed(room, seed));
+            DistInt localTileX(1, RoomWidth - 2);
+            DistInt localTileY(1, RoomHeight - 2);
+            DistInt enemyKind(0, 2);
+
+            std::int32_t spawned = 0;
+            for (std::int32_t attempt = 0; attempt < MaxSpawnAttempts && spawned < EnemiesPerRoom; ++attempt)
+            {
+                std::int32_t x = room.x * RoomCellWidth + localTileX(rng) * TileCellWidth;
+                std::int32_t y = room.y * RoomCellHeight + localTileY(rng) * TileCellHeight;
+                if (!CanPlaceBox(x, y, EnemyBoxWidth, EnemyBoxHeight))
+                {
+                    continue;
+                }
+
+                EnemyKind kind = (EnemyKind)enemyKind(rng);
+
+                ServerEnemyState enemy;
+                enemy.id = _enemyId++;
+                enemy.kind = kind;
+                enemy.home = room;
+                enemy.spawnX = enemy.x = x;
+                enemy.spawnY = enemy.y = y;
+                enemy.hp = 1;
+
+                _enemies.emplace(enemy.id, std::move(enemy));
+                ++spawned;
+            }
+        }
+    }
+
+    return true;
+}
+
 /*
 * Tile: (10, 5) / Room: (16, 11)
 * StartRoom: (7, 7) / LocalSpawn: (7, 2)
@@ -146,42 +255,57 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
     return true;
 }
 
-std::vector<SnapshotPlayerState> OverworldSimulation::BuildPlayerSnapshot() const
+// 각 Session 별 Room 관심 범위로 변경
+WorldSnapshot OverworldSimulation::BuildPlayerSnapshot(std::uint32_t id, std::uint32_t tick)
 {
-    std::vector<SnapshotPlayerState> result;
-    result.reserve(_players.size());
+    WorldSnapshot snapshot;
+    snapshot.serverTick = tick;
+
+    auto found = _players.find(id);
+    if (found == _players.end())
+    {
+        return snapshot;
+    }
+
+    const auto& myPlayer = found->second;
+    const auto room = GetRoomAt(myPlayer.x, myPlayer.y);
+    if (!room) return snapshot;
+
+    auto& players = snapshot.players;
+    auto& enemies = snapshot.enemies;
 
     for (const auto& [id, player] : _players)
     {
-        std::uint8_t flags = 0;
-
-        if (player.dead)
+        if (GetRoomAt(player.x, player.y) == room)
         {
-            flags |= PlayerStateDead;
+            players.push_back(ToSnapshot(player));
         }
-
-        result.push_back(SnapshotPlayerState
-            {
-                .playerId = player.playerId,
-                .x = player.x,
-                .y = player.y,
-                .facing = player.facing,
-                .hp = player.hp,
-                .flags = flags
-            });
     }
 
-    // 선택
-    std::sort(result.begin(), result.end(), [](const SnapshotPlayerState& lhs, const SnapshotPlayerState& rhs)
+    for (const auto& [id, enemy] : _enemies)
+    {
+        if (!enemy.dead && enemy.home == *room)
+        {
+            enemies.push_back(ToSnapshot(enemy));
+        }
+    }
+
+    std::sort(players.begin(), players.end(), [](const SnapshotPlayerState& lhs, const SnapshotPlayerState& rhs)
         {
             return lhs.playerId < rhs.playerId;
         });
-    
-    return result;
+
+    std::sort(enemies.begin(), enemies.end(), [](const SnapshotEnemyState& lhs, const SnapshotEnemyState& rhs)
+        {
+            return lhs.id < rhs.id;
+        });
+
+    return snapshot;
 }
 
 void OverworldSimulation::Tick()
 {
+    // 1. 플레이어 위치 갱신하고
     for (auto& [id, player] : _players)
     {
         if (player.dead)
@@ -211,13 +335,48 @@ void OverworldSimulation::Tick()
             }
         }
     }
+
+    // 2. player가 위치한 Room 받아오고
+    std::array<bool, OverworldRoomColumns * OverworldRoomRows> activeRooms{};
+    for (const auto& [id, player] : _players)
+    {
+        if (player.dead) continue;
+
+        if (const auto room = GetRoomAt(player.x, player.y))
+        {
+            ServerRoomCoordinate r = *room;
+            activeRooms[r.y * OverworldRoomColumns + r.x] = true;
+        }
+    }
+
+    // 3. 적 목록에서 activeRoom에 속한 것들 활성화
+    for (auto& [id, enemy] : _enemies)
+    {
+        const ServerRoomCoordinate homeRoom = enemy.home;
+        if (enemy.dead || !activeRooms[homeRoom.y * OverworldRoomColumns + homeRoom.x])
+        {
+            continue;
+        }
+
+        TickEnemy(enemy);
+    }
 }
 
-// 유효 좌표를 보내주는 것 자체로 원본 Room 표현이 이루어짐
-bool OverworldSimulation::CanPlacePlayer(std::int32_t x, std::int32_t y) const
+void OverworldSimulation::TickEnemy(ServerEnemyState& enemy)
+{
+    /*
+    * 일단 비워두자.
+    추가하게 된다면...
+    1. 가장 근처의 Player 찾기 -> 없다면 pass?
+    2. (player - enemy) 기반 추적 Delta 구해서 다음 좌표 구하기
+    3. 다음 좌표가 homeRoom && 이동 가능한 위치면 위치 갱신
+    */
+}
+
+bool OverworldSimulation::CanPlaceBox(std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height) const
 {
     if (!_hasBlockingMap) return false;
-    if (!(x >= 0 && y >= 0 && x + PlayerBoxWidth <= MapTileWidth && y + PlayerBoxHeight <= MapTileHeight))
+    if (!(x >= 0 && y >= 0 && x + width <= MapCellWidth && y + height <= MapCellHeight))
     {
         return false;
     }
@@ -225,8 +384,8 @@ bool OverworldSimulation::CanPlacePlayer(std::int32_t x, std::int32_t y) const
     // Box 크기 계산
     const std::int32_t l = x / TileCellWidth;
     const std::int32_t t = y / TileCellHeight;
-    const std::int32_t r = (x + PlayerBoxWidth - 1) / TileCellWidth;
-    const std::int32_t b = (y + PlayerBoxHeight - 1) / TileCellHeight;
+    const std::int32_t r = (x + width - 1) / TileCellWidth;
+    const std::int32_t b = (y + height - 1) / TileCellHeight;
 
     for (int tileY = t; tileY <= b; ++tileY)
     {
@@ -240,6 +399,12 @@ bool OverworldSimulation::CanPlacePlayer(std::int32_t x, std::int32_t y) const
     }
 
     return true;
+}
+
+// 유효 좌표를 보내주는 것 자체로 원본 Room 표현이 이루어짐
+bool OverworldSimulation::CanPlacePlayer(std::int32_t x, std::int32_t y) const
+{
+    return CanPlaceBox(x, y, PlayerBoxWidth, PlayerBoxHeight);
 }
 
 bool OverworldSimulation::IsBlockedTile(std::int32_t tileX, std::int32_t tileY) const
@@ -259,4 +424,11 @@ MoveDelta OverworldSimulation::GetMoveDelta(Z1::Protocol::MoveDirection directio
     }
 
     return {};
+}
+
+std::optional<ServerRoomCoordinate> OverworldSimulation::GetRoomAt(std::int32_t x, std::int32_t y) const
+{
+    if (x < 0 || x >= MapCellWidth || y < 0 || y >= MapCellHeight) return std::nullopt;
+
+    return ServerRoomCoordinate(x / RoomCellWidth, y / RoomCellHeight);
 }

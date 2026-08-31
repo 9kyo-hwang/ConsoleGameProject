@@ -30,6 +30,7 @@
     <ClCompile Include="Network\NetworkClient.cpp" />
     <ClCompile Include="Network\NetworkPlayer.cpp" />
     <ClCompile Include="Network\MyPlayer.cpp" />
+    <ClCompile Include="Network\NetworkEnemy.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -64,5 +65,6 @@
     <ClInclude Include="Network\NetworkClient.h" />
     <ClInclude Include="Network\NetworkPlayer.h" />
     <ClInclude Include="Network\MyPlayer.h" />
+    <ClInclude Include="Network\NetworkEnemy.h" />
   </ItemGroup>
 </Project>

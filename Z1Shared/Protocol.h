@@ -14,7 +14,7 @@ namespace Z1::Protocol
         S2C_Disconnect = 103
     };
 
-    inline constexpr std::uint16_t ProtocolVersion = 1;
+    inline constexpr std::uint16_t ProtocolVersion = 2; // 1->2
     inline constexpr std::size_t PacketHeaderSize = sizeof(std::uint16_t) + sizeof(std::uint16_t);
     inline constexpr std::uint16_t MaxPacketSize = 4096;
 
@@ -61,6 +61,10 @@ namespace Z1::Protocol
 
     inline constexpr std::uint8_t PlayerStateDead = 1 << 0;
     inline constexpr std::uint8_t PlayerStateAttacking = 1 << 1;
+    inline constexpr std::uint8_t ValidPlayerState = (PlayerStateDead | PlayerStateAttacking);
+
+    inline constexpr std::uint8_t EnemyStateAttacking = 1 << 0;
+    inline constexpr std::uint8_t ValidEnemyState = EnemyStateAttacking;
 
     struct SnapshotPlayerState
     {
@@ -72,9 +76,29 @@ namespace Z1::Protocol
         std::uint8_t flags = 0;
     };
 
+    enum class EnemyKind : std::uint8_t
+    {
+        Octorok = 0,
+        Moblin = 1,
+        Tektite = 2
+    };
+
+    struct SnapshotEnemyState
+    {
+        std::uint32_t id = 0;
+        EnemyKind kind = EnemyKind::Octorok;
+        std::int32_t x = 0;
+        std::int32_t y = 0;
+        MoveDirection facing = MoveDirection::Up;
+        std::int32_t hp = 0;
+        std::uint8_t flags = 0;
+    };
+
+    // homeRoom, 최초 스폰 위치, AI 타이머는 서버 내부 상태.
     struct WorldSnapshot
     {
         std::uint32_t serverTick = 0;   // 확인용
-        std::vector<Z1::Protocol::SnapshotPlayerState> players;
+        std::vector<SnapshotPlayerState> players;
+        std::vector<SnapshotEnemyState> enemies;
     };
 }

@@ -21,6 +21,7 @@
 #include <unordered_set>
 #include <Network/NetworkPlayer.h>
 #include <Network/MyPlayer.h>
+#include <Network/NetworkEnemy.h>
 
 using namespace Craft;
 using FilePath = std::filesystem::path;
@@ -128,7 +129,7 @@ void OverworldLevel::Tick(float deltaTime)
         return;
     }
 
-    ClearNetworkPlayers();
+    ClearNetworkActors();
     EnsureOfflinePlayers(game); // 기존 싱글 플레이 경로로, 필요하면 연결 실패/종료 뒤 재생성 + 상태 복원
     Level::Tick(deltaTime);
 
@@ -281,7 +282,7 @@ void OverworldLevel::EndPlay()
 {
     Level::EndPlay();
 
-    ClearNetworkPlayers();  // Level 나갈 때도 정리하자.
+    ClearNetworkActors();  // Level 나갈 때도 정리하자.
 
     if (_player)
     {
@@ -409,6 +410,38 @@ void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
         }
     }
 
+    // 3. 서버로부터 받은 적 정보 기반 생성 및 갱신
+    std::unordered_set<std::uint32_t> recvdEnemies;
+    for (const SnapshotEnemyState& state : snapshot->enemies)
+    {
+        // 원격 플레이어는 생성 or 갱신
+        recvdEnemies.emplace(state.id);
+
+        if (_networkEnemies.contains(state.id))
+        {
+            _networkEnemies[state.id]->ApplySnapshot(state);
+            continue;
+        }
+
+        auto remoteEnemy = SpawnActor<NetworkEnemy>(Vector2(state.x, state.y), state.id, state.kind);
+        remoteEnemy->ApplySnapshot(state);
+        _networkEnemies.emplace(state.id, std::move(remoteEnemy));
+    }
+
+    // 4. 새로 받은 적이 기존 적 명단에 없다면 제거
+    for (auto it = _networkEnemies.begin(); it != _networkEnemies.end();)
+    {
+        if (!recvdEnemies.contains(it->first))
+        {
+            it->second->Destroy();
+            it = _networkEnemies.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
     // 서버로부터 정상적으로 스냅샷 수신한 틱을 기록해 최신값 판별
     _lastAppliedServerTick = snapshot->serverTick;
 }
@@ -430,7 +463,7 @@ void OverworldLevel::EnsureOfflinePlayers(Game& game)
 }
 
 // 서버 연결 끊겼을 때 snapshot 날려버리는 역할
-void OverworldLevel::ClearNetworkPlayers()
+void OverworldLevel::ClearNetworkActors()
 {
     if (_myPlayer)
     {
@@ -444,6 +477,13 @@ void OverworldLevel::ClearNetworkPlayers()
     }
 
     _networkPlayers.clear();
+
+    for (auto& [enemyId, enemy] : _networkEnemies)
+    {
+        enemy->Destroy();
+    }
+
+    _networkEnemies.clear();
     _lastAppliedServerTick.reset();
 }
 

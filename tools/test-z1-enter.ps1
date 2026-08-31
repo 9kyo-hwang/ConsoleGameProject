@@ -14,7 +14,7 @@ param(
     [ValidateSet(-1, 0, 3, 4097)]
     [int]$InvalidPacketSize = -1,
     [ValidateRange(0, 65535)]
-    [int]$ProtocolVersion = 1,
+    [int]$ProtocolVersion = 2,
     [switch]$SendInput,
     [ValidateSet("None", "Up", "Down", "Left", "Right")]
     [string]$InputDirection = "Up",
@@ -250,6 +250,33 @@ function Show-WorldSnapshot
 
     $enemyCount = Read-U16BigEndian $payload $offset
     $offset += 2
+
+    # enemy 정보
+    for ($index = 0; $index -lt $enemyCount; ++$index)
+    {
+        if ($payload.Length - $offset -lt 19)
+        {
+            throw "WorldSnapshot enemy[$index] is truncated."
+        }
+
+        [uint32]$enemyId = Read-U32BigEndian $payload $offset
+        $offset += 4
+        $kind = $payload[$offset]
+        ++$offset
+        $x = Read-I32BigEndian $payload $offset
+        $offset += 4
+        $y = Read-I32BigEndian $payload $offset
+        $offset += 4
+        $facing = $payload[$offset]
+        ++$offset
+        $hp = Read-I32BigEndian $payload $offset
+        $offset += 4
+        $flags = $payload[$offset]
+        ++$offset
+
+        Write-Output ("  Enemy: id={0}, type={1}, position=({2}, {3}), facing={4}, hp={5}, flags={6}" -f $enemyId, $kind, $x, $y, $facing, $hp, $flags)
+    }
+
     $projectileCount = Read-U16BigEndian $payload $offset
     $offset += 2
 
@@ -264,7 +291,7 @@ function Show-WorldSnapshot
 if ($RunServerFramingSuite)
 {
     if ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or
-        $ExpectMovement -or $InvalidPacketSize -ne -1 -or $ProtocolVersion -ne 1 -or
+        $ExpectMovement -or $InvalidPacketSize -ne -1 -or $ProtocolVersion -ne 2 -or
         $SendInput -or $InputDirection -ne 'Up' -or $HoldMilliseconds -ne 300 -or $ReadSnapshots -ne 0)
     {
         throw "-RunServerFramingSuite cannot be combined with individual test scenario options."
@@ -284,7 +311,7 @@ if ($RunServerFramingSuite)
         @{ Name = 'invalid-size-0'; Arguments = @{ InvalidPacketSize = 0 } },
         @{ Name = 'invalid-size-3'; Arguments = @{ InvalidPacketSize = 3 } },
         @{ Name = 'invalid-size-4097'; Arguments = @{ InvalidPacketSize = 4097 } },
-        @{ Name = 'invalid-version'; Arguments = @{ ProtocolVersion = 2 } }
+        @{ Name = 'invalid-version'; Arguments = @{ ProtocolVersion = 1 } }
     )
 
     foreach ($testCase in $testCases)
@@ -319,12 +346,12 @@ if ($CoalescedEnterInput -and ($SplitSend -or $SplitAt -ne 0 -or $SendInput))
 }
 
 if ($InvalidPacketSize -ne -1 -and
-    ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or $ProtocolVersion -ne 1 -or $ReadSnapshots -ne 0))
+    ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or $ProtocolVersion -ne 2 -or $ReadSnapshots -ne 0))
 {
     throw "-InvalidPacketSize must be used by itself."
 }
 
-if ($ProtocolVersion -ne 1 -and
+if ($ProtocolVersion -ne 2 -and
     ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or $ReadSnapshots -ne 0))
 {
     throw "A non-current -ProtocolVersion must be tested without split, input, or snapshot options."
@@ -383,7 +410,7 @@ try
         $stream.Write($enterPacket, 0, $enterPacket.Length)
     }
 
-    if ($ProtocolVersion -ne 1)
+    if ($ProtocolVersion -ne 2)
     {
         Assert-ServerClosedConnection $stream "protocol version $ProtocolVersion"
         return
@@ -408,9 +435,9 @@ try
     $version = Read-U16BigEndian $payload 0
     [uint32]$playerId = Read-U32BigEndian $payload 2
 
-    if ($version -ne 1)
+    if ($version -ne 2)
     {
-        throw "Unexpected protocol version: $version (expected 1)."
+        throw "Unexpected protocol version: $version (expected 2)."
     }
 
     $hex = (@($header) + @($payload) | ForEach-Object { $_.ToString("X2") }) -join " "

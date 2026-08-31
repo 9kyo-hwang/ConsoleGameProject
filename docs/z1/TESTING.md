@@ -52,7 +52,7 @@ Z1Server를 먼저 실행한 뒤 PowerShell dummy client로 TCP framing과 기�
 .\tools\test-z1-enter.ps1 -RunServerFramingSuite
 ```
 
-이 suite는 정상 Enter/Snapshot, header와 payload 분할, 연속 packet, Input 이동·정지, 잘못된 packet size와 protocol version 거부를 확인한다. 기본 endpoint는 `127.0.0.1:7777`이다.
+이 suite는 protocol v2의 정상 Enter/Snapshot, header와 payload 분할, 연속 packet, Input 이동·정지, Enemy 배열 파싱, 잘못된 packet size와 protocol version 거부를 확인한다. 기본 endpoint는 `127.0.0.1:7777`이다.
 
 스크립트 통과는 실제 Z1 통합을 대체하지 않는다. transport나 Snapshot 표현을 변경했다면 Z1Server와 Z1을 함께 실행해 연결, playerId, 이동, 연결 종료 후 Actor 정리를 확인한다.
 
@@ -65,6 +65,12 @@ Z1Server를 먼저 실행한 뒤 PowerShell dummy client로 TCP framing과 기�
 ```
 
 이후 실제 Z1 하나를 실행한다. dummy와 Z1이 서로 다른 playerId로 Snapshot에 나타나고, Z1의 local `MyPlayer` 입력·서버 이동·원격 `NetworkPlayer` 생성과 정지를 확인한다. dummy PowerShell에서 `Ctrl+C`를 누르면 연결이 종료되며, Z1에서 원격 표현 제거와 offline 복귀를 확인한다.
+
+### 서버 Enemy 정적 표현
+
+Z1Server를 실행한 뒤 실제 Z1을 Enemy가 생성되는 Overworld Room으로 이동한다. 해당 Room의 Enemy Sprite가 `NetworkEnemy`로 표시되고, 다른 Room으로 이동하면 이전 Room의 표현이 제거되는지 확인한다. 다시 원래 Room에 들어가면 같은 server Enemy가 다시 표시되어야 한다.
+
+현재 Enemy는 스폰만 되며 이동·접촉·공격·피해를 처리하지 않는다. 따라서 이 단계에서는 Enemy를 통과해도 정상이다. 스폰 위치는 Enemy의 8×5 Box 전체가 `BlockingMap`의 통행 가능 타일에 들어가는지로 확인한다. 같은 Room 내 위치 중복은 아직 허용되는 알려진 제약이다.
 
 ## 현재 멀티클라이언트 제한
 

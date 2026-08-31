@@ -17,6 +17,13 @@ bool Server::Start(std::uint16_t port)
         return false;
     }
 
+    constexpr std::uint32_t ServerOverworldSeed = 0x5A314D50;
+    if (!_overworld.SpawnEnemies(ServerOverworldSeed))
+    {
+        std::cerr << "Failed to spawn overworld enemies\n";
+        return false;
+    }
+
     _listener = Socket::CreateTcp();
     if (!_listener.IsValid())
     {
@@ -401,13 +408,6 @@ void Server::BroadcastWorldSnapshot()
 {
     WorldSnapshot snapshot;
     snapshot.serverTick = _serverTick;
-    snapshot.players = _overworld.BuildPlayerSnapshot();
-
-    std::vector<Byte> snapshotPacket;
-    if (!BuildPacket_S2CWorldSnapshot(snapshot, snapshotPacket))
-    {
-        return;
-    }
 
     for (const std::unique_ptr<Session>& session : _sessions)
     {
@@ -416,9 +416,12 @@ void Server::BroadcastWorldSnapshot()
             continue;
         }
 
-        // 각자 별도의 패킷을 갖기 때문에 별도의 vector
-        // 최초 Send가 pending == true로 만들며 sendQueue의 패킷을 소비하기 때문에 복사
-        if (!session->Send(std::vector<Byte>(snapshotPacket)))
+        // playerID 기반 Snapshot을 각각 만들어 송신
+        auto playerId = session->GetPlayerId();
+        WorldSnapshot snapshot = _overworld.BuildPlayerSnapshot(*playerId, _serverTick);
+
+        std::vector<Byte> packet;
+        if (!BuildPacket_S2CWorldSnapshot(snapshot, packet) || !session->Send(std::move(packet)))
         {
             CloseSession(*session);
         }

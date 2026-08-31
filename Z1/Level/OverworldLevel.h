@@ -22,6 +22,7 @@ class Projectile;
 struct ProjectileSpec;
 
 class NetworkPlayer;
+class NetworkEnemy;
 class MyPlayer;
 class Game;
 
@@ -48,7 +49,7 @@ public:
     // Network
     void ApplyLatestNetworkSnapshot(Game& game);
     void EnsureOfflinePlayers(Game& game);  // 서버 연결 끊기면 기존 싱글 플레이 유지를 위한 역할
-    void ClearNetworkPlayers();
+    void ClearNetworkActors();
 
 private:
     bool LoadMap();
@@ -115,5 +116,6 @@ private:
 
     std::shared_ptr<MyPlayer> _myPlayer;
     std::unordered_map<std::uint32_t, std::shared_ptr<NetworkPlayer>> _networkPlayers;
+    std::unordered_map<std::uint32_t, std::shared_ptr<NetworkEnemy>> _networkEnemies;
     std::optional<std::uint32_t> _lastAppliedServerTick;
 };

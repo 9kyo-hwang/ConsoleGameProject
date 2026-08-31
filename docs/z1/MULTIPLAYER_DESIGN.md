@@ -68,7 +68,7 @@ TCP 위에 고정 4바이트 header를 사용한다.
 
 - 모든 다중 byte 정수는 network byte order다.
 - `size`는 header를 포함하며 허용 범위는 4~4096 byte다.
-- protocol version은 현재 `1`이다.
+- protocol version은 현재 `2`다. v2는 `S2C_WorldSnapshot`에 Enemy 배열을 추가한다.
 - 수신 byte는 `PacketFramer`에 누적하고 완성된 packet만 handler에 전달한다.
 - header/payload 분할 수신과 한 번에 여러 packet을 받은 경우를 모두 처리한다.
 - 잘못된 size, version, enum, flag 또는 payload 길이는 연결 오류로 처리한다.
@@ -80,10 +80,12 @@ TCP 위에 고정 4바이트 header를 사용한다.
 | C→S | `C2S_Enter` | protocol version 제시와 입장 요청 |
 | S→C | `S2C_Enter` | protocol version과 local playerId 할당 |
 | C→S | `C2S_Input` | sequence, 이동 방향과 공격 edge |
-| S→C | `S2C_WorldSnapshot` | server tick과 객체 상태 배열. 현재는 Player만 직렬화하며 Enemy·Projectile은 확장 목표 |
+| S→C | `S2C_WorldSnapshot` | server tick, 관심 Room의 Player·Enemy 상태 배열. Projectile은 확장 목표 |
 | S→C | `S2C_Disconnect` | 서버 주도 연결 종료 통지용 예약 packet |
 
-목표 wire format에서 Player, Enemy, Projectile은 별도 packet 종류가 아니라 하나의 전체 상태 Snapshot에 포함한다. 현재 codec은 Player 배열 뒤에 Enemy와 Projectile의 count를 예약해 두었으며 두 값이 모두 0인 packet만 허용한다. 객체 payload를 추가할 때는 count와 남은 길이를 객체 접근 전에 검증하고 전체 packet 크기에서 계산한 상한을 넘지 않는다.
+Player, Enemy, Projectile은 별도 packet 종류가 아니라 하나의 전체 상태 Snapshot에 포함한다. v2 payload는 `serverTick`, Player count와 18-byte Player 상태 배열, Enemy count와 19-byte Enemy 상태 배열, Projectile count 순서다. Projectile payload는 아직 없으므로 count는 0이어야 한다.
+
+`SnapshotEnemyState`는 `networkId`, `kind`, 위치, facing, HP, flags를 가진다. `homeRoom`, 최초 spawn 위치와 AI 타이머는 서버 내부 상태이며 wire에 넣지 않는다. dead Enemy는 일반 Snapshot에서 제외하므로 현재 Enemy flags에는 attacking bit만 예약한다. codec은 count 기반 배열을 읽기 전에 남은 길이를 검증하고, enum·flag·Enemy ID와 전체 4096-byte packet 상한을 검증한다.
 
 ## 동시성과 소유권
 
