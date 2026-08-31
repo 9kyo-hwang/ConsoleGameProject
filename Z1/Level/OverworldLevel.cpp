@@ -376,6 +376,7 @@ void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
             }
 
             _myPlayer->ApplySnapshot(state);
+            ApplyNetworkRoom(state);    // MyPlayer 한정으로 Room 변경
         }
         else  
         {
@@ -993,4 +994,14 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
     }
 
     return false;
+}
+
+// 여기서는 우선 Room 렌더만 담당
+void OverworldLevel::ApplyNetworkRoom(const Z1::Protocol::SnapshotPlayerState& state)
+{
+    const RoomCoordinate nextRoom = GetRoomCoordinate(Vector2(state.x, state.y));
+    if (nextRoom == _currentRoom) return;
+
+    _currentRoom = nextRoom;
+    BuildRoomSprite();
 }

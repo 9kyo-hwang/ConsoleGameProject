@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "OverworldSimulation.h"
 #include <algorithm>
+#include <fstream>
 
 namespace
 {
@@ -19,8 +20,72 @@ namespace
     constexpr std::int32_t OverworldRoomColumns = 16;
     constexpr std::int32_t OverworldRoomRows = 8;
 
-    constexpr std::int32_t WorldWidth = OverworldRoomColumns * RoomTileWidth * TileCellWidth;
-    constexpr std::int32_t WorldHeight = OverworldRoomRows * RoomTileHeight * TileCellHeight;
+    static constexpr std::int32_t MapWidth = OverworldRoomColumns * RoomTileWidth;
+    static constexpr std::int32_t MapHeight = OverworldRoomRows * RoomTileHeight;
+
+    constexpr std::int32_t MapTileWidth = MapWidth * TileCellWidth;
+    constexpr std::int32_t MapTileHeight = MapHeight * TileCellHeight;
+}
+
+bool OverworldSimulation::LoadBlockingMap(const FilePath& path, std::string& errorMessage)
+{
+    std::ifstream file(path);
+    if (!file.is_open())
+    {
+        errorMessage = "BlockingMap file could not be opened.";
+        return false;
+    }
+
+    std::vector<std::uint8_t> blocked(MapWidth * MapHeight);
+    std::string line;
+
+    for (int row = 0; row < MapHeight; ++row)
+    {
+        if (!std::getline(file, line))
+        {
+            errorMessage = "BlockingMap has fewer than 88 rows.";
+            return false;
+        }
+
+        if (!line.empty() && line.back() == '\r')
+        {
+            line.pop_back();
+        }
+
+        if (line.size() != MapWidth)
+        {
+            errorMessage = "BlockingMap row must contains 256 characters.";
+            return false;
+        }
+
+        for (int col = 0; col < MapWidth; ++col)
+        {
+            if (line[col] == '.')
+            {
+                blocked[row * MapWidth + col] = 0;
+            }
+            else if (line[col] == 'X')
+            {
+                blocked[row * MapWidth + col] = 1;
+            }
+            else
+            {
+                errorMessage = "BlockingMap map contains an invalid character.";
+                return false;
+            }
+        }
+    }
+
+    if (std::getline(file, line))
+    {
+        errorMessage = "BlockingMap has more than 88 rows.";
+        return false;
+    }
+
+    _blockedTiles = std::move(blocked);
+    _hasBlockingMap = true;
+
+    return true;
 }
 
 /*
@@ -148,10 +213,38 @@ void OverworldSimulation::Tick()
     }
 }
 
-bool OverworldSimulation::CanPlacePlayer(std::int32_t x, std::int32_t y)
+// 유효 좌표를 보내주는 것 자체로 원본 Room 표현이 이루어짐
+bool OverworldSimulation::CanPlacePlayer(std::int32_t x, std::int32_t y) const
 {
-    // 일단 OverworldMap 밖에 안나가는지 검사
-    return x >= 0 && y >= 0 && x + PlayerBoxWidth <= WorldWidth && y + PlayerBoxHeight <= WorldHeight;
+    if (!_hasBlockingMap) return false;
+    if (!(x >= 0 && y >= 0 && x + PlayerBoxWidth <= MapTileWidth && y + PlayerBoxHeight <= MapTileHeight))
+    {
+        return false;
+    }
+
+    // Box 크기 계산
+    const std::int32_t l = x / TileCellWidth;
+    const std::int32_t t = y / TileCellHeight;
+    const std::int32_t r = (x + PlayerBoxWidth - 1) / TileCellWidth;
+    const std::int32_t b = (y + PlayerBoxHeight - 1) / TileCellHeight;
+
+    for (int tileY = t; tileY <= b; ++tileY)
+    {
+        for (int tileX = l; tileX <= r; ++tileX)
+        {
+            if (IsBlockedTile(tileX, tileY))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool OverworldSimulation::IsBlockedTile(std::int32_t tileX, std::int32_t tileY) const
+{
+    return _blockedTiles[tileY * MapWidth + tileX] != 0;
 }
 
 MoveDelta OverworldSimulation::GetMoveDelta(Z1::Protocol::MoveDirection direction)

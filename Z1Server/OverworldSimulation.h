@@ -2,6 +2,9 @@
 
 #include <optional>
 #include <unordered_map>
+#include <filesystem>
+#include <string>
+#include <vector>
 
 struct MoveDelta
 {
@@ -12,7 +15,12 @@ struct MoveDelta
 // Z1의 OverworldMap에서 컨트롤하는 충돌 판정, Room, 적/투사체 등의 서버 버전
 class OverworldSimulation
 {
+    using FilePath = std::filesystem::path;
+
 public:
+    // 기존 Z1의 OverworldMap - BlockingMap 파싱 파트만 차용
+    bool LoadBlockingMap(const FilePath& path, std::string& error);
+
     bool AddPlayer(std::uint32_t playerId);
     void RemovePlayer(std::uint32_t playerId);
 
@@ -26,7 +34,9 @@ public:
 
 private:
     // 클라의 CanPlaceBox류 충돌맵 검사에 대응
-    bool CanPlacePlayer(std::int32_t x, std::int32_t y);
+    bool CanPlacePlayer(std::int32_t x, std::int32_t y) const;
+    bool IsBlockedTile(std::int32_t x, std::int32_t y) const;
+
     MoveDelta GetMoveDelta(Z1::Protocol::MoveDirection direction);
 
 private:
@@ -49,5 +59,7 @@ private:
 
     // id - state
     std::unordered_map<std::uint32_t, ServerPlayerState> _players;
+    std::vector<std::uint8_t> _blockedTiles;
+    bool _hasBlockingMap = false;
 };
 

@@ -79,6 +79,9 @@ private:
     std::optional<EntranceType> ResolveEntrance(Craft::Vector2 destination, const Pawn& mover);
     bool TryEnterEntrance(Craft::Vector2 destination);
 
+private:    // Network
+    void ApplyNetworkRoom(const Z1::Protocol::SnapshotPlayerState& state);  // 기존 TryChangeRoom 대신 네트워크 전용
+
 private:
     inline static constexpr RoomCoordinate StartRoom{ 7, 7 };
 

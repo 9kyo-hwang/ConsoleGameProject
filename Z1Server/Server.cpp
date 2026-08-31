@@ -4,11 +4,19 @@
 #include <chrono>
 #include <Z1Shared/PacketFramer.h>
 #include <Z1Shared/PacketCodec.h>
+#include <string>
 
 using namespace Net;
 
 bool Server::Start(std::uint16_t port)
 {
+    std::string mapError;
+    if (!_overworld.LoadBlockingMap("../Content/Z1/Maps/Overworld/BlockingMap.txt", mapError))
+    {
+        std::cerr << "Failed to load BlockingMaps: " << mapError << '\n';
+        return false;
+    }
+
     _listener = Socket::CreateTcp();
     if (!_listener.IsValid())
     {
