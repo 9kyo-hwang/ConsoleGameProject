@@ -19,6 +19,7 @@ Z1은 Zelda형 고정 화면 콘텐츠를 CraftEngine 위에 구현한 프로젝
 | [MAP_DATA.md](MAP_DATA.md) | 외부 맵 자료의 출처와 적용 결정 | 맵 원본·포맷·타일 해석 변경 |
 | [MULTIPLAYER_DESIGN.md](MULTIPLAYER_DESIGN.md) | 멀티플레이의 확정 경계와 목표 계약 | 책임, wire format, 동시성 또는 신뢰 경계 변경 |
 | [MULTIPLAYER_STATUS.md](MULTIPLAYER_STATUS.md) | 구현 완료 범위, 알려진 제약과 다음 작업 | 네트워크 구현 단위 완료 |
+| [NETWORK_LIBRARY_FOLLOWUPS.md](NETWORK_LIBRARY_FOLLOWUPS.md) | 보류한 IOCP·Session·송신 구조의 판단 근거와 재검토 조건 | 해당 후보를 도입하거나 보류 결정을 바꿀 때 |
 | [CONSOLE_INPUT_DESIGN.md](CONSOLE_INPUT_DESIGN.md) | 다중 로컬 클라이언트 입력 문제와 후보 | 입력 방식 결정 또는 구현 |
 
 완료된 초기 구현 계획과 단계별 작업 일지는 현재 구조 문서에 중복 기록하지 않는다. 아직 구현되지 않은 항목은 설계 문서의 목표 계약과 상태 문서의 다음 작업으로만 구분해 관리한다.

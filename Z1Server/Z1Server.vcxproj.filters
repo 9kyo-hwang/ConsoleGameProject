@@ -7,6 +7,7 @@
     <ClCompile Include="CompletionPort.cpp" />
     <ClCompile Include="Server.cpp" />
     <ClCompile Include="OverworldSimulation.cpp" />
+    <ClCompile Include="Actor\Enemy.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -14,5 +15,6 @@
     <ClInclude Include="CompletionPort.h" />
     <ClInclude Include="Server.h" />
     <ClInclude Include="OverworldSimulation.h" />
+    <ClInclude Include="Actor\Enemy.h" />
   </ItemGroup>
 </Project>
