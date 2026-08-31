@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <cstdint>
 #include <Sockets/Socket.h>
+#include <CompletionPort.h>
 
 #include <thread>
 #include <atomic>
@@ -48,7 +49,7 @@ private:
 
 private:
     Net::Socket _listener;
-    HANDLE _completionPort = nullptr;
+    CompletionPort _cp;
 
     std::thread _acceptThread;
     std::thread _ioThread;

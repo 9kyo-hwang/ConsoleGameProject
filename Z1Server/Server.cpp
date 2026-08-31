@@ -40,8 +40,7 @@ bool Server::Start(std::uint16_t port)
         return false;
     }
 
-    _completionPort = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
-    if (!_completionPort)
+    if (!_cp.Create())
     {
         return false;
     }
@@ -76,7 +75,7 @@ void Server::Stop()
     }
 
     // IOCP Worker 종료: overlapped == nullptr인 completion 종료 신호 처리
-    ::PostQueuedCompletionStatus(_completionPort, 0, 0, nullptr);
+    _cp.PostShutdown();
 
     if (_ioThread.joinable())
     {
@@ -224,58 +223,46 @@ void Server::IOLoop()
         const long long remainingMs = duration_cast<milliseconds>(remaining).count();
         const DWORD timeoutMs = (DWORD)((remainingMs > 0 ? remainingMs : 1));
 
-        DWORD bytesTransferred = 0;
-        ULONG_PTR completionKey = 0;
-        OVERLAPPED* overlapped = nullptr;
-
-        // 대기시간을 INFINITE로 넘기면 네트워크 이벤트가 올 때까지 영원히 sleep
-        // 따라서 다음 tick까지 남은 시간으로 변경
-        const BOOL dequeueSuccess = ::GetQueuedCompletionStatus(_completionPort, &bytesTransferred, &completionKey, &overlapped, timeoutMs);
-        const DWORD completionError = dequeueSuccess ? ERROR_SUCCESS : ::GetLastError();
-        
-        // 실패 원인이 TIMEOUT이라면?
-        if (!dequeueSuccess && completionError == WAIT_TIMEOUT)
+        CompletionEvent event = _cp.Dequeue(timeoutMs);
+        if (event.IsTimeout())
         {
-            // 무한 대기(INFINITE)가 아닌 Tick 간격만큼만 기다리도록 변경했으므로.
+            // 무한 대기(INFINITE)가 아닌 Tick 간격만큼만 기다리도록 변경했으므로,
             // 다음 While-loop 진입에서 Tick 실행 여부를 다시 판단한다.
             continue;
         }
 
-        // 종료를 위해 Post~에서 completionKey에 nullptr을 넣었음
-        if (dequeueSuccess && completionKey == 0 && overlapped == nullptr)
+        if (event.IsShutdown())
         {
-            break;
-        }
-
-        // 예상치 못한 completion 방어
-        if (completionKey == 0 || overlapped == nullptr)
-        {
+            // 종료를 위해 Post~에서 completionKey에 nullptr을 넣었음
             break;
         }
 
         // completionKey를 Session*로 넘겼었음!
-        // 각 세션은 accept 시 unique_ptr로 서버에서 관리하고,
-        // 아직 vector에서 세션을 제거하는 로직이 없어 유효함
-        Session* session = (Session*)completionKey;
-
-        if (!dequeueSuccess)
+        Session* session = (Session*)event.completionKey;
+        if (!event.succeeded)
         {
-            CloseSession(*session);
+            // 각 세션은 accept 시 unique_ptr로 서버에서 관리하고,
+            // 아직 vector에서 세션을 제거하는 로직이 없어 유효함
+            if (session != nullptr)
+            {
+                CloseSession(*session);  
+            }
+
             continue;
         }
 
         // case 1: Recv 이벤트 완료
-        if (overlapped == session->GetRecvOverlapped())
+        if (event.overlapped == session->GetRecvOverlapped())
         {
             // 상대방이 전송한 데이터가 0이면 접속 종료를 요청한 것
-            if (bytesTransferred == 0)
+            if (event.bytesTransferred == 0)
             {
                 std::cout << "Client Disconnected\n";
                 CloseSession(*session);
                 continue;
             }
 
-            if (!session->HandleRecv(bytesTransferred))
+            if (!session->HandleRecv(event.bytesTransferred))
             {
                 CloseSession(*session);
                 continue;
@@ -298,7 +285,6 @@ void Server::IOLoop()
                 continue;
             }
 
-            // 일단 수신 확인만 하자. 이후 WSASend로 echo
             if (!_stopRequested && !session->PostRecv())
             {
                 CloseSession(*session);
@@ -308,10 +294,10 @@ void Server::IOLoop()
         }
 
         // case 2: Send 이벤트 완료
-        if (overlapped == session->GetSendOverlapped())
+        if (event.overlapped == session->GetSendOverlapped())
         {
             // Send Completion에서 전송한 바이트 수가 0이라면 비정상 전송
-            if (!session->HandleSend(bytesTransferred))
+            if (!session->HandleSend(event.bytesTransferred))
             {
                 CloseSession(*session);
             }
@@ -358,7 +344,7 @@ bool Server::RegisterAcceptedSocket(Net::Socket&& clientSocket)
     * ULONG_PTR을 중간에 거쳐야 하는가?
     */
 
-    if (nullptr == ::CreateIoCompletionPort(clientHandle, _completionPort, (ULONG_PTR)clientSessionPtr, 0))
+    if (!_cp.Associate(clientSessionPtr->GetNativeHandle(), (ULONG_PTR)clientSessionPtr))
     {
         // 등록 실패
         clientSessionPtr->Close();

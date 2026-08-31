@@ -12,7 +12,6 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="Session.h" />
     <ClInclude Include="CompletionPort.h" />
-    <ClInclude Include="SocketIO.h" />
     <ClInclude Include="Server.h" />
     <ClInclude Include="OverworldSimulation.h" />
   </ItemGroup>
