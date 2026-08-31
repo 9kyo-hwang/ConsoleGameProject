@@ -22,6 +22,7 @@ class Projectile;
 struct ProjectileSpec;
 
 class NetworkPlayer;
+class MyPlayer;
 class Game;
 
 enum class EntranceType
@@ -44,7 +45,9 @@ public:
     std::shared_ptr<Projectile> SpawnProjectile(Craft::Vector2 position, const ProjectileSpec& spec, const std::shared_ptr<Pawn>& instigator);
     std::shared_ptr<Enemy> SpawnEnemy(const EnemySpawnData& spawn);
 
+    // Network
     void ApplyLatestNetworkSnapshot(Game& game);
+    void EnsureOfflinePlayers(Game& game);  // 서버 연결 끊기면 기존 싱글 플레이 유지를 위한 역할
     void ClearNetworkPlayers();
 
 private:
@@ -75,9 +78,6 @@ private:
 
     std::optional<EntranceType> ResolveEntrance(Craft::Vector2 destination, const Pawn& mover);
     bool TryEnterEntrance(Craft::Vector2 destination);
-
-private:    // Network
-    void SendNetworkInput(class Game& game);
 
 private:
     inline static constexpr RoomCoordinate StartRoom{ 7, 7 };
@@ -110,7 +110,7 @@ private:
     // - 키 놓아 이동 정지: Left -> None
     // - 공격 키 눌림
 
+    std::shared_ptr<MyPlayer> _myPlayer;
     std::unordered_map<std::uint32_t, std::shared_ptr<NetworkPlayer>> _networkPlayers;
     std::optional<std::uint32_t> _lastAppliedServerTick;
-    Z1::Protocol::MoveDirection _lastSentDir = Z1::Protocol::MoveDirection::None;
 };

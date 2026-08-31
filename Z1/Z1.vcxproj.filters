@@ -29,6 +29,7 @@
     <ClCompile Include="World\CaveMap.cpp" />
     <ClCompile Include="Network\NetworkClient.cpp" />
     <ClCompile Include="Network\NetworkPlayer.cpp" />
+    <ClCompile Include="Network\MyPlayer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -62,5 +63,6 @@
     <ClInclude Include="World\CaveMap.h" />
     <ClInclude Include="Network\NetworkClient.h" />
     <ClInclude Include="Network\NetworkPlayer.h" />
+    <ClInclude Include="Network\MyPlayer.h" />
   </ItemGroup>
 </Project>

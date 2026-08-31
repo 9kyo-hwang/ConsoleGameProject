@@ -56,6 +56,16 @@ Z1Server를 먼저 실행한 뒤 PowerShell dummy client로 TCP framing과 기�
 
 스크립트 통과는 실제 Z1 통합을 대체하지 않는다. transport나 Snapshot 표현을 변경했다면 Z1Server와 Z1을 함께 실행해 연결, playerId, 이동, 연결 종료 후 Actor 정리를 확인한다.
 
+### KeepAlive dummy client
+
+`MyPlayer`와 원격 표현을 수동으로 확인할 때는 Z1Server를 실행한 뒤 별도 PowerShell에서 다음 dummy client를 유지한다.
+
+```powershell
+.\tools\test-z1-enter.ps1 -KeepAlive
+```
+
+이후 실제 Z1 하나를 실행한다. dummy와 Z1이 서로 다른 playerId로 Snapshot에 나타나고, Z1의 local `MyPlayer` 입력·서버 이동·원격 `NetworkPlayer` 생성과 정지를 확인한다. dummy PowerShell에서 `Ctrl+C`를 누르면 연결이 종료되며, Z1에서 원격 표현 제거와 offline 복귀를 확인한다.
+
 ## 현재 멀티클라이언트 제한
 
 같은 desktop에서 실행한 두 Z1 프로세스는 `GetAsyncKeyState` 때문에 같은 물리 키를 동시에 감지할 수 있다. 입력 방식이 개선되기 전에는 실제 Z1 하나와 dummy client 조합으로 독립 이동을 검증한다. 원인과 후보는 [콘솔 입력 설계](CONSOLE_INPUT_DESIGN.md)를 참고한다.

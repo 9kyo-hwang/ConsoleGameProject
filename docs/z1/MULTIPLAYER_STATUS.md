@@ -1,6 +1,6 @@
 # Z1 멀티플레이 개발 현황
 
-마지막 갱신: 2026-08-30
+마지막 갱신: 2026-08-31
 
 ## 문서 역할
 
@@ -8,9 +8,9 @@
 
 ## 현재 위치
 
-TCP payload와 Player 이동 vertical slice가 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 Player 좌표를 변경한 뒤 `S2C_WorldSnapshot`으로 전송한다. 클라이언트는 원격 playerId를 `NetworkPlayer`로 표시한다.
+TCP payload와 Player 이동 vertical slice가 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 Player 좌표를 변경한 뒤 `S2C_WorldSnapshot`으로 전송한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다.
 
-로컬 Player는 아직 기존 싱글플레이 Actor와 판정을 사용한다. 따라서 현재 네트워크 경로는 서버 권위형 이동·전투가 완성된 상태가 아니다.
+네트워크 모드의 Player 위치·방향·HP는 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 맵 충돌·Room·전투는 아직 완료되지 않았다.
 
 ## 구현 완료
 
@@ -37,7 +37,10 @@ TCP payload와 Player 이동 vertical slice가 연결된 상태다. Z1의 실제
 - network thread와 main thread 사이의 bounded incoming/outgoing queue
 - Enter/Snapshot parsing과 방향·공격 입력 전송
 - HUD의 online 상태, local playerId, server tick과 player count 표시
-- main thread에서 원격 `NetworkPlayer` 생성·갱신·제거
+- main thread에서 local `MyPlayer`와 원격 `NetworkPlayer` 생성·갱신·제거
+- `MyPlayer`만 입력을 읽어 방향 변화와 공격 edge를 `C2S_Input`으로 전송
+- 온라인 중 기존 `Player`의 로컬 이동·공격·Enemy 처리와 충돌 판정을 실행하지 않음
+- 연결 종료 시 네트워크 표현을 제거하고 기존 싱글플레이 `Player` 흐름으로 복귀
 
 ## 확인한 동작
 
@@ -48,15 +51,15 @@ TCP payload와 Player 이동 vertical slice가 연결된 상태다. Z1의 실제
 - 실제 Z1과 Z1Server의 connect → Enter → Snapshot → HUD 반영
 - 실제 Z1 방향키의 sequence 증가와 서버 좌표 변화
 - 실제 Z1 두 개에서 상대 playerId의 `NetworkPlayer` 생성과 Snapshot 위치 반영
+- 실제 Z1 하나와 KeepAlive dummy client에서 local `MyPlayer`와 원격 `NetworkPlayer` 생성, local 입력 전송과 서버 좌표 반영 확인
 
 재현 명령은 [Z1 검증](TESTING.md)에 기록한다.
 
 ## 알려진 제약
 
-- local playerId를 위한 `MyPlayer`가 없고 기존 local `Player`가 이동·공격·충돌을 계속 판정한다.
 - 서버 이동은 전체 맵 사각형 경계만 검사한다. BlockingMap, Room lifecycle과 active Room은 아직 없다.
 - Snapshot의 Enemy와 Projectile count는 0이며 서버 전투 simulation이 없다.
-- 공격 flag는 parsing·저장까지만 하고 공격 판정에 사용하지 않는다.
+- 공격 flag는 edge로 전송되지만 서버는 parsing·저장만 하고 공격 판정에는 사용하지 않는다. 전투 구현 시 한 Tick에서 한 번만 소비해야 한다.
 - 닫힌 Session을 `_sessions` registry에서 제거하는 최종 수명 처리가 완료되지 않았다.
 - closing 상태, outstanding I/O, cancellation과 completion drain을 포함한 안전한 서버 종료가 완료되지 않았다.
 - `CompletionPort` 타입은 빈 stub이며 현재 `Server`가 raw handle을 직접 소유한다.
@@ -66,13 +69,11 @@ TCP payload와 Player 이동 vertical slice가 연결된 상태다. Z1의 실제
 
 ## 다음 구현 단위
 
-다음 작업은 local `MyPlayer` 분리다.
+다음 작업은 서버의 BlockingMap과 Room 판정이다.
 
-1. `MyPlayer : NetworkPlayer`를 추가해 local playerId의 표현 책임을 분리한다.
-2. 네트워크 모드에서는 기존 local `Player` 대신 local Snapshot을 적용하는 `MyPlayer`를 사용한다.
-3. 이동·공격 결과는 로컬에서 확정하지 않고 서버 Snapshot을 원본으로 삼는다.
-4. 입력은 Level 또는 MyPlayer 중 한 곳에서만 읽어 `C2S_Input`으로 보낸다.
-5. 연결 종료 시 MyPlayer와 원격 NetworkPlayer를 모두 정리하고 offline 흐름으로 돌아간다.
-6. 실제 Z1 하나와 dummy client로 local/remote 생성·이동·정지·제거를 확인한다.
+1. Z1Server가 `Content/Z1/Maps/Overworld/BlockingMap.txt`만 읽어 형식과 통행 값을 검증한다.
+2. Player Box 전체가 blocked 타일과 겹치지 않을 때만 서버가 좌표를 갱신한다.
+3. 서버가 수락한 전체 월드 좌표에서 Room을 결정하고, 클라이언트는 local Snapshot 표현에 맞춰 배경과 View를 전환한다.
+4. 실제 Z1 하나와 KeepAlive dummy client로 벽 차단, Room 전환과 원격 표현 위치를 확인한다.
 
 이후 순서는 BlockingMap과 Room, Enemy/Projectile과 전투, Session 제거와 안전한 종료다. 완료되지 않은 항목을 구현된 현재 구조처럼 설계 문서에 옮겨 적지 않는다.

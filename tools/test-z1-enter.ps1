@@ -23,7 +23,8 @@ param(
     [ValidateRange(0, 100)]
     [int]$ReadSnapshots = 0,
     [ValidateRange(100, 30000)]
-    [int]$TimeoutMs = 3000
+    [int]$TimeoutMs = 3000,
+    [switch]$KeepAlive
 )
 
 Set-StrictMode -Version Latest
@@ -436,6 +437,16 @@ try
     {
         $snapshot = Read-Packet $stream
         Show-WorldSnapshot $snapshot
+    }
+
+    if($KeepAlive)
+    {
+        Write-Output "Dummy client connected. Press Ctrl+C to disconnect."
+
+        while($true)
+        {
+            [void](Read-Packet $stream) # Snapshot 계속 drain
+        }
     }
 
     if ($ExpectMovement)

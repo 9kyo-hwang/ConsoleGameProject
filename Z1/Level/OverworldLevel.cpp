@@ -20,6 +20,7 @@
 
 #include <unordered_set>
 #include <Network/NetworkPlayer.h>
+#include <Network/MyPlayer.h>
 
 using namespace Craft;
 using FilePath = std::filesystem::path;
@@ -107,19 +108,10 @@ void OverworldLevel::BeginPlay()
         _bgmStarted = true;
     }
 
-    if (!_player)
+    // 로컬 플레이어는 서버 연결이 안됐을 때만 하자.
+    if (!game.IsServerConnected())
     {
-        // 월드 좌표
-        _player = SpawnActor<Player>(
-            GetRoomCellOrigin(_currentRoom) + Vector2(7, 2) * TileCellSize,
-            Game::PlayerMaxHp
-        );
-    }
-
-    if (!_playerStateLoaded)
-    {
-        game.LoadPlayerState(*_player);
-        _playerStateLoaded = true;
+        EnsureOfflinePlayers(game);
     }
 }
 
@@ -130,21 +122,17 @@ void OverworldLevel::Tick(float deltaTime)
     if (game.IsServerConnected())
     {
         ApplyLatestNetworkSnapshot(game);   // 서버로부터 받은 정보를 Actor::Tick 보다 먼저 반영
-    }
-    else
-    {
-        ClearNetworkPlayers();
+        Level::Tick(deltaTime); // MyPlayer 입력 전송 및 NetworkPlayer Actor 갱신
+
+        // 기존 로컬 플레이의 각종 처리는 실행하지 말자.
+        return;
     }
 
+    ClearNetworkPlayers();
+    EnsureOfflinePlayers(game); // 기존 싱글 플레이 경로로, 필요하면 연결 실패/종료 뒤 재생성 + 상태 복원
     Level::Tick(deltaTime);
 
     if (!_player) return;
-
-    // Level::Tick()에서 Player::Tick()이 호출되며 입력 벡터가 기록됨
-    // 따라서 해당 입력 값이 기록된 직후 서버에 입력 정보를 전송
-    SendNetworkInput(game);
-
-    // 싱글플레이 로직
 
     if (_player->IsDead())
     {
@@ -242,7 +230,13 @@ void OverworldLevel::Draw()
 
     renderer.Submit(Sprite::Create("[Overworld]"), Vector2(2, 1));
 
-    if (_player)
+    if (_myPlayer)
+    {
+        // 최대 체력은 추후 SnapshotPlayerState에 MaxHp 수치도 넣고, 다 바꾸도록...
+        const std::string hp = "[HP " + std::to_string(_myPlayer->GetHp()) + "/" + std::to_string(Game::PlayerMaxHp) + "]";
+        renderer.Submit(Sprite::Create(hp), Vector2(16, 1));
+    }
+    else if (_player)
     {
         const std::string hp = "[HP " + std::to_string(_player->GetHp()) + "/" + std::to_string(_player->GetMaxHp()) + "]";
         renderer.Submit(Sprite::Create(hp), Vector2(16, 1));
@@ -364,23 +358,40 @@ void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
     std::unordered_set<std::uint32_t> recvdPlayers;
     for (const SnapshotPlayerState& state : snapshot->players)
     {
-        // 원격 플레이어만 생성해야 하므로 나 자신은 제외
+        // TEMP: MyPlayer가 없다면 기존 로컬 Player와 적 등을 모두 제거하고 Spawn
         if (state.playerId == *localPlayerId)
         {
-            continue;
+            if (!_myPlayer)
+            {
+                if (_player)
+                {
+                    _player->Destroy();
+                    _player.reset();
+                }
+
+                DestroyRoomEnemies();
+                DestroyRoomProjectiles();
+
+                _myPlayer = SpawnActor<MyPlayer>(Vector2(state.x, state.y), state.playerId);
+            }
+
+            _myPlayer->ApplySnapshot(state);
         }
-
-        recvdPlayers.emplace(state.playerId);
-
-        if (_networkPlayers.contains(state.playerId))
+        else  
         {
-            _networkPlayers[state.playerId]->ApplySnapshot(state);
-            continue;
-        }
+            // 원격 플레이어는 생성 or 갱신
+            recvdPlayers.emplace(state.playerId);
 
-        auto remotePlayer = SpawnActor<NetworkPlayer>(Vector2(state.x, state.y), state.playerId);
-        remotePlayer->ApplySnapshot(state);
-        _networkPlayers.emplace(state.playerId, std::move(remotePlayer));
+            if (_networkPlayers.contains(state.playerId))
+            {
+                _networkPlayers[state.playerId]->ApplySnapshot(state);
+                continue;
+            }
+
+            auto remotePlayer = SpawnActor<NetworkPlayer>(Vector2(state.x, state.y), state.playerId);
+            remotePlayer->ApplySnapshot(state);
+            _networkPlayers.emplace(state.playerId, std::move(remotePlayer));
+        }
     }
 
     // 2. 새로 받은 플레이어가 기존 플레이어 명단에 없다면 제거
@@ -401,9 +412,31 @@ void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
     _lastAppliedServerTick = snapshot->serverTick;
 }
 
+void OverworldLevel::EnsureOfflinePlayers(Game& game)
+{
+    if (!_player)
+    {
+        _player = SpawnActor<Player>(GetRoomCellOrigin(_currentRoom) + Vector2(7, 2) * TileCellSize, Game::PlayerMaxHp);
+    }
+
+    if (!_playerStateLoaded)
+    {
+        game.LoadPlayerState(*_player);
+        _playerStateLoaded = true;
+    }
+
+    SpawnRoomEnemies();
+}
+
 // 서버 연결 끊겼을 때 snapshot 날려버리는 역할
 void OverworldLevel::ClearNetworkPlayers()
 {
+    if (_myPlayer)
+    {
+        _myPlayer->Destroy();
+        _myPlayer.reset();
+    }
+
     for (auto& [playerId, player] : _networkPlayers)
     {
         player->Destroy();
@@ -960,40 +993,4 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
     }
 
     return false;
-}
-
-void OverworldLevel::SendNetworkInput(Game& game)
-{
-    using namespace Z1::Protocol;
-
-    MoveDirection dir = MoveDirection::None;
-    std::uint8_t actionFlags = 0;
-
-    // 불필요한 송신을 줄이기 위한 최소한의 필터
-    if (!_player->IsDead())
-    {
-        const Vector2 moveInputDir = _player->GetMovementInputDirection();
-        if (moveInputDir == Vector2::Up) dir = MoveDirection::Up;
-        else if (moveInputDir == Vector2::Up * -1) dir = MoveDirection::Down;
-        else if (moveInputDir == Vector2::Right) dir = MoveDirection::Right;
-        else if (moveInputDir == Vector2::Right * -1) dir = MoveDirection::Left;
-
-        // 공격 유무를 따로 검사: 공격 버튼을 눌렀다는 의도만 전송, 아래 판단은 서버 책임
-        // 검 보유 여부, 사망 여부, 공격 중인지, 쿨타임 끝났는지, ...
-        if (Input::Get().GetKeyDown('A'))
-        {
-            actionFlags |= InputActionAttack;
-        }
-    }
-
-    bool rotated = dir != _lastSentDir;
-    bool hasAction = actionFlags != 0;
-
-    if (!rotated && !hasAction) return;
-
-    // 현재는 이동 중에 A를 누르면 방향과 액션 플래그가 함께 전송됨 -> 서버에서 시뮬 후 이동+공격 동시 허용 결정
-    if (game.SendNetworkInput(dir, actionFlags))
-    {
-        _lastSentDir = dir;
-    }
 }
