@@ -8,9 +8,9 @@
 
 ## 현재 위치
 
-TCP payload와 Player 이동 vertical slice가 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 Player 좌표를 변경한 뒤 `S2C_WorldSnapshot`으로 전송한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다.
+TCP payload와 Player 이동 vertical slice가 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 BlockingMap 충돌을 통과한 Player 좌표를 `S2C_WorldSnapshot`으로 전송한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다.
 
-네트워크 모드의 Player 위치·방향·HP는 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 맵 충돌·Room·전투는 아직 완료되지 않았다.
+네트워크 모드의 Player 위치·방향·HP는 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 BlockingMap 충돌은 적용됐고, 클라이언트는 local Snapshot 좌표로 배경과 View의 Room 표현을 바꾼다. 서버 Enemy·Projectile·전투는 아직 없다.
 
 ## 구현 완료
 
@@ -29,6 +29,8 @@ TCP payload와 Player 이동 vertical slice가 연결된 상태다. Z1의 실제
 - TCP 분할·연속 packet framing과 Session별 send queue
 - `C2S_Enter`/`S2C_Enter`, playerId 할당과 protocol version 검증
 - `C2S_Input` sequence·방향·flag parsing
+- `BlockingMap.txt`의 256×88 형식과 `.`/`X` 통행 값 검증
+- Player Box 전체 기준의 BlockingMap·전체 맵 경계 충돌
 - 20Hz `OverworldSimulation`의 Player 이동과 전체 Player Snapshot broadcast
 
 ### Z1 클라이언트
@@ -40,6 +42,7 @@ TCP payload와 Player 이동 vertical slice가 연결된 상태다. Z1의 실제
 - main thread에서 local `MyPlayer`와 원격 `NetworkPlayer` 생성·갱신·제거
 - `MyPlayer`만 입력을 읽어 방향 변화와 공격 edge를 `C2S_Input`으로 전송
 - 온라인 중 기존 `Player`의 로컬 이동·공격·Enemy 처리와 충돌 판정을 실행하지 않음
+- local `MyPlayer`의 서버 Snapshot 좌표가 다른 Room에 들어가면 Room 배경과 View 갱신
 - 연결 종료 시 네트워크 표현을 제거하고 기존 싱글플레이 `Player` 흐름으로 복귀
 
 ## 확인한 동작
@@ -52,12 +55,15 @@ TCP payload와 Player 이동 vertical slice가 연결된 상태다. Z1의 실제
 - 실제 Z1 방향키의 sequence 증가와 서버 좌표 변화
 - 실제 Z1 두 개에서 상대 playerId의 `NetworkPlayer` 생성과 Snapshot 위치 반영
 - 실제 Z1 하나와 KeepAlive dummy client에서 local `MyPlayer`와 원격 `NetworkPlayer` 생성, local 입력 전송과 서버 좌표 반영 확인
+- 실제 Z1에서 BlockingMap 벽에 Player Box가 닿으면 서버 좌표가 더 이상 갱신되지 않음
 
 재현 명령은 [Z1 검증](TESTING.md)에 기록한다.
 
 ## 알려진 제약
 
-- 서버 이동은 전체 맵 사각형 경계만 검사한다. BlockingMap, Room lifecycle과 active Room은 아직 없다.
+- 서버는 Player의 Room을 영구 상태로 보관하지 않는다. 현재 전체 Player Snapshot을 모든 entered Session에 전송하며, Room별 interest Snapshot은 Enemy 도입 때 추가한다.
+- 접근 가능한 Room 경로 whitelist는 서버에 아직 없다. BlockingMap과 전체 맵 경계로 도달 가능한 모든 Room을 이동할 수 있다.
+- 클라이언트 네트워크 Room 전환은 Snapshot Player 위치의 기준점으로 판정한다. 싱글플레이의 leading-edge 전환 규칙과 통일하는 작업은 남아 있다.
 - Snapshot의 Enemy와 Projectile count는 0이며 서버 전투 simulation이 없다.
 - 공격 flag는 edge로 전송되지만 서버는 parsing·저장만 하고 공격 판정에는 사용하지 않는다. 전투 구현 시 한 Tick에서 한 번만 소비해야 한다.
 - 닫힌 Session을 `_sessions` registry에서 제거하는 최종 수명 처리가 완료되지 않았다.
@@ -69,11 +75,11 @@ TCP payload와 Player 이동 vertical slice가 연결된 상태다. Z1의 실제
 
 ## 다음 구현 단위
 
-다음 작업은 서버의 BlockingMap과 Room 판정이다.
+다음 작업은 전역 `ServerEnemy`와 Room 관심 영역 기반의 Enemy simulation이다.
 
-1. Z1Server가 `Content/Z1/Maps/Overworld/BlockingMap.txt`만 읽어 형식과 통행 값을 검증한다.
-2. Player Box 전체가 blocked 타일과 겹치지 않을 때만 서버가 좌표를 갱신한다.
-3. 서버가 수락한 전체 월드 좌표에서 Room을 결정하고, 클라이언트는 local Snapshot 표현에 맞춰 배경과 View를 전환한다.
-4. 실제 Z1 하나와 KeepAlive dummy client로 벽 차단, Room 전환과 원격 표현 위치를 확인한다.
+1. 서버 시작 시 seed와 `homeRoom`으로 Enemy 초기 배치를 결정하고 전역 `ServerEnemy` 레지스트리를 만든다.
+2. Player가 있는 Room만 active로 계산해, 해당 Room Enemy만 Tick하고 `homeRoom` 밖 이동을 막는다.
+3. Enemy 상태를 Snapshot codec에 추가하고, 수신 Player의 관심 Room에 맞춰 `NetworkEnemy` 표현을 생성·갱신·제거한다.
+4. 두 Z1 클라이언트가 같은 Room에서 같은 Enemy의 이동·피해·사망 결과를 보는지 확인한다.
 
-이후 순서는 BlockingMap과 Room, Enemy/Projectile과 전투, Session 제거와 안전한 종료다. 완료되지 않은 항목을 구현된 현재 구조처럼 설계 문서에 옮겨 적지 않는다.
+이후 순서는 Enemy/Projectile과 전투, Room별 interest Snapshot, Session 제거와 안전한 종료다. 완료되지 않은 항목을 구현된 현재 구조처럼 설계 문서에 옮겨 적지 않는다.

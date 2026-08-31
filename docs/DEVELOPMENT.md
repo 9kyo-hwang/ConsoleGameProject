@@ -46,6 +46,8 @@ Includes/<CraftEngine|SoundSystem|Sockets>/
 - 공용 사운드: `../Content/Sound/<파일>`
 - Z1 데이터: `../Content/Z1/<파일>`
 
+`Z1Server`는 출력 디렉터리에서 `../Content/Z1/Maps/Overworld/BlockingMap.txt`를 읽는다. 따라서 해당 프로젝트의 pre-build event가 원본 `Content`를 `$(OutDir)..\\Content`로 복사한다. 이 복사 규칙을 바꾸면 Z1Server의 상대 경로와 함께 갱신한다.
+
 Visual Studio의 프로젝트 디렉터리나 각 빌드 출력 디렉터리에서 실행하는 구성을 전제로 한다. 다른 작업 디렉터리에서 직접 실행하면 설정 assertion 또는 Content 로드 실패가 발생할 수 있다.
 
 ## 변경 위치 찾기

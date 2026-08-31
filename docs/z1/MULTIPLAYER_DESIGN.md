@@ -41,7 +41,7 @@ Z1 EXE
 
 ```text
 Player: playerId, position, facing, hp, dead, input sequence, action state
-Enemy:  networkId, kind, position, facing, hp, action state
+Enemy:  networkId, kind, homeRoom, spawn position, position, facing, hp, dead, action state
 Projectile: networkId, kind, ownerId, position, direction, lifetime
 ```
 
@@ -111,12 +111,26 @@ TCP 위에 고정 4바이트 header를 사용한다.
 클라이언트는 방향과 공격 의도만 보내고 위치·HP·아이템 상태를 보내지 않는다. 서버는 sequence와 입력 범위를 검증하고 고정 Tick에서 다음을 결정한다.
 
 1. Player 이동과 맵·blocked 충돌
-2. 전체 맵 좌표에서의 Room 소속
-3. active Room의 Enemy 생성과 Tick
+2. 전체 맵 좌표에서 필요한 Room 소속 계산
+3. active Room의 Enemy Tick
 4. 공격·Projectile·피격·HP·사망
-5. 모든 active Room의 전체 Snapshot
+5. 수신 Session의 관심 Room에 맞는 Snapshot
 
-첫 구현은 Player가 있는 Room만 active 상태로 유지한다. 마지막 Player가 나간 Room의 Enemy와 Projectile은 제거하고 다시 입장하면 결정적인 계획으로 생성한다. 객체 수가 작으므로 관심 영역 packet을 별도로 만들지 않고, 클라이언트가 자신의 Room에 필요한 표현만 선택한다.
+### Enemy 수명과 Room 관심 영역 정책
+
+Overworld의 Enemy는 서버가 시작할 때 한 번 결정적으로 생성하고, 서버가 실행되는 동안 전역 레지스트리에 유지한다. Room을 떠났다는 이유만으로 Enemy를 제거하거나 재생성하지 않는다.
+
+- `ServerEnemy`는 안정적인 `networkId`, 종류, `homeRoom`, 최초 `spawnPosition`과 현재 전투 상태를 가진다. `homeRoom`은 생성 뒤 바뀌지 않는다.
+- 초기 스폰은 월드 seed와 `homeRoom`으로 결정한다. 같은 seed로 시작한 서버는 같은 초기 Enemy 배치를 만든다. 이후 처치 여부와 위치는 seed가 아니라 서버의 실제 상태가 원본이다.
+- Enemy는 `homeRoom` 밖으로 이동하지 않는다. Projectile은 명시한 수명 또는 Room 경계에서 제거하며, 마지막 Player가 Room을 떠날 때도 제거한다.
+- Enemy가 사망하면 `dead` 상태로 남고 일반 Snapshot에는 포함하지 않는다. 최초 MVP에는 자동 리스폰을 넣지 않는다.
+- 리스폰이 필요해질 때는 새 seed나 새 Enemy를 만들지 않는다. 죽은 Enemy에 `respawnAtTick`을 기록하고, 시간이 되면 같은 `networkId`와 `spawnPosition`으로 상태를 초기화한다.
+
+Room은 전역 월드 상태의 소유자가 아니라 simulation과 복제의 관심 영역이다. Player의 관심 Room은 서버가 수락한 월드 좌표에서 필요할 때 계산하며, 별도 `currentRoom` 필드로 영구 저장하지 않는다. `homeRoom`에 Player가 한 명 이상 있을 때만 그 Room의 Enemy와 Projectile을 Tick한다. 마지막 Player가 떠난 Room의 Enemy 상태는 전역 레지스트리에 그대로 보존하지만, 일시 객체인 Projectile은 제거한다.
+
+어떤 Room의 객체 상태가 바뀌면 그 Room을 관심 영역으로 가진 모든 Player에게 같은 결과가 전파되어야 한다. 첫 구현의 Snapshot은 수신 Player의 관심 Room에 속한 동적 객체만 담는다. 수신자 자신의 Player 상태는 항상 포함한다. 이 규칙은 별도의 Add/Remove packet 없이도 Snapshot 배열의 객체 존재 여부로 표현 Actor를 생성·갱신·제거할 수 있게 한다.
+
+한 Room에 Player가 많이 모이면 전송량은 `snapshot bytes × tick rate × 수신 Player 수`로 증가하고, Enemy의 대상 탐색도 Enemy 수와 Player 수에 비례해 늘어난다. 현재 규모에서는 Room별 구독 컨테이너, delta packet, worker/shard를 추가하지 않는다. 실제 다중 클라이언트 측정에서 send queue, Tick 지연 또는 packet 크기 상한이 문제가 될 때 그 순서로 확장한다.
 
 서버에 맵 충돌을 구현할 때는 `Content/Z1/Maps/Overworld/BlockingMap.txt`의 통행 데이터만 읽도록 한다. TileId, Sprite와 Color는 읽지 않으며 CraftEngine Tilemap을 링크하지 않는다. 클라이언트와 서버의 중복 parser가 실제 유지보수 문제가 될 때만 렌더링 독립적인 MapData 공유를 검토한다. 현재 구현 여부는 [멀티플레이 현황](MULTIPLAYER_STATUS.md)을 기준으로 판단한다.
 
