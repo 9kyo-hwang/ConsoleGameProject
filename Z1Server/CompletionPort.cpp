@@ -8,7 +8,7 @@ CompletionPort::~CompletionPort()
 
 bool CompletionPort::Create()
 {
-    if (_handle) return false;
+    if (_handle != INVALID_HANDLE_VALUE) return false;
 
     _handle = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
     return _handle != nullptr;

@@ -4,6 +4,7 @@
 #include <fstream>
 #include <array>
 #include <random>
+#include <Actor/Enemy.h>
 
 namespace
 {
@@ -62,19 +63,6 @@ namespace
             snapshot.flags |= PlayerStateDead;
         }
 
-        return snapshot;
-    }
-
-    SnapshotEnemyState ToSnapshot(const OverworldSimulation::ServerEnemyState& state)
-    {
-        SnapshotEnemyState snapshot;
-        snapshot.id = state.id;
-        snapshot.kind = state.kind;
-        snapshot.x = state.x;
-        snapshot.y = state.y;
-        snapshot.hp = state.hp;
-        snapshot.facing = state.facing;
-        snapshot.flags = 0;    // Enemy는 공격 상태 구현하기 전까지 0
         return snapshot;
     }
 }
@@ -179,16 +167,11 @@ bool OverworldSimulation::SpawnEnemies(std::uint32_t seed)
                 }
 
                 EnemyKind kind = (EnemyKind)enemyKind(rng);
+                int32_t id = _enemyId++;
+                Vector2Int position(x, y);
 
-                ServerEnemyState enemy;
-                enemy.id = _enemyId++;
-                enemy.kind = kind;
-                enemy.home = room;
-                enemy.spawnX = enemy.x = x;
-                enemy.spawnY = enemy.y = y;
-                enemy.hp = 1;
-
-                _enemies.emplace(enemy.id, std::move(enemy));
+                Enemy enemy(id, kind, room, position);
+                _enemies.emplace(id, std::move(enemy));
                 ++spawned;
             }
         }
@@ -284,9 +267,9 @@ WorldSnapshot OverworldSimulation::BuildPlayerSnapshot(std::uint32_t id, std::ui
 
     for (const auto& [id, enemy] : _enemies)
     {
-        if (!enemy.dead && enemy.home == *room)
+        if (!enemy.IsDead() && enemy.GetHomeRoom() == *room)
         {
-            enemies.push_back(ToSnapshot(enemy));
+            enemies.push_back(enemy.BuildSnapshot());
         }
     }
 
@@ -352,25 +335,14 @@ void OverworldSimulation::Tick()
     // 3. 적 목록에서 activeRoom에 속한 것들 활성화
     for (auto& [id, enemy] : _enemies)
     {
-        const ServerRoomCoordinate homeRoom = enemy.home;
-        if (enemy.dead || !activeRooms[homeRoom.y * OverworldRoomColumns + homeRoom.x])
+        const ServerRoomCoordinate homeRoom = enemy.GetHomeRoom();
+        if (enemy.IsDead() || !activeRooms[homeRoom.y * OverworldRoomColumns + homeRoom.x])
         {
             continue;
         }
 
-        TickEnemy(enemy);
+        // TODO: enemy.Tick()
     }
-}
-
-void OverworldSimulation::TickEnemy(ServerEnemyState& enemy)
-{
-    /*
-    * 일단 비워두자.
-    추가하게 된다면...
-    1. 가장 근처의 Player 찾기 -> 없다면 pass?
-    2. (player - enemy) 기반 추적 Delta 구해서 다음 좌표 구하기
-    3. 다음 좌표가 homeRoom && 이동 가능한 위치면 위치 갱신
-    */
 }
 
 bool OverworldSimulation::CanPlaceBox(std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height) const

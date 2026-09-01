@@ -1,23 +1,17 @@
 ﻿#pragma once
 
+#include <Types.h>
 #include <optional>
 #include <unordered_map>
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <Actor/Enemy.h>
 
 struct MoveDelta
 {
     std::int32_t x = 0;
     std::int32_t y = 0;
-};
-
-struct ServerRoomCoordinate
-{
-    std::int32_t x = 0;
-    std::int32_t y = 0;
-
-    auto operator<=>(const ServerRoomCoordinate&) const = default;
 };
 
 // Z1의 OverworldMap에서 컨트롤하는 충돌 판정, Room, 적/투사체 등의 서버 버전
@@ -43,22 +37,6 @@ public:
         std::optional<std::uint32_t> lastInputSequence;
     };
 
-    struct ServerEnemyState
-    {
-        std::uint32_t id = 0;
-        Z1::Protocol::EnemyKind kind = Z1::Protocol::EnemyKind::Octorok;
-
-        ServerRoomCoordinate home;
-        std::int32_t spawnX = 0;
-        std::int32_t spawnY = 0;
-
-        std::int32_t x = 0;
-        std::int32_t y = 0;
-        Z1::Protocol::MoveDirection facing = Z1::Protocol::MoveDirection::Up;
-        std::int32_t hp = 1;
-        bool dead = false;
-    };
-
 public:
     // 기존 Z1의 OverworldMap - BlockingMap 파싱 파트만 차용
     bool LoadBlockingMap(const FilePath& path, std::string& error);
@@ -76,7 +54,6 @@ public:
     void Tick();
 
 private:
-    void TickEnemy(ServerEnemyState& enemy);
 
     // 클라의 CanPlaceBox류 충돌맵 검사에 대응
     bool CanPlaceBox(std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height) const;
@@ -89,7 +66,7 @@ private:
 private:
     // id - state
     std::unordered_map<std::uint32_t, ServerPlayerState> _players;
-    std::unordered_map<std::uint32_t, ServerEnemyState> _enemies;
+    std::unordered_map<std::uint32_t, Enemy> _enemies;
     std::uint32_t _enemyId = 1;
 
     std::vector<std::uint8_t> _blockedTiles;

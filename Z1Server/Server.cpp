@@ -45,8 +45,8 @@ bool Server::Start(std::uint16_t port)
         return false;
     }
 
-    _ioThread = std::thread(&Server::IOLoop, this);
     _acceptThread = std::thread(&Server::AcceptLoop, this);
+    _ioThread = std::thread(&Server::IOLoop, this);
     return true;
 }
 

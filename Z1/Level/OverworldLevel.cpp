@@ -448,9 +448,11 @@ void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
 
 void OverworldLevel::EnsureOfflinePlayers(Game& game)
 {
+    bool createdPlayer = false;
     if (!_player)
     {
         _player = SpawnActor<Player>(GetRoomCellOrigin(_currentRoom) + Vector2(7, 2) * TileCellSize, Game::PlayerMaxHp);
+        createdPlayer = true;
     }
 
     if (!_playerStateLoaded)
@@ -459,7 +461,10 @@ void OverworldLevel::EnsureOfflinePlayers(Game& game)
         _playerStateLoaded = true;
     }
 
-    SpawnRoomEnemies();
+    if (createdPlayer)
+    {
+        SpawnRoomEnemies();
+    }
 }
 
 // 서버 연결 끊겼을 때 snapshot 날려버리는 역할

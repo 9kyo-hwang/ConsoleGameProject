@@ -1,15 +1,7 @@
 ﻿#pragma once
-#include <OverworldSimulation.h>
+#include <Types.h>
 
-struct Vector2Int
-{
-    int x = 0;
-    int y = 0;
-
-    auto operator<=>(const Vector2Int&) const = default;
-};
-
-// 이동하기를 희망하는 방향
+// TODO: 이동하기를 희망하는 방향
 struct EnemyMovementIntent
 {
     Z1::Protocol::MoveDirection direction = Z1::Protocol::MoveDirection::None;
@@ -23,21 +15,22 @@ class Enemy
 {
 public:
     Enemy(std::uint32_t id, Z1::Protocol::EnemyKind kind, ServerRoomCoordinate home, Vector2Int position);
+    SnapshotEnemyState BuildSnapshot() const;
 
     inline std::uint32_t GetId() const noexcept { return _id; }
     ServerRoomCoordinate GetHomeRoom() const noexcept { return _home; }
     Vector2Int GetPosition() const noexcept { return _position; }
     bool IsDead() const noexcept { return _dead; }
 
-    SnapshotEnemyState BuildSnapshot() const;
-
 private:
     std::uint32_t _id;
     Z1::Protocol::EnemyKind _kind;
     ServerRoomCoordinate _home;
+
     Vector2Int _spawnPosition;
     Vector2Int _position;
-    Z1::Protocol::MoveDirection _facing;
+
+    Z1::Protocol::MoveDirection _facing = Z1::Protocol::MoveDirection::Up;
     std::int32_t _hp = 1;
     bool _dead = false;
 };

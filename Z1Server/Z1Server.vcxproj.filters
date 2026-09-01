@@ -16,5 +16,6 @@
     <ClInclude Include="Server.h" />
     <ClInclude Include="OverworldSimulation.h" />
     <ClInclude Include="Actor\Enemy.h" />
+    <ClInclude Include="Types.h" />
   </ItemGroup>
 </Project>

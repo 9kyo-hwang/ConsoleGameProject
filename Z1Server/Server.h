@@ -36,11 +36,10 @@ private:
     // - Accept은 accept만 하도록
     // - 세션 생성, IOCP 연결, _session 등록은 모두 IOLoop에서 하도록 변경
     void AcceptLoop();
-    void ProcessAcceptedSockets();
-
     void IOLoop();
+    void ProcessAcceptedSockets();
     bool RegisterAcceptedSocket(Net::Socket&& socket);
-    
+
     void CloseSession(Session& session);
 
 private:
