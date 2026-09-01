@@ -67,7 +67,7 @@ private:
     bool FindClosestPlayer(ServerRoomCoordinate homeRoom, Vector2Int position, ServerPlayerState& closestPlayer);
 
     bool TickProjectile(Projectile& projectile);
-
+    bool TryHitPlayer(const Projectile& projectile, Vector2Int candidate);
 
 private:
     RoomNavigationGrid BuildNavigationGrid(ServerRoomCoordinate room) const;

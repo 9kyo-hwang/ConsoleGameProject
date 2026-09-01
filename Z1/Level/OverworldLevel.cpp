@@ -121,8 +121,11 @@ void OverworldLevel::Tick(float deltaTime)
 {
     Game& game = dynamic_cast<Game&>(Engine::Get());
     game.PumpNetwork(); // OverworldLevel에서, 메인 스레드가 네트워크 큐를 소비하도록
-    if (game.IsServerConnected())
+
+    bool isOnline = game.IsServerConnected();
+    if (isOnline)
     {
+        _wasOnline = true;
         ApplyLatestNetworkSnapshot(game);   // 서버로부터 받은 정보를 Actor::Tick 보다 먼저 반영
         Level::Tick(deltaTime); // MyPlayer 입력 전송 및 NetworkPlayer Actor 갱신
 
@@ -130,11 +133,55 @@ void OverworldLevel::Tick(float deltaTime)
         return;
     }
 
-    ClearNetworkActors();
-    EnsureOfflinePlayers(game); // 기존 싱글 플레이 경로로, 필요하면 연결 실패/종료 뒤 재생성 + 상태 복원
+    if (_wasOnline)
+    {
+        // 사실 온라인용 로직을 아예 분리하는 게 낫지 않나 싶은...
+        std::optional<Vector2> fallbackPosition;
+        if (!_player)   // 연결 끊긴 후 1회
+        {
+            if (_myPlayer)
+            {
+                fallbackPosition = _myPlayer->GetWorldPosition();
+            }
+            else
+            {
+                // 혹시 모르니 마지막 snapshot에서 localPlayerId에 해당하는 state의 좌표 추출
+                const auto localPlayerId = *game.GetLocalPlayerId();
+                const auto& snapshot = game.GetLatestSnapshot();
+
+                const auto it = std::find_if(snapshot->players.begin(), snapshot->players.end(),
+                    [localPlayerId](const Z1::Protocol::SnapshotPlayerState& state)
+                    {
+                        return localPlayerId == state.playerId;
+                    });
+
+                if (it != snapshot->players.end())
+                {
+                    fallbackPosition = Vector2(it->x, it->y);
+                }
+            }
+
+            ClearNetworkActors();
+
+            // 혹시 비활성 상태인 경우 아예 날려버리자.
+            if (_player)
+            {
+                _player->Destroy();
+                _player.reset();
+            }
+
+            EnsureOfflinePlayers(game, fallbackPosition); // 기존 싱글 플레이 경로로, 필요하면 연결 실패/종료 뒤 재생성 + 상태 복원
+            _wasOnline = false;
+        }
+    }
+    else
+    {
+        EnsureOfflinePlayers(game);
+    }
+
     Level::Tick(deltaTime);
 
-    if (!_player) return;
+    if (!_player || !_player->IsActive()) return;
 
     if (_player->IsDead())
     {
@@ -479,12 +526,14 @@ void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
     _lastAppliedServerTick = snapshot->serverTick;
 }
 
-void OverworldLevel::EnsureOfflinePlayers(Game& game)
+void OverworldLevel::EnsureOfflinePlayers(Game& game, std::optional<Craft::Vector2> spawnPosition)
 {
     bool createdPlayer = false;
     if (!_player)
     {
-        _player = SpawnActor<Player>(GetRoomCellOrigin(_currentRoom) + Vector2(7, 2) * TileCellSize, Game::PlayerMaxHp);
+        const Vector2 defaultPosition = GetRoomCellOrigin(_currentRoom) + Vector2(7, 2) * TileCellSize;
+        const Vector2 position = spawnPosition.value_or(defaultPosition);
+        _player = SpawnActor<Player>(position, Game::PlayerMaxHp);
         createdPlayer = true;
     }
 

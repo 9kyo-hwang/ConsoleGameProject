@@ -582,6 +582,7 @@ bool OverworldSimulation::FindClosestPlayer(ServerRoomCoordinate homeRoom, Vecto
     return minDistance != INT32_MAX;
 }
 
+// 충돌 유무
 bool OverworldSimulation::TickProjectile(Projectile& projectile)
 {
     if (projectile.IsExpired()) return false;
@@ -592,10 +593,59 @@ bool OverworldSimulation::TickProjectile(Projectile& projectile)
     if (GetRoomAt(candidate.x, candidate.y) != projectile.GetHomeRoom()) return false;
     if (!CanPlaceProjectile(candidate.x, candidate.y)) return false;
 
+    if (TryHitPlayer(projectile, candidate))
+    {
+        return false;
+    }
+
     projectile.MoveTo(candidate);
     projectile.ElapseTick();
 
     return !projectile.IsExpired();
+}
+
+bool OverworldSimulation::TryHitPlayer(const Projectile& projectile, Vector2Int candidate)
+{
+    std::int32_t damage = projectile.GetDamage();
+    if (damage <= 0) return false;
+
+    const std::int32_t left = candidate.x;
+    const std::int32_t top = candidate.y;
+    const std::int32_t right = left + 1;   // 투사체는 폭이 1
+    const std::int32_t bottom = top + 1;
+
+    for (auto& [id, player] : _players)
+    {
+        if (player.dead) continue;
+
+        auto room = GetRoomAt(player.x, player.y);
+        if (!room || *room != projectile.GetHomeRoom())
+        {
+            continue;
+        }
+
+        const std::int32_t playerLeft = player.x;
+        const std::int32_t playerTop = player.y;
+        const std::int32_t playerRight = playerLeft + PlayerBoxWidth;
+        const std::int32_t playerBottom = playerTop + PlayerBoxHeight;
+
+        const bool overlaps =
+            left < playerRight && playerLeft < right &&
+            top < playerBottom && playerTop < bottom;
+
+        if (!overlaps) continue;
+
+        player.hp = std::max<std::int32_t>(0, player.hp - damage);
+        if (player.hp == 0)
+        {
+            player.dead = true;
+            player.latestInput.moveDirection = MoveDirection::None;
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
 RoomNavigationGrid OverworldSimulation::BuildNavigationGrid(ServerRoomCoordinate room) const

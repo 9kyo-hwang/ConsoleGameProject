@@ -49,7 +49,7 @@ public:
 
     // Network
     void ApplyLatestNetworkSnapshot(Game& game);
-    void EnsureOfflinePlayers(Game& game);  // 서버 연결 끊기면 기존 싱글 플레이 유지를 위한 역할
+    void EnsureOfflinePlayers(Game& game, std::optional<Craft::Vector2> spawnPosition = std::nullopt);  // 서버 연결 끊기면 기존 싱글 플레이 유지를 위한 역할
     void ClearNetworkActors();
 
 private:
@@ -120,4 +120,5 @@ private:
     std::unordered_map<std::uint32_t, std::shared_ptr<NetworkEnemy>> _networkEnemies;
     std::unordered_map<std::uint32_t, std::shared_ptr<NetworkProjectile>> _networkProjectiles;
     std::optional<std::uint32_t> _lastAppliedServerTick;
+    bool _wasOnline = false;
 };

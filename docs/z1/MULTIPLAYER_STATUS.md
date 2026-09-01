@@ -8,9 +8,9 @@
 
 ## 현재 위치
 
-TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동이 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 BlockingMap 충돌을 통과한 Player 좌표와 수신 Player의 관심 Room Enemy를 `S2C_WorldSnapshot`으로 전송한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다. IOCP completion port HANDLE은 `CompletionPort`가 RAII로 소유한다.
+TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Projectile 공격이 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 BlockingMap 충돌을 통과한 Player 좌표와 수신 Player의 관심 Room에 속한 Enemy·Projectile을 `S2C_WorldSnapshot`으로 전송한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다. IOCP completion port HANDLE은 `CompletionPort`가 RAII로 소유한다.
 
-네트워크 모드의 Player와 Enemy 위치·방향·HP는 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 BlockingMap 충돌과 전역 Enemy 초기 스폰, Moblin의 Room 내부 A* 추적 이동은 적용됐고, 클라이언트는 local Snapshot 좌표로 배경과 View의 Room 표현을 바꾼다. Enemy 접촉·공격·피해와 Projectile은 아직 없다.
+네트워크 모드의 Player·Enemy·Projectile 위치와 Player HP는 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 BlockingMap 충돌과 전역 Enemy 초기 스폰, Moblin의 Room 내부 A* 추적 이동·Spear 발사, Projectile의 이동·제거와 Player 피격·사망까지 적용됐다. 클라이언트는 local Snapshot 좌표로 배경과 View의 Room 표현을 바꾸고 `NetworkProjectile`을 표시한다. Player Sword 공격과 Enemy 피격·사망은 아직 없다.
 
 ## 구현 완료
 
@@ -20,9 +20,9 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동이 연결
 - Z1과 Z1Server의 Sockets 링크 및 DLL staging
 - `Z1Shared`의 protocol enum, network byte order 직렬화, packet codec과 `PacketFramer`
 - 4~4096 byte packet 크기 검증과 누적 수신 buffer 상한
-- protocol version 2의 Enter, Input, WorldSnapshot codec
-- Player 18-byte·Enemy 19-byte 배열과 count/남은 payload 길이 검증
-- Enemy kind, facing, flags와 non-zero Enemy ID 검증
+- protocol version 3의 Enter, Input, WorldSnapshot codec
+- Player 18-byte·Enemy 19-byte·Projectile 14-byte 배열과 count/남은 payload 길이 검증
+- Enemy/Projectile kind, facing/direction, flags와 non-zero 객체 ID 검증
 
 ### Z1Server
 
@@ -41,7 +41,12 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동이 연결
 - `RoomPathfinder`가 Enemy Box 기준의 16×11 `RoomNavigationGrid`에서 Manhattan distance A* 최단 경로 계산
 - Moblin은 같은 `homeRoom`의 가장 가까운 살아 있는 Player를 대상으로, 4 Tick마다 경로의 다음 tile을 향해 한 server cell 이동
 - Enemy 후보 위치는 `homeRoom` 좌표와 `CanPlaceEnemy()`를 통과한 뒤 `Enemy::MoveTo()`로 확정되며 다음 Snapshot에 반영
-- entered Session마다 해당 Player의 관심 Room에 속한 Player·Enemy Snapshot을 작성
+- 서버 `Projectile`이 id·kind·owner Enemy id·`homeRoom`·위치·방향·피해량·남은 수명을 소유
+- Moblin이 공격 cooldown에 따라 가장 가까운 살아 있는 Player 방향으로 Spear를 생성
+- active Room의 Projectile을 한 server cell씩 이동하고 BlockingMap, Room 경계, 수명 만료 시 registry에서 제거
+- Projectile의 다음 위치와 Player Box를 AABB로 검사해 충돌 시 Player HP를 감소시키고 Projectile을 제거
+- HP가 0이 된 Player는 dead 상태로 전환하고 이동 입력을 정지하며 Enemy 추적 대상에서 제외
+- entered Session마다 해당 Player의 관심 Room에 속한 Player·Enemy·Projectile Snapshot을 작성
 
 ### Z1 클라이언트
 
@@ -51,10 +56,11 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동이 연결
 - HUD의 online 상태, local playerId, server tick과 player count 표시
 - main thread에서 local `MyPlayer`와 원격 `NetworkPlayer` 생성·갱신·제거
 - main thread에서 Snapshot의 `NetworkEnemy` 생성·갱신·제거
+- main thread에서 Snapshot의 `NetworkProjectile` 생성·위치 갱신·제거
 - `MyPlayer`만 입력을 읽어 방향 변화와 공격 edge를 `C2S_Input`으로 전송
 - 온라인 중 기존 `Player`의 로컬 이동·공격·Enemy 처리와 충돌 판정을 실행하지 않음
 - local `MyPlayer`의 서버 Snapshot 좌표가 다른 Room에 들어가면 Room 배경과 View 갱신
-- 연결 종료 시 Player·Enemy 네트워크 표현을 제거하고 기존 싱글플레이 `Player` 흐름으로 복귀
+- Snapshot HP와 dead flag를 `MyPlayer`와 HUD에 반영하고 dead 상태에서는 입력 전송을 중지
 
 ## 확인한 동작
 
@@ -70,7 +76,10 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동이 연결
 - Z1Server와 Z1 `Debug|x64` 빌드 성공
 - Enemy가 있는 Overworld Room에서 서버 Snapshot 기반 `NetworkEnemy` Sprite 표시 확인
 - Moblin이 active Room의 Player를 대상으로 BlockingMap 장애물을 우회하는 A* 이동과 Snapshot 위치 갱신 확인
-- 서버 종료 뒤 싱글플레이 fallback 시 현재 Room의 local Enemy가 한 번만 생성됨
+- Moblin만 Spear를 생성하며 Spear가 Snapshot 기반 `NetworkProjectile`로 표시되는 것 확인
+- Spear가 blocked tile, `homeRoom` 경계 또는 lifetime 40 Tick에 도달하면 제거되는 것 확인
+- Spear가 Player Box에 닿으면 HP가 1 감소해 HUD에 반영되고, HP 0에서 입력이 중지되며 Enemy가 해당 Player를 더 이상 추적하지 않는 것 확인
+- Projectile wire format을 포함한 server framing suite와 Z1Server·Z1 빌드 통과
 
 재현 명령은 [Z1 검증](TESTING.md)에 기록한다.
 
@@ -81,10 +90,14 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동이 연결
 - 클라이언트 네트워크 Room 전환은 Snapshot Player 위치의 기준점으로 판정한다. 싱글플레이의 leading-edge 전환 규칙과 통일하는 작업은 남아 있다.
 - A* 이동은 현재 Moblin에만 적용된다. 목표와 경로는 이동 기회마다 다시 계산하며, target/path cache는 아직 두지 않는다. Octorok과 Tektite는 정적 상태다.
 - Enemy의 `homeRoom` 후보 검사는 좌상단 좌표 기준이다. `CanPlaceEnemy()`는 전체 8×5 Box를 검사하지만, Box 전체의 Room 경계 검사는 강화 대상이다.
-- Player·Enemy 충돌, 접촉 피해, 공격, 사망과 Projectile은 아직 없다.
+- Player-Enemy 몸체 충돌과 접촉 피해는 아직 없다.
+- Player Sword-Enemy 충돌, Enemy HP 감소·사망과 사망 상태 동기화는 아직 없다.
 - Enemy 스폰은 BlockingMap의 전체 8×5 Box 통과 가능 여부만 검사한다. 같은 Room 안의 Enemy 위치 중복 방지는 아직 없다.
-- Snapshot의 Projectile count는 0이다.
-- 공격 flag는 edge로 전송되지만 서버는 parsing·저장만 하고 공격 판정에는 사용하지 않는다. 전투 구현 시 한 Tick에서 한 번만 소비해야 한다.
+- 공격 flag는 edge로 전송되지만 서버는 parsing·저장만 하고 Player Sword 공격 판정에는 아직 사용하지 않는다. 구현 시 한 Tick에서 한 번만 소비해야 한다.
+- Moblin Projectile은 현재 Spear 한 종류, 고정 피해량 1, lifetime 40 Tick이며 별도 공격 상태나 animation flag는 없다.
+- Projectile은 현재 이동 후보 위치에서 Player 충돌을 검사한다. 방패, 무적 시간, 넉백과 Player별 피격 cooldown은 아직 없다.
+- **서버 연결 종료 후 싱글플레이 fallback에 회귀 오류가 있다.** 시작 Room이 아닌 곳에서 서버를 종료하면 HUD는 `[OFFLINE]`으로 바뀌지만 기존 네트워크 Player가 남고, 오프라인 `Player`가 하나 생성되어도 키보드 입력이 반영되지 않는 상황이 재현된다. 네트워크 Enemy 등 표현 Actor가 로컬 Actor와 함께 남아 보일 수도 있다.
+- fallback 위치를 `_myPlayer` 또는 마지막 Snapshot에서 보존해 `EnsureOfflinePlayers()`에 전달하는 변경, `_wasOnline` 전환 flag, 비활성 `_player`의 `Destroy()`/reset을 시도했지만 최신 재현에서는 해결되지 않았다. 현재 작업 트리의 이 변경은 완료된 동작으로 간주하지 않는다.
 - 닫힌 Session을 `_sessions` registry에서 제거하는 최종 수명 처리가 완료되지 않았다.
 - closing 상태, outstanding I/O, cancellation과 completion drain을 포함한 안전한 서버 종료가 완료되지 않았다.
 - `S2C_Disconnect`는 선언만 되어 있다.
@@ -93,14 +106,8 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동이 연결
 
 ## 다음 구현 단위
 
-다음 작업은 Moblin을 기준으로 Projectile부터 공격 상호작용까지를 서버 권위 vertical slice로 연결하는 것이다. 이미 구현된 A* 이동은 유지하고, Octorok·Tektite AI 확장보다 전투의 공통 상태와 동기화 경계를 먼저 만든다.
+새 전투 기능을 추가하기 전에 서버 종료 fallback 회귀를 해결한다. 서버 연결 상태와 Actor 수명을 각각 추적해 온라인 표현 Actor가 정확히 한 번 제거되고, 현재 위치에 활성 오프라인 `Player` 하나만 남아 같은 Tick부터 입력을 처리하는지 확인한다. 시작 Room과 다른 Room, `_myPlayer`가 있는 경우와 마지막 Snapshot만 남은 경우를 각각 수동 검증한다.
 
-이 구현 단위는 [멀티플레이 설계의 MVP 최소 구현 원칙](MULTIPLAYER_DESIGN.md#mvp-최소-구현-원칙)을 따른다. 첫 Projectile은 고정 속도·피해량·수명, 직선 이동과 AABB 충돌만 사용한다. 범용 서버 Actor/Pawn 계층, 전투 시스템 클래스, Enemy 상태 머신, 경로 cache, 예측·보간과 Enemy별 데이터 설정은 이번 작업에 포함하지 않는다.
+fallback이 복구되면 Player Sword-Enemy 충돌, Enemy HP 감소·사망과 Snapshot 제거를 현재 Projectile AABB 방식에 맞춰 최소 구현한다. Octorok·Tektite AI, 방패·무적·넉백, 범용 서버 Actor/Pawn 계층과 Enemy 상태 머신은 이 vertical slice 뒤로 미룬다.
 
-1. `SnapshotProjectileState`와 codec, 클라이언트 `NetworkProjectile`을 추가해 서버 Projectile을 Snapshot으로 표시한다.
-2. 서버 `Projectile` 상태에 id·owner·`homeRoom`·위치·방향·피해량·수명·사망 상태를 두고, Tick에서 이동·BlockingMap·Room 경계·수명 만료를 판정한다.
-3. Moblin이 A* 목표를 향하는 동안 공격 cooldown 규칙에 따라 Projectile을 생성한다. 공격 대상과 방향은 서버 상태에서 결정한다.
-4. Projectile-Player 충돌에서 서버가 HP 감소와 사망 상태를 확정하고 Player Snapshot으로 전파한다.
-5. 이후 Player Sword-Enemy 충돌과 Enemy 사망 제거를 같은 규칙으로 추가하고, 두 Z1 클라이언트가 같은 결과를 보는지 확인한다.
-
-Enemy·IOCP 확장 후보의 도입 조건과 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다. 이후 순서는 Enemy Projectile과 공격 효과, Session 제거와 안전한 종료다. 완료되지 않은 항목을 구현된 현재 구조처럼 설계 문서에 옮겨 적지 않는다.
+Enemy·IOCP 확장 후보의 도입 조건과 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다. 이후 순서는 Player 공격과 Enemy 사망, Session 제거와 안전한 종료다. 완료되지 않은 항목을 구현된 현재 구조처럼 설계 문서에 옮겨 적지 않는다.
