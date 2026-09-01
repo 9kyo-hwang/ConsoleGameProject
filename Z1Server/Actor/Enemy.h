@@ -8,6 +8,9 @@
 class Enemy
 {
 public:
+    inline static constexpr std::int32_t BoxWidth = 8;
+    inline static constexpr std::int32_t BoxHeight = 5;
+
     Enemy(std::uint32_t id, Z1::Protocol::EnemyKind kind, ServerRoomCoordinate home, Vector2Int position);
     Z1::Protocol::SnapshotEnemyState BuildSnapshot() const;
 
@@ -18,6 +21,16 @@ public:
     ServerRoomCoordinate GetHomeRoom() const noexcept { return _home; }
     Vector2Int GetPosition() const noexcept { return _position; }
     bool IsDead() const noexcept { return _dead; }
+
+public:
+    Vector2Int GetProjectileSpawnPosition();    // 현재는 몹의 중앙에서 Spawn, 추후 가장자리로 옮기는 로직 추가
+
+    /*
+    * Moblin
+    */
+    void TickAttackCooldown() noexcept { if (_attackCooldownTicks > 0) --_attackCooldownTicks; }
+    bool IsAttackReady() const noexcept { return _attackCooldownTicks == 0; }
+    void ResetAttackCooldown(std::uint32_t ticks = AttackCooldownTicks) noexcept { _attackCooldownTicks = ticks; }
 
 private:
     std::uint32_t _id;
@@ -30,4 +43,11 @@ private:
     Z1::Protocol::MoveDirection _facing = Z1::Protocol::MoveDirection::Up;
     std::int32_t _hp = 1;
     bool _dead = false;
+
+    /*
+    * Moblin 대상으로 사용되는 변수들
+    */
+
+    inline static constexpr std::uint32_t AttackCooldownTicks = 44;   // 44 / 20 = 2.2초 간격
+    std::uint32_t _attackCooldownTicks = 0;
 };

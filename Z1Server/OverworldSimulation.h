@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <Actor/Enemy.h>
+#include <Actor/Projectile.h>
 #include <array>
 #include <RoomPathfinder.h>
 
@@ -37,6 +38,7 @@ public:
     // 기존 Z1의 OverworldMap - BlockingMap 파싱 파트만 차용
     bool LoadBlockingMap(const FilePath& path, std::string& error);
     bool SpawnEnemies(std::uint32_t seed); // Map 로드 시 적 배치
+    bool SpawnProjectile(Enemy& enemy, const ServerPlayerState& target);    // 일단 moblin만
 
     bool AddPlayer(std::uint32_t playerId);
     void RemovePlayer(std::uint32_t playerId);
@@ -55,6 +57,7 @@ private:
     bool CanPlaceBox(std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height) const;
     bool CanPlacePlayer(std::int32_t x, std::int32_t y) const;
     bool CanPlaceEnemy(std::int32_t x, std::int32_t y) const;
+    bool CanPlaceProjectile(std::int32_t x, std::int32_t y) const;
     bool IsBlockedTile(std::int32_t x, std::int32_t y) const;
 
     Vector2Int GetMoveDelta(Z1::Protocol::MoveDirection direction);
@@ -62,6 +65,9 @@ private:
 
     void TickEnemy(Enemy& enemy);
     bool FindClosestPlayer(ServerRoomCoordinate homeRoom, Vector2Int position, ServerPlayerState& closestPlayer);
+
+    bool TickProjectile(Projectile& projectile);
+
 
 private:
     RoomNavigationGrid BuildNavigationGrid(ServerRoomCoordinate room) const;
@@ -71,7 +77,9 @@ private:
     // id - state
     std::unordered_map<std::uint32_t, ServerPlayerState> _players;
     std::unordered_map<std::uint32_t, Enemy> _enemies;
+    std::unordered_map<std::uint32_t, Projectile> _projectiles;
     std::uint32_t _enemyId = 1;
+    std::uint32_t _projectileId = 1;
 
     std::vector<std::uint8_t> _blockedTiles;
     bool _hasBlockingMap = false;

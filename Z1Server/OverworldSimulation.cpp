@@ -15,8 +15,6 @@ namespace
     // 클라쪽 크기를 일단 가져왔는데...
     constexpr std::int32_t PlayerBoxWidth = 8;
     constexpr std::int32_t PlayerBoxHeight = 5;
-    constexpr std::int32_t EnemyBoxWidth = 8;
-    constexpr std::int32_t EnemyBoxHeight = 5;
     constexpr std::int32_t EnemiesPerRoom = 6;
     constexpr std::int32_t MaxSpawnAttempts = 30;
 
@@ -86,6 +84,22 @@ namespace
             (room.x * RoomWidth + tile.x) * TileCellWidth,
             (room.y * RoomHeight + tile.y) * TileCellHeight
         };
+    }
+
+    // 투사체 발사에 사용되는, 가로/세로 중 더 큰 축
+    MoveDirection GetDirectionToward(Vector2Int from, Vector2Int to)
+    {
+        const Vector2Int delta = to - from;
+        if (std::abs(delta.x) >= std::abs(delta.y))
+        {
+            if (delta.x > 0) return MoveDirection::Right;
+            if (delta.x < 0) return MoveDirection::Left;
+        }
+
+        if (delta.y > 0) return MoveDirection::Down;
+        if (delta.y < 0) return MoveDirection::Up;
+
+        return MoveDirection::None;
     }
 }
 
@@ -183,7 +197,7 @@ bool OverworldSimulation::SpawnEnemies(std::uint32_t seed)
             {
                 std::int32_t x = room.x * RoomCellWidth + localTileX(rng) * TileCellWidth;
                 std::int32_t y = room.y * RoomCellHeight + localTileY(rng) * TileCellHeight;
-                if (!CanPlaceBox(x, y, EnemyBoxWidth, EnemyBoxHeight))
+                if (!CanPlaceBox(x, y, Enemy::BoxWidth, Enemy::BoxHeight))
                 {
                     continue;
                 }
@@ -200,6 +214,24 @@ bool OverworldSimulation::SpawnEnemies(std::uint32_t seed)
     }
 
     return true;
+}
+
+bool OverworldSimulation::SpawnProjectile(Enemy& enemy, const ServerPlayerState& target)
+{
+    const Vector2Int targetPos = Vector2Int(target.x, target.y);
+    const MoveDirection direction = GetDirectionToward(enemy.GetPosition(), targetPos);
+    if (direction == MoveDirection::None) return false;
+
+    const Vector2Int spawnPos = enemy.GetProjectileSpawnPosition();
+    if (GetRoomAt(spawnPos.x, spawnPos.y) != enemy.GetHomeRoom()) return false;
+    if (!CanPlaceProjectile(spawnPos.x, spawnPos.y)) return false;
+
+    std::uint32_t id = _projectileId;
+    ++_projectileId;
+
+    Projectile projectile(id, ProjectileKind::Spear, enemy.GetId(), enemy.GetHomeRoom(), spawnPos, direction, 1, 40);
+
+    return _projectiles.emplace(id, std::move(projectile)).second;
 }
 
 /*
@@ -260,7 +292,7 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
     return true;
 }
 
-// 각 Session 별 Room 관심 범위로 변경
+// 각 Session이 속한 Room의 Snapshot을 반환
 WorldSnapshot OverworldSimulation::BuildSnapshot(std::uint32_t id)
 {
     WorldSnapshot snapshot;
@@ -278,6 +310,7 @@ WorldSnapshot OverworldSimulation::BuildSnapshot(std::uint32_t id)
 
     auto& players = snapshot.players;
     auto& enemies = snapshot.enemies;
+    auto& projectiles = snapshot.projectiles;
 
     for (const auto& [id, player] : _players)
     {
@@ -295,12 +328,28 @@ WorldSnapshot OverworldSimulation::BuildSnapshot(std::uint32_t id)
         }
     }
 
-    std::sort(players.begin(), players.end(), [](const SnapshotPlayerState& lhs, const SnapshotPlayerState& rhs)
+    for (const auto& [id, projectile] : _projectiles)
+    {
+        if (!projectile.IsExpired() && projectile.GetHomeRoom() == *room)
+        {
+            projectiles.push_back(projectile.BuildSnapshot());
+        }
+    }
+
+    std::sort(players.begin(), players.end(), 
+        [](const SnapshotPlayerState& lhs, const SnapshotPlayerState& rhs)
         {
             return lhs.playerId < rhs.playerId;
         });
 
-    std::sort(enemies.begin(), enemies.end(), [](const SnapshotEnemyState& lhs, const SnapshotEnemyState& rhs)
+    std::sort(enemies.begin(), enemies.end(), 
+        [](const SnapshotEnemyState& lhs, const SnapshotEnemyState& rhs)
+        {
+            return lhs.id < rhs.id;
+        });
+
+    std::sort(projectiles.begin(), projectiles.end(), 
+        [](const SnapshotProjectileState& lhs, const SnapshotProjectileState& rhs)
         {
             return lhs.id < rhs.id;
         });
@@ -367,6 +416,23 @@ void OverworldSimulation::Tick()
 
         TickEnemy(enemy);
     }
+
+    // 4. 투사체 목록에서 activeRoom에 속한 것들 Tick 및 Expired된 것 제거
+    for (auto it = _projectiles.begin(); it != _projectiles.end();)
+    {
+        Projectile& projectile = it->second;
+        const ServerRoomCoordinate home = projectile.GetHomeRoom();
+        const bool isActiveRoom = activeRooms[home.y * OverworldRoomColumns + home.x];
+
+        if (!isActiveRoom || !TickProjectile(projectile))
+        {
+            it = _projectiles.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
 }
 
 bool OverworldSimulation::CanPlaceBox(std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height) const
@@ -405,7 +471,12 @@ bool OverworldSimulation::CanPlacePlayer(std::int32_t x, std::int32_t y) const
 
 bool OverworldSimulation::CanPlaceEnemy(std::int32_t x, std::int32_t y) const
 {
-    return CanPlaceBox(x, y, EnemyBoxWidth, EnemyBoxHeight);
+    return CanPlaceBox(x, y, Enemy::BoxWidth, Enemy::BoxHeight);
+}
+
+bool OverworldSimulation::CanPlaceProjectile(std::int32_t x, std::int32_t y) const
+{
+    return CanPlaceBox(x, y, 1, 1);
 }
 
 bool OverworldSimulation::IsBlockedTile(std::int32_t tileX, std::int32_t tileY) const
@@ -441,22 +512,30 @@ std::optional<ServerRoomCoordinate> OverworldSimulation::GetRoomAt(std::int32_t 
 /// <param name="enemy"></param>
 void OverworldSimulation::TickEnemy(Enemy& enemy)
 {
-    // id마다 약간 다르게 이동하도록
-    // 20 / 4 = 5칸
-    if ((_tick + enemy.GetId()) % 4 != 0) return;
+    enemy.TickAttackCooldown(); // 공격 쿨타임 계산은 원래 tick대로 계산
 
-    // 테스트: A* 기반 움직임은 Moblin만
-    if (enemy.GetKind() != EnemyKind::Moblin) return;
+    const bool movable = (enemy.GetKind() == EnemyKind::Moblin) && (_tick + enemy.GetId()) % 4 == 0;  // 4틱 경과?
+    const bool attackable = (enemy.GetKind() == EnemyKind::Moblin) && enemy.IsAttackReady();
 
-    ServerRoomCoordinate homeRoom = enemy.GetHomeRoom();
-    Vector2Int current = enemy.GetPosition();
+    if (!movable && !attackable) return;
 
     // 가장 가까운 플레이어 위치 찾기
     ServerPlayerState closestPlayer;
-    if (!FindClosestPlayer(homeRoom, enemy.GetPosition(), closestPlayer))
+    if (!FindClosestPlayer(enemy.GetHomeRoom(), enemy.GetPosition(), closestPlayer))
     {
         return;
     }
+
+    if (attackable)
+    {
+        SpawnProjectile(enemy, closestPlayer);
+        enemy.ResetAttackCooldown();
+    }
+
+    if (!movable) return;
+
+    ServerRoomCoordinate homeRoom = enemy.GetHomeRoom();
+    Vector2Int current = enemy.GetPosition();
     
     const TileCoordinate start = ToLocalTile(homeRoom, current);
     const TileCoordinate goal = ToLocalTile(homeRoom, Vector2Int(closestPlayer.x, closestPlayer.y));
@@ -501,6 +580,22 @@ bool OverworldSimulation::FindClosestPlayer(ServerRoomCoordinate homeRoom, Vecto
     }
 
     return minDistance != INT32_MAX;
+}
+
+bool OverworldSimulation::TickProjectile(Projectile& projectile)
+{
+    if (projectile.IsExpired()) return false;
+
+    const Vector2Int delta = GetMoveDelta(projectile.GetDirection());
+    const Vector2Int candidate = projectile.GetPosition() + delta;
+
+    if (GetRoomAt(candidate.x, candidate.y) != projectile.GetHomeRoom()) return false;
+    if (!CanPlaceProjectile(candidate.x, candidate.y)) return false;
+
+    projectile.MoveTo(candidate);
+    projectile.ElapseTick();
+
+    return !projectile.IsExpired();
 }
 
 RoomNavigationGrid OverworldSimulation::BuildNavigationGrid(ServerRoomCoordinate room) const

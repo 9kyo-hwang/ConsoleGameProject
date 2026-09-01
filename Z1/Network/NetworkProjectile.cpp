@@ -17,9 +17,9 @@ NetworkProjectile::NetworkProjectile(Vector2 position, std::uint32_t id, Project
 
 void NetworkProjectile::ApplySnapshot(const Z1::Protocol::SnapshotProjectileState& state)
 {
-    assert(_id != state.id);
-    assert(_kind != state.kind);
-    assert(_direction != state.direction);
+    assert(_id == state.id);
+    assert(_kind == state.kind);
+    assert(_direction == state.direction);
 
     if (_id != state.id ||
         _kind != state.kind ||

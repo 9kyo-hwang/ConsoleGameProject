@@ -274,11 +274,74 @@ function Show-WorldSnapshot
         $flags = $payload[$offset]
         ++$offset
 
+        if($enemyId -eq 0)
+        {
+            throw "WorldSnapshot enemy[$index] has invalid id=0."
+        }
+
+        if($kind -lt 0 -or $kind -gt 2)
+        {
+            throw "WorldSnapshot enemy[$index] has invalid kind=$kind"
+        }
+
+        if($facing -lt 0 -or $facing -gt 4)
+        {
+            throw "WorldSnapshot enemy[$index] has invalid facing=$facing"
+        }
+
+        # Attacking(0x01)만 허용 -> 1111 1110 검사했을 때 다른 비트 있으면 invlaid
+        if(($flags -band 0xFE) -ne 0)
+        {
+            throw "WorldSnapshot enemy[$index] has invalid flags=$flags"
+        }
+
         Write-Output ("  Enemy: id={0}, type={1}, position=({2}, {3}), facing={4}, hp={5}, flags={6}" -f $enemyId, $kind, $x, $y, $facing, $hp, $flags)
+    }
+
+    if($payload.Length - $offset -lt 2)
+    {
+        throw "WorldSnapshot projectile count is truncated."
     }
 
     $projectileCount = Read-U16BigEndian $payload $offset
     $offset += 2
+
+    # projectile 정보
+    for ($index = 0; $index -lt $projectileCount; ++$index)
+    {
+        if ($payload.Length - $offset -lt 14)
+        {
+            throw "WorldSnapshot projectile[$index] is truncated."
+        }
+
+        [uint32]$projectileId = Read-U32BigEndian $payload $offset
+        $offset += 4
+        $kind = $payload[$offset]
+        ++$offset
+        $x = Read-I32BigEndian $payload $offset
+        $offset += 4
+        $y = Read-I32BigEndian $payload $offset
+        $offset += 4
+        $direction = $payload[$offset]
+        ++$offset
+
+        if($projectileId -eq 0)
+        {
+            throw "WorldSnapshot projectile[$index] has invalid id=0."
+        }
+
+        if($kind -ne 0)
+        {
+            throw "WorldSnapshot projectile[$index] has invalid kind=$kind"
+        }
+
+        if($direction -lt 1 -or $direction -gt 4)
+        {
+            throw "WorldSnapshot projectile[$index] has invalid direction=$direction"
+        }
+
+        Write-Output ("  Projectile: id={0}, type={1}, position=({2}, {3}), direction={4}" -f $projectileId, $kind, $x, $y, $direction)
+    }
 
     if ($offset -ne $payload.Length)
     {

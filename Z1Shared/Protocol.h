@@ -96,14 +96,14 @@ namespace Z1::Protocol
 
     enum class ProjectileKind : std::uint8_t
     {
-        Spaer = 0   // Moblin의 투사체 무기
+        Spear = 0   // Moblin의 투사체 무기
     };
 
     // owner enemy id, 데미지, 수명 등은 x
     struct SnapshotProjectileState
     {
         std::uint32_t id = 0;
-        ProjectileKind kind = ProjectileKind::Spaer;
+        ProjectileKind kind = ProjectileKind::Spear;
         std::int32_t x = 0;
         std::int32_t y = 0;
         MoveDirection direction = MoveDirection::Up;

@@ -450,7 +450,7 @@ void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
         // 원격 플레이어는 생성 or 갱신
         recvdProjectiles.emplace(state.id);
 
-        if (_networkPlayers.contains(state.id))
+        if (_networkProjectiles.contains(state.id))
         {
             _networkProjectiles[state.id]->ApplySnapshot(state);
             continue;
@@ -464,7 +464,7 @@ void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
     // 6. 새로 받은 투사체가 기존 투사체 명단에 없다면 제거
     for (auto it = _networkProjectiles.begin(); it != _networkProjectiles.end();)
     {
-        if (!recvdEnemies.contains(it->first))
+        if (!recvdProjectiles.contains(it->first))
         {
             it->second->Destroy();
             it = _networkProjectiles.erase(it);

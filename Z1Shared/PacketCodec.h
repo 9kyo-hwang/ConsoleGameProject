@@ -42,7 +42,7 @@ namespace Z1::Protocol
 
     inline bool IsValidProjectileKind(std::uint8_t kind) noexcept
     {
-        return kind <= (std::uint8_t)ProjectileKind::Spaer;
+        return kind <= (std::uint8_t)ProjectileKind::Spear;
     }
 
     // None 방향은 있을 수 없음
