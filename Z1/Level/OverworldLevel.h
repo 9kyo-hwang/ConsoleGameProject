@@ -23,6 +23,7 @@ struct ProjectileSpec;
 
 class NetworkPlayer;
 class NetworkEnemy;
+class NetworkProjectile;
 class MyPlayer;
 class Game;
 
@@ -117,5 +118,6 @@ private:
     std::shared_ptr<MyPlayer> _myPlayer;
     std::unordered_map<std::uint32_t, std::shared_ptr<NetworkPlayer>> _networkPlayers;
     std::unordered_map<std::uint32_t, std::shared_ptr<NetworkEnemy>> _networkEnemies;
+    std::unordered_map<std::uint32_t, std::shared_ptr<NetworkProjectile>> _networkProjectiles;
     std::optional<std::uint32_t> _lastAppliedServerTick;
 };

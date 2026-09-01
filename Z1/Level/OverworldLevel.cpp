@@ -22,6 +22,7 @@
 #include <Network/NetworkPlayer.h>
 #include <Network/MyPlayer.h>
 #include <Network/NetworkEnemy.h>
+#include <Network/NetworkProjectile.h>
 
 using namespace Craft;
 using FilePath = std::filesystem::path;
@@ -442,6 +443,38 @@ void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
         }
     }
 
+    // 5. 서버로부터 받은 투사체 정보 기반 생성 및 갱신
+    std::unordered_set<std::uint32_t> recvdProjectiles;
+    for (const SnapshotProjectileState& state : snapshot->projectiles)
+    {
+        // 원격 플레이어는 생성 or 갱신
+        recvdProjectiles.emplace(state.id);
+
+        if (_networkPlayers.contains(state.id))
+        {
+            _networkProjectiles[state.id]->ApplySnapshot(state);
+            continue;
+        }
+
+        auto remoteProjectile = SpawnActor<NetworkProjectile>(Vector2(state.x, state.y), state.id, state.kind, state.direction);
+        remoteProjectile->ApplySnapshot(state);
+        _networkProjectiles.emplace(state.id, std::move(remoteProjectile));
+    }
+
+    // 6. 새로 받은 투사체가 기존 투사체 명단에 없다면 제거
+    for (auto it = _networkProjectiles.begin(); it != _networkProjectiles.end();)
+    {
+        if (!recvdEnemies.contains(it->first))
+        {
+            it->second->Destroy();
+            it = _networkProjectiles.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
     // 서버로부터 정상적으로 스냅샷 수신한 틱을 기록해 최신값 판별
     _lastAppliedServerTick = snapshot->serverTick;
 }
@@ -476,19 +509,27 @@ void OverworldLevel::ClearNetworkActors()
         _myPlayer.reset();
     }
 
-    for (auto& [playerId, player] : _networkPlayers)
+    for (auto& [id, player] : _networkPlayers)
     {
         player->Destroy();
     }
 
     _networkPlayers.clear();
 
-    for (auto& [enemyId, enemy] : _networkEnemies)
+    for (auto& [id, enemy] : _networkEnemies)
     {
         enemy->Destroy();
     }
 
     _networkEnemies.clear();
+
+    for (auto& [id, projectile] : _networkProjectiles)
+    {
+        projectile->Destroy();
+    }
+
+    _networkProjectiles.clear();
+
     _lastAppliedServerTick.reset();
 }
 

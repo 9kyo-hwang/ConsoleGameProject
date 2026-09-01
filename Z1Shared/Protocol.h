@@ -14,7 +14,7 @@ namespace Z1::Protocol
         S2C_Disconnect = 103
     };
 
-    inline constexpr std::uint16_t ProtocolVersion = 2; // 1->2
+    inline constexpr std::uint16_t ProtocolVersion = 3;
     inline constexpr std::size_t PacketHeaderSize = sizeof(std::uint16_t) + sizeof(std::uint16_t);
     inline constexpr std::uint16_t MaxPacketSize = 4096;
 
@@ -94,11 +94,27 @@ namespace Z1::Protocol
         std::uint8_t flags = 0;
     };
 
+    enum class ProjectileKind : std::uint8_t
+    {
+        Spaer = 0   // Moblin의 투사체 무기
+    };
+
+    // owner enemy id, 데미지, 수명 등은 x
+    struct SnapshotProjectileState
+    {
+        std::uint32_t id = 0;
+        ProjectileKind kind = ProjectileKind::Spaer;
+        std::int32_t x = 0;
+        std::int32_t y = 0;
+        MoveDirection direction = MoveDirection::Up;
+    };
+
     // homeRoom, 최초 스폰 위치, AI 타이머는 서버 내부 상태.
     struct WorldSnapshot
     {
         std::uint32_t serverTick = 0;   // 확인용
         std::vector<SnapshotPlayerState> players;
         std::vector<SnapshotEnemyState> enemies;
+        std::vector<SnapshotProjectileState> projectiles;
     };
 }

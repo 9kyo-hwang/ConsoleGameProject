@@ -40,6 +40,18 @@ namespace Z1::Protocol
         return kind <= (std::uint8_t)EnemyKind::Tektite;
     }
 
+    inline bool IsValidProjectileKind(std::uint8_t kind) noexcept
+    {
+        return kind <= (std::uint8_t)ProjectileKind::Spaer;
+    }
+
+    // None 방향은 있을 수 없음
+    inline bool IsValidProjectileDirection(std::uint8_t direction) noexcept
+    {
+        return direction >= (std::uint8_t)MoveDirection::Up
+            && direction <= (std::uint8_t)MoveDirection::Right;
+    }
+
     inline bool BuildPacket_C2SEnter(std::vector<Byte>& packet)
     {
         PacketWriter payload(sizeof(std::uint16_t));
@@ -148,6 +160,13 @@ namespace Z1::Protocol
         + sizeof(std::int32_t)  // hp
         + sizeof(std::uint8_t); // flags
 
+    inline constexpr std::size_t SnapshotProjectileStateSize
+        = sizeof(std::uint32_t) // id 
+        + sizeof(std::uint8_t)  // kind
+        + sizeof(std::int32_t)  // x
+        + sizeof(std::int32_t)  // y
+        + sizeof(std::uint8_t); // facing
+
     inline constexpr std::size_t WorldSnapshotFixedPayloadSize
         = sizeof(std::uint32_t)     // serverTick
         + sizeof(std::uint16_t)     // playerCount
@@ -168,8 +187,8 @@ namespace Z1::Protocol
         const std::size_t payloadSize
             = WorldSnapshotFixedPayloadSize // tick + playerCnt + enemyCnt + projCnt
             + snapshot.players.size() * SnapshotPlayerStateSize
-            + snapshot.enemies.size() * SnapshotEnemyStateSize;
-        // 나중에 projectile 포함되면 projectiles.size() * SnapshotProjectileStateSize
+            + snapshot.enemies.size() * SnapshotEnemyStateSize
+            + snapshot.projectiles.size() * SnapshotProjectileStateSize;
 
         if (payloadSize > MaxPacketSize - PacketHeaderSize)
         {
@@ -218,7 +237,22 @@ namespace Z1::Protocol
             payload.WriteU8(enemy.flags);
         }
 
-        payload.WriteU16(0);    // projectile
+        payload.WriteU16((std::uint16_t)snapshot.projectiles.size());    // projectile
+        for (const SnapshotProjectileState& projectile : snapshot.projectiles)
+        {
+            const std::uint8_t direction = (std::uint8_t)projectile.direction;
+            const std::uint8_t kind = (std::uint8_t)projectile.kind;
+            if (projectile.id == 0 || !IsValidProjectileDirection(direction) || !IsValidProjectileKind(kind))
+            {
+                return false;
+            }
+
+            payload.WriteU32(projectile.id);
+            payload.WriteU8(kind);
+            payload.Write32(projectile.x);
+            payload.Write32(projectile.y);
+            payload.WriteU8(direction);
+        }
 
         return BuildPacket(PacketType::S2C_WorldSnapshot, payload.Bytes(), packet);
     }
@@ -311,7 +345,43 @@ namespace Z1::Protocol
         }
 
         std::uint16_t projectileCount = 0;
-        if (!reader.ReadU16(projectileCount) || projectileCount != 0 || !reader.IsAtEnd())
+        if (!reader.ReadU16(projectileCount))
+        {
+            return false;
+        }
+
+        const std::size_t requiredProjectileBytes = (std::size_t)projectileCount * SnapshotProjectileStateSize;
+        if (reader.Remaining() != requiredProjectileBytes)  
+        {
+            return false;
+        }
+
+        parsed.projectiles.reserve(projectileCount);
+        for (std::uint16_t i = 0; i < projectileCount; ++i)
+        {
+            SnapshotProjectileState projectile;
+            std::uint8_t rawKind = 0, rawDirection = 0;
+
+            if (!reader.ReadU32(projectile.id) ||
+                !reader.ReadU8(rawKind) ||
+                !reader.Read32(projectile.x) ||
+                !reader.Read32(projectile.y) ||
+                !reader.ReadU8(rawDirection))
+            {
+                return false;
+            }
+
+            if (projectile.id == 0 || !IsValidProjectileDirection(rawDirection) || !IsValidProjectileKind(rawKind))
+            {
+                return false;
+            }
+
+            projectile.kind = (ProjectileKind)rawKind;
+            projectile.direction = (MoveDirection)rawDirection;
+            parsed.projectiles.push_back(projectile);
+        }
+
+        if (!reader.IsAtEnd())
         {
             return false;
         }

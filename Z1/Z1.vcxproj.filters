@@ -31,6 +31,7 @@
     <ClCompile Include="Network\NetworkPlayer.cpp" />
     <ClCompile Include="Network\MyPlayer.cpp" />
     <ClCompile Include="Network\NetworkEnemy.cpp" />
+    <ClCompile Include="Network\NetworkProjectile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -66,5 +67,6 @@
     <ClInclude Include="Network\NetworkPlayer.h" />
     <ClInclude Include="Network\MyPlayer.h" />
     <ClInclude Include="Network\NetworkEnemy.h" />
+    <ClInclude Include="Network\NetworkProjectile.h" />
   </ItemGroup>
 </Project>

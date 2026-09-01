@@ -14,7 +14,7 @@ param(
     [ValidateSet(-1, 0, 3, 4097)]
     [int]$InvalidPacketSize = -1,
     [ValidateRange(0, 65535)]
-    [int]$ProtocolVersion = 2,
+    [int]$ProtocolVersion = 3,
     [switch]$SendInput,
     [ValidateSet("None", "Up", "Down", "Left", "Right")]
     [string]$InputDirection = "Up",
@@ -291,7 +291,7 @@ function Show-WorldSnapshot
 if ($RunServerFramingSuite)
 {
     if ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or
-        $ExpectMovement -or $InvalidPacketSize -ne -1 -or $ProtocolVersion -ne 2 -or
+        $ExpectMovement -or $InvalidPacketSize -ne -1 -or $ProtocolVersion -ne 3 -or
         $SendInput -or $InputDirection -ne 'Up' -or $HoldMilliseconds -ne 300 -or $ReadSnapshots -ne 0)
     {
         throw "-RunServerFramingSuite cannot be combined with individual test scenario options."
@@ -346,12 +346,12 @@ if ($CoalescedEnterInput -and ($SplitSend -or $SplitAt -ne 0 -or $SendInput))
 }
 
 if ($InvalidPacketSize -ne -1 -and
-    ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or $ProtocolVersion -ne 2 -or $ReadSnapshots -ne 0))
+    ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or $ProtocolVersion -ne 3 -or $ReadSnapshots -ne 0))
 {
     throw "-InvalidPacketSize must be used by itself."
 }
 
-if ($ProtocolVersion -ne 2 -and
+if ($ProtocolVersion -ne 3 -and
     ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or $ReadSnapshots -ne 0))
 {
     throw "A non-current -ProtocolVersion must be tested without split, input, or snapshot options."
@@ -410,7 +410,7 @@ try
         $stream.Write($enterPacket, 0, $enterPacket.Length)
     }
 
-    if ($ProtocolVersion -ne 2)
+    if ($ProtocolVersion -ne 3)
     {
         Assert-ServerClosedConnection $stream "protocol version $ProtocolVersion"
         return
@@ -435,7 +435,7 @@ try
     $version = Read-U16BigEndian $payload 0
     [uint32]$playerId = Read-U32BigEndian $payload 2
 
-    if ($version -ne 2)
+    if ($version -ne 3)
     {
         throw "Unexpected protocol version: $version (expected 2)."
     }
