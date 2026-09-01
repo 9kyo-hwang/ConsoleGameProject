@@ -32,6 +32,6 @@ public:
     bool IsValid() const noexcept;
 
 private:
-    HANDLE _handle = INVALID_HANDLE_VALUE;
+    HANDLE _handle = nullptr;
 };
 

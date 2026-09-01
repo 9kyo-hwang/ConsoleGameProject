@@ -62,6 +62,4 @@ private:
 private:    // IO Thread만 접근한다는 전제
     std::uint32_t _playerId = 1;
     OverworldSimulation _overworld;
-
-    std::uint32_t _serverTick = 0;  // 번호는 무슨 의미일까
 };

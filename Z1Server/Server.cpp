@@ -7,6 +7,7 @@
 #include <string>
 
 using namespace Net;
+using namespace Z1::Protocol;
 
 bool Server::Start(std::uint16_t port)
 {
@@ -334,7 +335,6 @@ bool Server::RegisterAcceptedSocket(Net::Socket&& clientSocket)
 {
     auto clientSession = std::make_unique<Session>(std::move(clientSocket));
     Session* clientSessionPtr = clientSession.get();
-    HANDLE clientHandle = (HANDLE)clientSessionPtr->GetNativeHandle();
 
     /*
     * 연결된 클라를 IOCP 큐가 관찰하도록 Register.
@@ -379,8 +379,6 @@ void Server::Tick()
 {
     //std::cout << "Server::Tick(10ms)\n";
     _overworld.Tick();
-    ++_serverTick;
-
     BroadcastWorldSnapshot();
 }
 
@@ -392,9 +390,6 @@ void Server::Tick()
 /// </summary>
 void Server::BroadcastWorldSnapshot()
 {
-    WorldSnapshot snapshot;
-    snapshot.serverTick = _serverTick;
-
     for (const std::unique_ptr<Session>& session : _sessions)
     {
         if (!session->IsEntered())
@@ -404,7 +399,7 @@ void Server::BroadcastWorldSnapshot()
 
         // playerID 기반 Snapshot을 각각 만들어 송신
         auto playerId = session->GetPlayerId();
-        WorldSnapshot snapshot = _overworld.BuildPlayerSnapshot(*playerId, _serverTick);
+        WorldSnapshot snapshot = _overworld.BuildSnapshot(*playerId);
 
         std::vector<Byte> packet;
         if (!BuildPacket_S2CWorldSnapshot(snapshot, packet) || !session->Send(std::move(packet)))

@@ -25,21 +25,6 @@ namespace
 
         }
 
-        bool operator<(const Node& other) const noexcept
-        {
-            if (f != other.f)
-            {
-                return f < other.f;
-            }
-
-            if (h != other.h)
-            {
-                return h < other.h;
-            }
-
-            return index < other.index;
-        }
-
         bool operator>(const Node& other) const noexcept
         {
             if (f != other.f)
@@ -53,11 +38,6 @@ namespace
             }
 
             return index > other.index;
-        }
-
-        bool operator==(const Node& other) const noexcept
-        {
-            return !(*this < other && *this > other);
         }
     };
 
@@ -78,8 +58,8 @@ std::vector<TileCoordinate> RoomPathfinder::FindPath(const RoomNavigationGrid& g
     const std::int32_t goalIndex = ToIndex(goal);
 
     std::priority_queue<Node, std::vector<Node>, std::greater<Node>> pq; // MinHeap
-    std::vector<std::int32_t> gCosts(16 * 11, INT32_MAX);
-    std::vector<std::int32_t> parents(16 * 11, -1);
+    std::vector<std::int32_t> gCosts(RoomNavigationGrid::Width * RoomNavigationGrid::Height, INT32_MAX);
+    std::vector<std::int32_t> parents(RoomNavigationGrid::Width * RoomNavigationGrid::Height, -1);
 
     pq.emplace(startIndex, 0, ManhattanDistance(start, goal));
     gCosts[startIndex] = 0;

@@ -27,6 +27,7 @@ public:
     bool Send(std::vector<Z1::Protocol::Byte>&& packet);    // 이미 framing된, "완성된" 패킷만 받음
     bool HandleSend(DWORD bytesTransferred);
 
+    // TODO: bool IsClosing() const noexcept;
     void Close() { _socket.Close(); }
 
 private:

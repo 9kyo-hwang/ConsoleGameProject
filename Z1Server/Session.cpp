@@ -1,6 +1,8 @@
 ﻿#include "pch.h"
 #include "Session.h"
 
+using namespace Z1::Protocol;
+
 Session::Session(Net::Socket&& socket) noexcept
     : _socket(std::move(socket))
     , _recvBufferView{.len = (ULONG)_recvBuffer.size(), .buf = (char*)_recvBuffer.data()}

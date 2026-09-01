@@ -1,6 +1,8 @@
 ﻿#include "pch.h"
 #include "Enemy.h"
 
+using namespace Z1::Protocol;
+
 Enemy::Enemy(std::uint32_t id, Z1::Protocol::EnemyKind kind, ServerRoomCoordinate home, Vector2Int position)
     : _id(id), _kind(kind), _home(home), _spawnPosition(position), _position(position)
 {

@@ -6,6 +6,8 @@
 #include <random>
 #include <Actor/Enemy.h>
 
+using namespace Z1::Protocol;
+
 namespace
 {
     constexpr std::int32_t PlayerMoveCellsPerTick = 1;
@@ -259,10 +261,10 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
 }
 
 // 각 Session 별 Room 관심 범위로 변경
-WorldSnapshot OverworldSimulation::BuildPlayerSnapshot(std::uint32_t id, std::uint32_t tick)
+WorldSnapshot OverworldSimulation::BuildSnapshot(std::uint32_t id)
 {
     WorldSnapshot snapshot;
-    snapshot.serverTick = tick;
+    snapshot.serverTick = _tick;
 
     auto found = _players.find(id);
     if (found == _players.end())
@@ -308,7 +310,7 @@ WorldSnapshot OverworldSimulation::BuildPlayerSnapshot(std::uint32_t id, std::ui
 
 void OverworldSimulation::Tick()
 {
-    ++_simulationTick;
+    ++_tick;
 
     // 1. 플레이어 위치 갱신하고
     for (auto& [id, player] : _players)
@@ -327,7 +329,7 @@ void OverworldSimulation::Tick()
         // 입력이 있으면 막히더라도 방향은 바뀜
         player.facing = direction;
 
-        const MoveDelta delta = GetMoveDelta(direction);
+        const Vector2Int delta = GetMoveDelta(direction);
         for (std::int32_t step = 0; step < PlayerMoveCellsPerTick; ++step)
         {
             const std::int32_t candidateX = player.x + delta.x;
@@ -411,7 +413,7 @@ bool OverworldSimulation::IsBlockedTile(std::int32_t tileX, std::int32_t tileY) 
     return _blockedTiles[tileY * MapWidth + tileX] != 0;
 }
 
-MoveDelta OverworldSimulation::GetMoveDelta(MoveDirection direction)
+Vector2Int OverworldSimulation::GetMoveDelta(MoveDirection direction)
 {
     switch (direction)
     {
@@ -441,7 +443,7 @@ void OverworldSimulation::TickEnemy(Enemy& enemy)
 {
     // id마다 약간 다르게 이동하도록
     // 20 / 4 = 5칸
-    if ((_simulationTick + enemy.GetId()) % 4 != 0) return;
+    if ((_tick + enemy.GetId()) % 4 != 0) return;
 
     // 테스트: A* 기반 움직임은 Moblin만
     if (enemy.GetKind() != EnemyKind::Moblin) return;
@@ -470,7 +472,7 @@ void OverworldSimulation::TickEnemy(Enemy& enemy)
     else if (next.y < current.y) direction = MoveDirection::Up;
     else if (next.y > current.y) direction = MoveDirection::Down;
 
-    MoveDelta delta = GetMoveDelta(direction);
+    Vector2Int delta = GetMoveDelta(direction);
     const Vector2Int candidate = Vector2Int(enemy.GetPosition().x + delta.x, enemy.GetPosition().y + delta.y);
 
     // TODO: 단순 (x, y) 검사 뿐만 아니라 box 기준으로 검사하도록 수정

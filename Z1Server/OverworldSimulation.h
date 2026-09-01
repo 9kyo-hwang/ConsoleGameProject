@@ -10,12 +10,6 @@
 #include <array>
 #include <RoomPathfinder.h>
 
-struct MoveDelta
-{
-    std::int32_t x = 0;
-    std::int32_t y = 0;
-};
-
 // Z1의 OverworldMap에서 컨트롤하는 충돌 판정, Room, 적/투사체 등의 서버 버전
 class OverworldSimulation
 {
@@ -51,9 +45,10 @@ public:
     bool SetInput(std::uint32_t playerId, const Z1::Protocol::InputCommand& input);
 
     // Session이나 packet을 모른 채, 현재 월드 상태를 Snapshot 용 값으로 복사해주는 API를 제공.
-    WorldSnapshot BuildPlayerSnapshot(std::uint32_t id, std::uint32_t tick);
+    Z1::Protocol::WorldSnapshot BuildSnapshot(std::uint32_t id);
 
     void Tick();
+    inline std::uint32_t GetTick() const noexcept { return _tick; }
 
 private:
     // 클라의 CanPlaceBox류 충돌맵 검사에 대응
@@ -62,7 +57,7 @@ private:
     bool CanPlaceEnemy(std::int32_t x, std::int32_t y) const;
     bool IsBlockedTile(std::int32_t x, std::int32_t y) const;
 
-    MoveDelta GetMoveDelta(Z1::Protocol::MoveDirection direction);
+    Vector2Int GetMoveDelta(Z1::Protocol::MoveDirection direction);
     std::optional<ServerRoomCoordinate> GetRoomAt(std::int32_t x, std::int32_t y) const;
 
     void TickEnemy(Enemy& enemy);
@@ -80,6 +75,6 @@ private:
 
     std::vector<std::uint8_t> _blockedTiles;
     bool _hasBlockingMap = false;
-    std::uint32_t _simulationTick = 0;
+    std::uint32_t _tick = 0;
 };
 

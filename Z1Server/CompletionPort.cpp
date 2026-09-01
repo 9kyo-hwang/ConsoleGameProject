@@ -8,7 +8,7 @@ CompletionPort::~CompletionPort()
 
 bool CompletionPort::Create()
 {
-    if (_handle != INVALID_HANDLE_VALUE) return false;
+    if (_handle) return false;
 
     _handle = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
     return _handle != nullptr;
@@ -31,7 +31,7 @@ void CompletionPort::Close() noexcept
 
 bool CompletionPort::IsValid() const noexcept
 {
-    return _handle && _handle != INVALID_HANDLE_VALUE;
+    return _handle != nullptr;
 }
 
 CompletionEvent CompletionPort::Dequeue(DWORD timeoutMs) const
