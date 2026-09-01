@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 #include <Actor/Enemy.h>
+#include <array>
+#include <RoomPathfinder.h>
 
 struct MoveDelta
 {
@@ -54,14 +56,21 @@ public:
     void Tick();
 
 private:
-
     // 클라의 CanPlaceBox류 충돌맵 검사에 대응
     bool CanPlaceBox(std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height) const;
     bool CanPlacePlayer(std::int32_t x, std::int32_t y) const;
+    bool CanPlaceEnemy(std::int32_t x, std::int32_t y) const;
     bool IsBlockedTile(std::int32_t x, std::int32_t y) const;
 
     MoveDelta GetMoveDelta(Z1::Protocol::MoveDirection direction);
     std::optional<ServerRoomCoordinate> GetRoomAt(std::int32_t x, std::int32_t y) const;
+
+    void TickEnemy(Enemy& enemy);
+    bool FindClosestPlayer(ServerRoomCoordinate homeRoom, Vector2Int position, ServerPlayerState& closestPlayer);
+
+private:
+    RoomNavigationGrid BuildNavigationGrid(ServerRoomCoordinate room) const;
+    RoomPathfinder _pathfinder;
 
 private:
     // id - state
@@ -71,5 +80,6 @@ private:
 
     std::vector<std::uint8_t> _blockedTiles;
     bool _hasBlockingMap = false;
+    std::uint32_t _simulationTick = 0;
 };
 

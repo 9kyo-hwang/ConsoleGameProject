@@ -65,6 +65,26 @@ namespace
 
         return snapshot;
     }
+
+    TileCoordinate ToLocalTile(ServerRoomCoordinate room, Vector2Int position)
+    {
+        return
+        {
+            // 논리 타일 좌표로 바꾼 걸 Room 내 상대 좌표로 컨버팅
+            position.x / TileCellWidth - room.x * RoomWidth,
+            position.y / TileCellHeight - room.y * RoomHeight
+        };
+    }
+
+    Vector2Int ToWorldCellPosition(ServerRoomCoordinate room, TileCoordinate tile)
+    {
+        return
+        {
+            // room 내 상대 논리 타일 좌표를 전체 맵의 셀 기준 좌표로 컨버팅
+            (room.x * RoomWidth + tile.x) * TileCellWidth,
+            (room.y * RoomHeight + tile.y) * TileCellHeight
+        };
+    }
 }
 
 bool OverworldSimulation::LoadBlockingMap(const FilePath& path, std::string& errorMessage)
@@ -288,6 +308,8 @@ WorldSnapshot OverworldSimulation::BuildPlayerSnapshot(std::uint32_t id, std::ui
 
 void OverworldSimulation::Tick()
 {
+    ++_simulationTick;
+
     // 1. 플레이어 위치 갱신하고
     for (auto& [id, player] : _players)
     {
@@ -341,7 +363,7 @@ void OverworldSimulation::Tick()
             continue;
         }
 
-        // TODO: enemy.Tick()
+        TickEnemy(enemy);
     }
 }
 
@@ -379,12 +401,17 @@ bool OverworldSimulation::CanPlacePlayer(std::int32_t x, std::int32_t y) const
     return CanPlaceBox(x, y, PlayerBoxWidth, PlayerBoxHeight);
 }
 
+bool OverworldSimulation::CanPlaceEnemy(std::int32_t x, std::int32_t y) const
+{
+    return CanPlaceBox(x, y, EnemyBoxWidth, EnemyBoxHeight);
+}
+
 bool OverworldSimulation::IsBlockedTile(std::int32_t tileX, std::int32_t tileY) const
 {
     return _blockedTiles[tileY * MapWidth + tileX] != 0;
 }
 
-MoveDelta OverworldSimulation::GetMoveDelta(Z1::Protocol::MoveDirection direction)
+MoveDelta OverworldSimulation::GetMoveDelta(MoveDirection direction)
 {
     switch (direction)
     {
@@ -403,4 +430,90 @@ std::optional<ServerRoomCoordinate> OverworldSimulation::GetRoomAt(std::int32_t 
     if (x < 0 || x >= MapCellWidth || y < 0 || y >= MapCellHeight) return std::nullopt;
 
     return ServerRoomCoordinate(x / RoomCellWidth, y / RoomCellHeight);
+}
+
+/// <summary>
+/// 현재는 A* 기반으로 계속 1 픽셀씩 이동하는 동작.
+/// 나중에 적처럼 동작하려면 추적 & 공격 2가지 상태로 분리(공격 중엔 이동 X)
+/// </summary>
+/// <param name="enemy"></param>
+void OverworldSimulation::TickEnemy(Enemy& enemy)
+{
+    // id마다 약간 다르게 이동하도록
+    // 20 / 4 = 5칸
+    if ((_simulationTick + enemy.GetId()) % 4 != 0) return;
+
+    // 테스트: A* 기반 움직임은 Moblin만
+    if (enemy.GetKind() != EnemyKind::Moblin) return;
+
+    ServerRoomCoordinate homeRoom = enemy.GetHomeRoom();
+    Vector2Int current = enemy.GetPosition();
+
+    // 가장 가까운 플레이어 위치 찾기
+    ServerPlayerState closestPlayer;
+    if (!FindClosestPlayer(homeRoom, enemy.GetPosition(), closestPlayer))
+    {
+        return;
+    }
+    
+    const TileCoordinate start = ToLocalTile(homeRoom, current);
+    const TileCoordinate goal = ToLocalTile(homeRoom, Vector2Int(closestPlayer.x, closestPlayer.y));
+
+    auto path = _pathfinder.FindPath(BuildNavigationGrid(homeRoom), start, goal);
+    if (path.empty()) return;   // 바로 다음 칸이 goal이면 empty인 상황
+
+    Vector2Int next = ToWorldCellPosition(homeRoom, path[0]);
+    MoveDirection direction = MoveDirection::None;
+
+    if (current.x < next.x) direction = MoveDirection::Right;
+    else if (next.x < current.x) direction = MoveDirection::Left;
+    else if (next.y < current.y) direction = MoveDirection::Up;
+    else if (next.y > current.y) direction = MoveDirection::Down;
+
+    MoveDelta delta = GetMoveDelta(direction);
+    const Vector2Int candidate = Vector2Int(enemy.GetPosition().x + delta.x, enemy.GetPosition().y + delta.y);
+
+    // TODO: 단순 (x, y) 검사 뿐만 아니라 box 기준으로 검사하도록 수정
+    if (enemy.GetHomeRoom() != GetRoomAt(candidate.x, candidate.y)) return;
+    if (!CanPlaceEnemy(candidate.x, candidate.y)) return;
+
+    enemy.MoveTo(candidate, direction);
+}
+
+bool OverworldSimulation::FindClosestPlayer(ServerRoomCoordinate homeRoom, Vector2Int position, ServerPlayerState& closestPlayer)
+{
+    std::int32_t minDistance = INT32_MAX;
+    for (const auto& [id, player] : _players)
+    {
+        if (player.dead) continue;
+        auto room = GetRoomAt(player.x, player.y);
+        if (!room || room != homeRoom) continue;
+
+        Vector2Int direction = Vector2Int(player.x, player.y) - position;
+        std::int32_t distance = direction.LengthSquared();
+        if (distance < minDistance)
+        {
+            minDistance = distance;
+            closestPlayer = player;
+        }
+    }
+
+    return minDistance != INT32_MAX;
+}
+
+RoomNavigationGrid OverworldSimulation::BuildNavigationGrid(ServerRoomCoordinate room) const
+{
+    RoomNavigationGrid grid;
+    for (std::int32_t y = 0; y < RoomHeight; ++y)
+    {
+        for (std::int32_t x = 0; x < RoomWidth; ++x)
+        {
+            const TileCoordinate tile{ x, y };
+            const Vector2Int world = ToWorldCellPosition(room, tile);
+
+            grid.SetWalkable(tile, CanPlaceEnemy(world.x, world.y));
+        }
+    }
+
+    return grid;
 }

@@ -8,6 +8,7 @@
     <ClCompile Include="Server.cpp" />
     <ClCompile Include="OverworldSimulation.cpp" />
     <ClCompile Include="Actor\Enemy.cpp" />
+    <ClCompile Include="RoomPathfinder.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -17,5 +18,6 @@
     <ClInclude Include="OverworldSimulation.h" />
     <ClInclude Include="Actor\Enemy.h" />
     <ClInclude Include="Types.h" />
+    <ClInclude Include="RoomPathfinder.h" />
   </ItemGroup>
 </Project>

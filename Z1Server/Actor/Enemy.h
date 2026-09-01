@@ -17,7 +17,10 @@ public:
     Enemy(std::uint32_t id, Z1::Protocol::EnemyKind kind, ServerRoomCoordinate home, Vector2Int position);
     SnapshotEnemyState BuildSnapshot() const;
 
+    void MoveTo(Vector2Int position, Z1::Protocol::MoveDirection facing);
+
     inline std::uint32_t GetId() const noexcept { return _id; }
+    Z1::Protocol::EnemyKind GetKind() const noexcept { return _kind; }
     ServerRoomCoordinate GetHomeRoom() const noexcept { return _home; }
     Vector2Int GetPosition() const noexcept { return _position; }
     bool IsDead() const noexcept { return _dead; }

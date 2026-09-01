@@ -19,3 +19,10 @@ SnapshotEnemyState Enemy::BuildSnapshot() const
 
     return snapshot;
 }
+
+void Enemy::MoveTo(Vector2Int position, Z1::Protocol::MoveDirection facing)
+{
+    // 값만 갱신해도 Snapshot이 Broadcast되면서 반영됨
+    _position = position;
+    _facing = facing;
+}
