@@ -95,6 +95,8 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동이 연결
 
 다음 작업은 Moblin을 기준으로 Projectile부터 공격 상호작용까지를 서버 권위 vertical slice로 연결하는 것이다. 이미 구현된 A* 이동은 유지하고, Octorok·Tektite AI 확장보다 전투의 공통 상태와 동기화 경계를 먼저 만든다.
 
+이 구현 단위는 [멀티플레이 설계의 MVP 최소 구현 원칙](MULTIPLAYER_DESIGN.md#mvp-최소-구현-원칙)을 따른다. 첫 Projectile은 고정 속도·피해량·수명, 직선 이동과 AABB 충돌만 사용한다. 범용 서버 Actor/Pawn 계층, 전투 시스템 클래스, Enemy 상태 머신, 경로 cache, 예측·보간과 Enemy별 데이터 설정은 이번 작업에 포함하지 않는다.
+
 1. `SnapshotProjectileState`와 codec, 클라이언트 `NetworkProjectile`을 추가해 서버 Projectile을 Snapshot으로 표시한다.
 2. 서버 `Projectile` 상태에 id·owner·`homeRoom`·위치·방향·피해량·수명·사망 상태를 두고, Tick에서 이동·BlockingMap·Room 경계·수명 만료를 판정한다.
 3. Moblin이 A* 목표를 향하는 동안 공격 cooldown 규칙에 따라 Projectile을 생성한다. 공격 대상과 방향은 서버 상태에서 결정한다.
