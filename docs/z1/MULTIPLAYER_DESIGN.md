@@ -11,7 +11,9 @@
 - 서버가 Overworld의 Enemy와 Projectile 상태를 결정한다.
 - 클라이언트는 Snapshot으로 Player·Enemy·Projectile 표현을 생성·갱신·제거한다.
 - Room 전환은 서버가 확정한 전체 맵 월드 좌표를 기준으로 한다.
-- 네트워크 비활성 또는 연결 실패 시 기존 싱글플레이를 유지한다.
+- Title에서 Local Play와 Multiplayer를 명시적으로 선택한다.
+- Local Play는 NetworkClient를 시작하지 않고 기존 싱글플레이 규칙만 실행한다.
+- Multiplayer의 연결 실패 또는 플레이 중 연결 종료는 싱글플레이로 전환하지 않고 사유를 표시한 뒤 Title로 복귀한다.
 
 이번 범위에는 Dungeon/Cave/보스·아이템 동기화, 로그인·DB·로비, 자동 재접속, 클라이언트 예측·보간, UDP와 범용 Engine NetworkComponent를 포함하지 않는다.
 
@@ -28,6 +30,38 @@ Z1 멀티플레이는 이미 구현한 서버 권위 경계를 유지하되, 완
 - 이미 동작하는 구조의 선행 리팩터링은 다음 기능을 안전하게 구현하는 데 직접 필요할 때만 수행한다. 개선 후보는 구현하지 않고 별도 검토 문서에 기록할 수 있다.
 
 최소 구현이 갖춰야 할 서버 권위는 포기하지 않는다. 클라이언트가 보낸 위치·HP·피격·사망 결과를 그대로 수락하지 않고, 모든 클라이언트에 공유되는 최종 위치와 전투 결과는 서버가 결정한다.
+
+## 플레이 모드와 연결 종료 정책
+
+Local Play와 Multiplayer는 게임 도중 자동으로 오가는 상태가 아니라 새 게임을 시작할 때 선택하는 별도 세션 모드다. `Game`이 선택된 모드를 소유하고 해당 게임 세션 동안 바꾸지 않는다. `OverworldLevel`은 단순한 `IsServerConnected()` 결과만으로 로컬 Actor를 생성하거나 네트워크 Actor를 로컬 Actor로 교체하지 않는다.
+
+```text
+Title
+├─ Local Play ───────────────> Local Overworld
+└─ Multiplayer
+   ├─ 연결 성공 + Enter 완료 -> Network Overworld
+   └─ 연결 실패 ─────────────> Title + 오류 표시
+
+Network Overworld
+└─ 연결 종료/프로토콜 오류 ──> 네트워크 정리 -> Title + 종료 사유 표시
+```
+
+최소 정책은 다음과 같다.
+
+- Title은 Sokoban의 메뉴와 같은 위/아래 선택과 Enter 확정 방식을 사용한다. 메뉴는 `Local Play`, `Multiplayer` 두 항목이며 기본 선택은 `Local Play`다.
+- Local Play를 선택하면 서버 실행 여부와 관계없이 연결을 시도하지 않는다.
+- Multiplayer를 선택하면 Overworld 진입 전에 서버 연결과 `S2C_Enter` 수신이 필요하다. 대기 중에는 별도 Loading Level을 만들지 않고 Title에 `Connecting...`을 표시하며 게임 월드를 시작하지 않는다.
+- Multiplayer 중 transport 종료, 서버 종료, protocol 오류가 발생하면 자동 재접속하거나 현재 위치에서 Local Play로 이어가지 않는다.
+- 연결 종료 처리는 `Game`의 한 경로에서 수행한다. `NetworkClient` thread를 정지·join하고 queue, framer, partial send, input sequence, local playerId와 마지막 Snapshot을 초기화한 뒤 Title로 전환한다. 떠나는 Network Overworld의 Actor는 Level 종료 과정에서 제거한다.
+- Title에는 메뉴 아래 영역에 연결 실패와 플레이 중 연결 종료를 구분하는 짧은 메시지를 약 3초간 표시한다. 상세 WinSock 오류나 protocol 진단은 로그에만 남기고, 메시지가 표시되는 동안에도 메뉴 입력과 Multiplayer 재시도를 허용한다.
+- Local Play의 Player 상태와 Multiplayer Snapshot 상태 사이에는 HP·위치·아이템을 승계하지 않는다.
+- Multiplayer MVP는 Overworld로 제한한다. Cave와 Dungeon 입구는 진입시키지 않고 현재 화면에 짧은 미지원 안내를 표시한다. Local Play의 입구 동작은 바꾸지 않는다.
+
+이 정책은 향후 모드 선택 작업의 목표이며 현재 코드에는 아직 적용되지 않았다. 기존 연결 종료 후 offline fallback 코드는 새 정책을 구현할 때 제거한다.
+
+현재 localhost 범위에서는 동기 connect가 빠르게 끝나므로 별도 연결 Level, 비동기 connect, 취소 입력과 자체 timeout을 추가하지 않는다. 외부 endpoint를 지원하거나 실제 접속 대기가 사용자 경험 문제가 될 때 다시 검토한다.
+
+자동 재접속, 서버 목록, 로비, 진행 중 세션 복구와 Cave·Dungeon 멀티플레이 입장 처리는 MVP 이후 항목으로 유지한다.
 
 ## 책임 경계
 

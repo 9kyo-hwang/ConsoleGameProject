@@ -1,6 +1,6 @@
 # Z1 멀티플레이 개발 현황
 
-마지막 갱신: 2026-09-01
+마지막 갱신: 2026-09-02
 
 ## 문서 역할
 
@@ -96,8 +96,10 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 공격 flag는 edge로 전송되지만 서버는 parsing·저장만 하고 Player Sword 공격 판정에는 아직 사용하지 않는다. 구현 시 한 Tick에서 한 번만 소비해야 한다.
 - Moblin Projectile은 현재 Spear 한 종류, 고정 피해량 1, lifetime 40 Tick이며 별도 공격 상태나 animation flag는 없다.
 - Projectile은 현재 이동 후보 위치에서 Player 충돌을 검사한다. 방패, 무적 시간, 넉백과 Player별 피격 cooldown은 아직 없다.
-- **서버 연결 종료 후 싱글플레이 fallback에 회귀 오류가 있다.** 시작 Room이 아닌 곳에서 서버를 종료하면 HUD는 `[OFFLINE]`으로 바뀌지만 기존 네트워크 Player가 남고, 오프라인 `Player`가 하나 생성되어도 키보드 입력이 반영되지 않는 상황이 재현된다. 네트워크 Enemy 등 표현 Actor가 로컬 Actor와 함께 남아 보일 수도 있다.
-- fallback 위치를 `_myPlayer` 또는 마지막 Snapshot에서 보존해 `EnsureOfflinePlayers()`에 전달하는 변경, `_wasOnline` 전환 flag, 비활성 `_player`의 `Destroy()`/reset을 시도했지만 최신 재현에서는 해결되지 않았다. 현재 작업 트리의 이 변경은 완료된 동작으로 간주하지 않는다.
+- 현재 구현은 서버 연결 종료 후 싱글플레이 fallback을 시도하지만 정상 동작하지 않는다. 시작 Room이 아닌 곳에서 서버를 종료하면 HUD는 `[OFFLINE]`으로 바뀌어도 기존 네트워크 Player가 남고, 오프라인 `Player`가 하나 생성되어도 키보드 입력이 반영되지 않는 상황이 재현된다. 네트워크 Enemy 등 표현 Actor가 로컬 Actor와 함께 남아 보일 수도 있다.
+- fallback 위치를 `_myPlayer` 또는 마지막 Snapshot에서 보존해 `EnsureOfflinePlayers()`에 전달하는 변경, `_wasOnline` 전환 flag, 비활성 `_player`의 `Destroy()`/reset을 시도했지만 최신 재현에서는 해결되지 않았다. 이 fallback은 더 이상 목표 동작이 아니며 현재 코드도 완료된 기능으로 간주하지 않는다.
+- 향후 Title에서 기본 선택이 Local Play인 위/아래 메뉴로 Local Play와 Multiplayer를 분리한다. 별도 Loading Level 없이 Title에서 입장 완료를 기다리고, 연결 실패·종료는 Local Play 전환 대신 네트워크 상태를 정리한 뒤 약 3초간 안내와 함께 Title로 복귀한다. 자세한 확정 정책은 [멀티플레이 설계의 플레이 모드와 연결 종료 정책](MULTIPLAYER_DESIGN.md#플레이-모드와-연결-종료-정책)을 따른다.
+- Multiplayer MVP에서 Cave·Dungeon 입구는 진입을 막고 짧은 미지원 안내를 표시한다. Cave·Dungeon 네트워크 입장과 상태 동기화는 시간 여유가 생긴 뒤 별도 논의한다.
 - 닫힌 Session을 `_sessions` registry에서 제거하는 최종 수명 처리가 완료되지 않았다.
 - closing 상태, outstanding I/O, cancellation과 completion drain을 포함한 안전한 서버 종료가 완료되지 않았다.
 - `S2C_Disconnect`는 선언만 되어 있다.
@@ -106,8 +108,8 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 
 ## 다음 구현 단위
 
-새 전투 기능을 추가하기 전에 서버 종료 fallback 회귀를 해결한다. 서버 연결 상태와 Actor 수명을 각각 추적해 온라인 표현 Actor가 정확히 한 번 제거되고, 현재 위치에 활성 오프라인 `Player` 하나만 남아 같은 Tick부터 입력을 처리하는지 확인한다. 시작 Room과 다른 Room, `_myPlayer`가 있는 경우와 마지막 Snapshot만 남은 경우를 각각 수동 검증한다.
+플레이 모드 선택과 Title 복귀 정책은 문서화만 완료했으며 지금 바로 구현하지 않는다. 현재 코드의 미완성 fallback에는 새 보정 로직을 더 추가하지 않고, 향후 플레이 모드 분리 작업에서 제거한다.
 
-fallback이 복구되면 Player Sword-Enemy 충돌, Enemy HP 감소·사망과 Snapshot 제거를 현재 Projectile AABB 방식에 맞춰 최소 구현한다. Octorok·Tektite AI, 방패·무적·넉백, 범용 서버 Actor/Pawn 계층과 Enemy 상태 머신은 이 vertical slice 뒤로 미룬다.
+게임 기능 작업을 재개할 때는 Player Sword-Enemy 충돌, Enemy HP 감소·사망과 Snapshot 제거를 현재 Projectile AABB 방식에 맞춰 최소 구현한다. Octorok·Tektite AI, 방패·무적·넉백, 범용 서버 Actor/Pawn 계층과 Enemy 상태 머신은 이 vertical slice 뒤로 미룬다. 플레이 모드 분리는 별도 작업 단위로 진행한다.
 
 Enemy·IOCP 확장 후보의 도입 조건과 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다. 이후 순서는 Player 공격과 Enemy 사망, Session 제거와 안전한 종료다. 완료되지 않은 항목을 구현된 현재 구조처럼 설계 문서에 옮겨 적지 않는다.

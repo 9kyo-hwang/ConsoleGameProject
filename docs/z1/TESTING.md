@@ -74,15 +74,29 @@ Moblin이 같은 Room의 살아 있는 Player를 A*로 추적하고 Spear를 발
 
 현재 Player와 Enemy 몸체는 서로를 막지 않으며 접촉 피해도 없다. Player Sword-Enemy 피해, 방패, 피격 무적과 넉백도 네트워크 모드에는 아직 없다. Enemy 스폰 위치는 8×5 Box 전체가 `BlockingMap`의 통행 가능 타일에 들어가는지로 확인한다. 같은 Room 내 위치 중복은 아직 허용되는 알려진 제약이다.
 
-### 서버 종료 후 offline fallback — 현재 실패
+### 서버 종료 후 offline fallback — 폐기 예정인 현재 동작
 
 1. Z1Server와 Z1을 실행하고 시작 Room이 아닌 Enemy Room으로 이동한다.
 2. `MyPlayer`, `NetworkEnemy`와 필요하면 KeepAlive dummy의 `NetworkPlayer`가 표시되는 것을 확인한다.
 3. Z1Server를 종료하고 HUD가 `[OFFLINE]`으로 바뀐 뒤 방향키를 입력한다.
 
-현재 재현 결과는 실패다. 기존 네트워크 Player가 제거되지 않고 오프라인 `Player`가 추가로 보이며, 새 `Player`에는 키보드 입력이 반영되지 않는다. 네트워크 표현과 Room의 로컬 Enemy가 함께 남아 보일 수도 있다. fallback 위치 전달, `_wasOnline` 전환 flag와 비활성 `_player` 정리를 적용한 상태에서도 같은 증상이 재현되므로 성공 항목으로 간주하지 않는다.
+현재 재현 결과는 실패다. 기존 네트워크 Player가 제거되지 않고 오프라인 `Player`가 추가로 보이며, 새 `Player`에는 키보드 입력이 반영되지 않는다. 네트워크 표현과 Room의 로컬 Enemy가 함께 남아 보일 수도 있다. fallback 위치 전달, `_wasOnline` 전환 flag와 비활성 `_player` 정리를 적용한 상태에서도 같은 증상이 재현된다.
 
-수정 완료 조건은 HUD만 `[OFFLINE]`으로 바뀌는 것이 아니다. 네트워크 Player·Enemy·Projectile이 모두 제거되고, 서버에서 마지막으로 확인한 위치에 활성 오프라인 `Player`가 정확히 하나 생성되어 즉시 이동하며, 해당 Room의 로컬 Enemy가 한 번만 생성되어야 한다.
+이 fallback은 더 이상 목표 동작이 아니므로 성공시키기 위한 추가 보정은 하지 않는다. 향후 플레이 모드 분리 전까지는 현재 알려진 오류로 남긴다.
+
+### 향후 플레이 모드와 연결 종료 검증
+
+플레이 모드 분리를 구현할 때 다음을 확인한다.
+
+- Title은 `Local Play`, `Multiplayer` 순서로 표시되고 기본 선택은 `Local Play`다. 위/아래 키로 순환 선택하고 Enter로 확정할 수 있다.
+- Local Play 선택 시 서버가 실행 중이어도 연결하지 않고 기존 싱글플레이가 정상 동작한다.
+- Multiplayer 선택 시 별도 Level 전환 없이 Title에 `Connecting...`을 표시하고, 연결과 Enter가 완료된 뒤에만 Network Overworld로 진입한다.
+- 최초 연결 실패 시 로컬 게임을 시작하지 않고 Title 메뉴 아래에 약 3초간 실패 메시지를 표시한다.
+- Multiplayer 도중 서버가 종료되면 네트워크 Player·Enemy·Projectile과 client 상태를 정리하고 Title로 돌아가 약 3초간 연결 종료 메시지를 표시한다.
+- 메시지가 표시되는 동안에도 메뉴를 조작하고 Multiplayer 연결을 다시 시도할 수 있다.
+- 종료 직전 서버 좌표, HP와 Enemy 상태가 새 Local Play에 승계되지 않는다.
+- Title에서 다시 Local Play를 시작하거나 Multiplayer 연결을 재시도할 수 있다.
+- Multiplayer에서는 Cave·Dungeon 입구에 닿아도 Level을 전환하지 않고 짧은 미지원 안내를 표시한다. 같은 입구가 Local Play에서는 기존대로 동작한다.
 
 ## 현재 멀티클라이언트 제한
 
