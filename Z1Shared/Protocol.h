@@ -11,10 +11,11 @@ namespace Z1::Protocol
         C2S_Input = 2,
         S2C_Enter = 101,            // [size:uint16][type:uint16][version:uint16][id:uint32]
         S2C_WorldSnapshot = 102,
-        S2C_Disconnect = 103
+        S2C_Disconnect = 103,
+        S2C_CombatEvent = 104       // 최신 1개 상태를 유지하는 Snapshot과 달리, 단발성으로 발생
     };
 
-    inline constexpr std::uint16_t ProtocolVersion = 3;
+    inline constexpr std::uint16_t ProtocolVersion = 4;
     inline constexpr std::size_t PacketHeaderSize = sizeof(std::uint16_t) + sizeof(std::uint16_t);
     inline constexpr std::uint16_t MaxPacketSize = 4096;
 
@@ -116,5 +117,22 @@ namespace Z1::Protocol
         std::vector<SnapshotPlayerState> players;
         std::vector<SnapshotEnemyState> enemies;
         std::vector<SnapshotProjectileState> projectiles;
+    };
+
+    /******************
+    * S2C_CombatEvent
+    *******************/
+    enum class CombatEventType : std::uint8_t 
+    {
+        Invalid = 0,
+        PlayerSwordAttack,
+    };
+
+    struct CombatEvent
+    {
+        // 클라는 이벤트를 받아 소비하면 끝이라 id는 불필요
+        CombatEventType type;
+        std::uint32_t actorId = 0;  // 넉백이 포함되려면 targetId도 필요해짐
+        MoveDirection direction = MoveDirection::None;  // 검이나 넉백 방향 등
     };
 }

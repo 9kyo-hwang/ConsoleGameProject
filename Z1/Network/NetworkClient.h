@@ -20,8 +20,7 @@ struct EnterMessage
     std::uint32_t playerId = 0;
 };
 
-using WorldSnapshot = Z1::Protocol::WorldSnapshot;
-using IncomingMessage = std::variant<EnterMessage, WorldSnapshot>;
+using IncomingMessage = std::variant<EnterMessage, Z1::Protocol::WorldSnapshot, Z1::Protocol::CombatEvent>;
 
 /// <summary>
 /// Client -> Server 하나만 붙는 구조이고, 현재 구현 단계 상 입력 소켓만 전송하는 구조라
@@ -56,6 +55,7 @@ private:
     bool HandleServerPacket(Z1::Protocol::PacketType type, std::span<const Z1::Protocol::Byte> payload);
     bool HandleEnter(std::span<const Z1::Protocol::Byte> payload);
     bool HandleWorldSnapshot(std::span<const Z1::Protocol::Byte> payload);
+    bool HandleCombatEvent(std::span<const Z1::Protocol::Byte> payload);
 
 private:
     // 서버 세션의 SendQueue도 64개, 최대 패킷 크기 4096byte라 큐 1개는 약 256KB로 제한

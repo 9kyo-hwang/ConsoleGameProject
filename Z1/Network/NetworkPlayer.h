@@ -33,6 +33,7 @@ private:
 private:
     std::shared_ptr<Craft::SpriteRendererComponent> _renderer;
 
+    bool _hasSnapshot = false;  // 최초 1회 Snapshot을 받은 뒤론 true
     std::uint32_t _playerId = 0;    // Snapshot마다 바뀌지 않음(생성할 때 ID와 Snapshot이 일치해야 함)
     Z1::Protocol::MoveDirection _facing = Z1::Protocol::MoveDirection::Up;
     std::int32_t _hp = 0;

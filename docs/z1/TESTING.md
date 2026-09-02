@@ -52,7 +52,7 @@ Z1Server를 먼저 실행한 뒤 PowerShell dummy client로 TCP framing과 기�
 .\tools\test-z1-enter.ps1 -RunServerFramingSuite
 ```
 
-이 suite는 protocol v3의 정상 Enter/Snapshot, header와 payload 분할, 연속 packet, Input 이동·정지, Enemy·Projectile 배열 파싱, 잘못된 packet size와 protocol version 거부를 확인한다. 기본 endpoint는 `127.0.0.1:7777`이다.
+이 suite는 protocol v4의 정상 Enter/Snapshot, header와 payload 분할, 연속 packet, Input 이동·정지, Enemy·Projectile 배열 파싱, 일반 검 입력에 대한 CombatEvent의 크기·type·actorId·방향, 잘못된 packet size와 protocol version 거부를 확인한다. 기본 endpoint는 `127.0.0.1:7777`이다.
 
 스크립트 통과는 실제 Z1 통합을 대체하지 않는다. transport나 Snapshot 표현을 변경했다면 Z1Server와 Z1을 함께 실행해 연결, playerId, 이동, 연결 종료 후 Actor 정리를 확인한다.
 
@@ -76,15 +76,20 @@ Moblin이 같은 Room의 살아 있는 Player를 A*로 추적하고 Spear를 발
 
 ### 서버 Player 일반 검과 Enemy 사망
 
-Enemy가 있는 Room에서 Player가 정지한 상태로 Enemy를 바라보고 A를 한 번 누른다. 일반 검은 현재 보이지 않지만 서버가 좌우 10×3·상하 6×5 AABB로 같은 Room의 살아 있는 Enemy를 검사한다.
+Enemy가 있는 Room에서 Player가 정지한 상태로 Enemy를 바라보고 A를 한 번 누른다. 서버는 좌우 10×3·상하 6×5 AABB로 같은 Room의 살아 있는 Enemy를 검사하고, 승인된 공격을 CombatEvent로 같은 Room의 클라이언트에 전송한다.
 
 - 한 번의 A 입력이 한 번만 소비되고 겹친 Enemy 중 network ID가 가장 작은 한 명만 피해를 받는다.
 - 이동 방향키를 누른 상태에서 A를 눌러도 일반 검 공격이 실행되지 않는다. 방향키를 놓은 뒤 이전 공격 요청이 뒤늦게 실행되어서도 안 된다.
 - facing 앞의 범위 안 Enemy만 사망하고 범위 밖이나 반대 방향 Enemy는 유지된다.
 - 사망 Enemy는 즉시 이동과 Projectile 생성을 중단하고, 같은 Room을 보는 모든 Z1 클라이언트에서 제거된다.
 - Room을 나갔다 돌아와도 사망 Enemy는 다시 나타나지 않는다.
+- 위·아래·왼쪽·오른쪽 공격마다 검 Sprite가 공격한 `MyPlayer` 또는 `NetworkPlayer`의 해당 방향에 표시된다.
+- 공격이 빗나가도 검 Sprite와 `LOZ_Sword_Slash.wav`가 한 번 재생되고, 검 Sprite는 약 0.5초 뒤 제거된다.
+- 빠르게 A를 여러 번 누르면 서버가 승인한 횟수만큼 표현되며, 한 번의 입력이 여러 Tick에서 반복 재생되지 않는다.
+- 같은 Room에 실제 Z1 두 개를 접속하면 한쪽의 공격 표현과 효과음이 양쪽에 전달된다. 같은 PC에서는 두 프로세스가 동일 키를 감지할 수 있으므로 독립 입력 여부와 CombatEvent 전파 여부를 구분해 판단한다.
+- 클라이언트만 재시작해도 서버가 실행 중인 동안 사망 Enemy는 다시 생성되지 않는다. Enemy 초기 상태를 다시 확인하려면 서버를 재시작한다.
 
-현재 모든 Enemy HP는 1이고 일반 검 피해도 1이므로 피격과 사망이 동시에 일어난다. 검 Sprite·공격 효과음, 최대 HP SwordBeam과 Player/Enemy 공격 상태 flag 표현은 이 검증 범위에 포함하지 않는다.
+현재 모든 Enemy HP는 1이고 일반 검 피해도 1이므로 피격과 사망이 동시에 일어난다. 최대 HP SwordBeam과 Player/Enemy 공격 상태 flag 표현은 이 검증 범위에 포함하지 않는다.
 
 ### 서버 종료 후 offline fallback — 폐기 예정인 현재 동작
 

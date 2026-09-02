@@ -45,12 +45,17 @@ public: // Network
     void PumpNetwork();
 
     inline std::optional<std::uint32_t> GetLocalPlayerId() const { return _localPlayerId; }
-    inline const std::optional<WorldSnapshot>& GetLatestSnapshot() const { return _latestSnapshot; }
+    inline const std::optional<Z1::Protocol::WorldSnapshot>& GetLatestSnapshot() const { return _latestSnapshot; }
 
     // Overworld Level에서 Game-Network에 데이터 밀어넣기 위한 래퍼
     inline bool SendNetworkInput(Z1::Protocol::MoveDirection direction, std::uint8_t actionFlags)
     {
         return _network.QueueInput(direction, actionFlags);
+    }
+
+    inline std::vector<Z1::Protocol::CombatEvent> ConsumeCombatEvents()
+    {
+        return std::exchange(_pendingCombatEvents, std::vector<Z1::Protocol::CombatEvent>());
     }
 
 private:
@@ -67,6 +72,9 @@ private:
 private:    // Network
     NetworkClient _network;
     std::optional<std::uint32_t> _localPlayerId;
-    std::optional<WorldSnapshot> _latestSnapshot;
+    std::optional<Z1::Protocol::WorldSnapshot> _latestSnapshot;
+
+    // 이벤트는 모두 들고 있고, 모두 소비해야 함
+    std::vector< Z1::Protocol::CombatEvent> _pendingCombatEvents;
 };
 

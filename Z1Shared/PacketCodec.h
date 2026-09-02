@@ -46,10 +46,15 @@ namespace Z1::Protocol
     }
 
     // None 방향은 있을 수 없음
-    inline bool IsValidProjectileDirection(std::uint8_t direction) noexcept
+    inline bool IsValidCardinalDirection(std::uint8_t direction) noexcept
     {
         return direction >= (std::uint8_t)MoveDirection::Up
             && direction <= (std::uint8_t)MoveDirection::Right;
+    }
+
+    inline bool IsValidCombatEventType(std::uint8_t value) noexcept
+    {
+        return value == (std::uint8_t)CombatEventType::PlayerSwordAttack;   // 지금은 얘 하나만
     }
 
     inline bool BuildPacket_C2SEnter(std::vector<Byte>& packet)
@@ -242,7 +247,7 @@ namespace Z1::Protocol
         {
             const std::uint8_t direction = (std::uint8_t)projectile.direction;
             const std::uint8_t kind = (std::uint8_t)projectile.kind;
-            if (projectile.id == 0 || !IsValidProjectileDirection(direction) || !IsValidProjectileKind(kind))
+            if (projectile.id == 0 || !IsValidCardinalDirection(direction) || !IsValidProjectileKind(kind))
             {
                 return false;
             }
@@ -371,7 +376,7 @@ namespace Z1::Protocol
                 return false;
             }
 
-            if (projectile.id == 0 || !IsValidProjectileDirection(rawDirection) || !IsValidProjectileKind(rawKind))
+            if (projectile.id == 0 || !IsValidCardinalDirection(rawDirection) || !IsValidProjectileKind(rawKind))
             {
                 return false;
             }
@@ -387,6 +392,53 @@ namespace Z1::Protocol
         }
 
         snapshot = std::move(parsed);
+        return true;
+    }
+
+    inline constexpr std::size_t CombatEventSize
+        = sizeof(std::uint8_t)      // type
+        + sizeof(std::uint32_t)     // actorId
+        + sizeof(std::uint8_t);     // direction
+
+    inline bool BuildPacket_S2CCombatEvent(const CombatEvent& event, std::vector<Byte>& packet)
+    {
+        const std::size_t type = (std::uint8_t)event.type;
+        const std::size_t direction = (std::uint8_t)event.direction;
+
+        if (!IsValidCombatEventType(type) || event.actorId == 0 || !IsValidCardinalDirection(direction))
+        {
+            return false;
+        }
+
+        PacketWriter payload(CombatEventSize);
+        payload.WriteU8(type);
+        payload.WriteU32(event.actorId);
+        payload.WriteU8(direction);
+
+        return BuildPacket(PacketType::S2C_CombatEvent, payload.Bytes(), packet);
+    }
+
+    inline bool ParsePayload_S2CCombatEvent(std::span<const Byte> payload, CombatEvent& event)
+    {
+        PacketReader reader(payload);
+        
+        CombatEvent parsed;
+        std::uint8_t rawType = 0, rawDirection = 0;
+        if (!reader.ReadU8(rawType) || !reader.ReadU32(parsed.actorId)
+            || !reader.ReadU8(rawDirection) || !reader.IsAtEnd())
+        {
+            return false;
+        }
+
+        if (!IsValidCombatEventType(rawType) || !IsValidCardinalDirection(rawDirection))
+        {
+            return false;
+        }
+
+        parsed.type = (CombatEventType)rawType;
+        parsed.direction = (MoveDirection)rawDirection;
+
+        event = std::move(parsed);
         return true;
     }
 }

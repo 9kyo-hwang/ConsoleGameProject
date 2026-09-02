@@ -11,6 +11,14 @@
 #include <array>
 #include <RoomPathfinder.h>
 
+// PlayerSwordAttack 공격 시도는 Simulation에서 발생해서,
+// 여기서 아래 구조체의 Queue에 밀어넣고, Server에서 꺼내쓰자.
+struct PendingCombatEvent
+{
+    Z1::Protocol::CombatEvent event;
+    ServerRoomCoordinate room;
+};
+
 // Z1의 OverworldMap에서 컨트롤하는 충돌 판정, Room, 적/투사체 등의 서버 버전
 class OverworldSimulation
 {
@@ -50,6 +58,13 @@ public:
     // Session이나 packet을 모른 채, 현재 월드 상태를 Snapshot 용 값으로 복사해주는 API를 제공.
     Z1::Protocol::WorldSnapshot BuildSnapshot(std::uint32_t id);
 
+    inline std::vector<PendingCombatEvent> TakeCombatEvents()
+    {
+        return std::exchange(_pendingCombatEvents, std::vector<PendingCombatEvent>());
+    }
+
+    bool IsPlayerInRoom(std::uint32_t playerId, ServerRoomCoordinate room);
+
     void Tick();
     inline std::uint32_t GetTick() const noexcept { return _tick; }
 
@@ -86,5 +101,7 @@ private:
     std::vector<std::uint8_t> _blockedTiles;
     bool _hasBlockingMap = false;
     std::uint32_t _tick = 0;
+
+    std::vector<PendingCombatEvent> _pendingCombatEvents;
 };
 

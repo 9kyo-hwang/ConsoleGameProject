@@ -52,6 +52,8 @@ public:
     void EnsureOfflinePlayers(Game& game, std::optional<Craft::Vector2> spawnPosition = std::nullopt);  // 서버 연결 끊기면 기존 싱글 플레이 유지를 위한 역할
     void ClearNetworkActors();
 
+    void ApplyCombatEvent(const Z1::Protocol::CombatEvent& event);
+
 private:
     bool LoadMap();
     bool TryChangeRoom(RoomCoordinate room);

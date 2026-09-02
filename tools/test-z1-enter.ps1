@@ -14,8 +14,9 @@ param(
     [ValidateSet(-1, 0, 3, 4097)]
     [int]$InvalidPacketSize = -1,
     [ValidateRange(0, 65535)]
-    [int]$ProtocolVersion = 3,
+    [int]$ProtocolVersion = 4,
     [switch]$SendInput,
+    [switch]$SendAttack,
     [ValidateSet("None", "Up", "Down", "Left", "Right")]
     [string]$InputDirection = "Up",
     [ValidateRange(0, 30000)]
@@ -133,7 +134,8 @@ function New-InputPacket
 {
     param(
         [Parameter(Mandatory)][uint32]$Sequence,
-        [Parameter(Mandatory)][string]$Direction
+        [Parameter(Mandatory)][string]$Direction,
+        [ValidateRange(0, 1)][byte]$ActionFlags = 0
     )
 
     $directions = @{ None = 0; Up = 1; Down = 2; Left = 3; Right = 4 }
@@ -143,7 +145,7 @@ function New-InputPacket
         0x00, 0x0A, 0x00, 0x02,
         $sequenceBytes[0], $sequenceBytes[1],
         $sequenceBytes[2], $sequenceBytes[3],
-        [byte]$directions[$Direction], 0x00
+        [byte]$directions[$Direction], $ActionFlags
     )
 }
 
@@ -152,13 +154,14 @@ function Send-Input
     param(
         [Parameter(Mandatory)][System.IO.Stream]$Stream,
         [Parameter(Mandatory)][uint32]$Sequence,
-        [Parameter(Mandatory)][string]$Direction
+        [Parameter(Mandatory)][string]$Direction,
+        [ValidateRange(0, 1)][byte]$ActionFlags = 0
     )
 
-    [byte[]]$packet = New-InputPacket $Sequence $Direction
+    [byte[]]$packet = New-InputPacket $Sequence $Direction $ActionFlags
 
     $Stream.Write($packet, 0, $packet.Length)
-    Write-Output "Sent C2S_Input: sequence=$Sequence, direction=$Direction"
+    Write-Output "Sent C2S_Input: sequence=$Sequence, direction=$Direction, actionFlags=$ActionFlags"
 }
 
 function Assert-ServerClosedConnection
@@ -351,11 +354,53 @@ function Show-WorldSnapshot
     Write-Output "  Enemies=$enemyCount, Projectiles=$projectileCount"
 }
 
+function Assert-CombatEvent
+{
+    param(
+        [Parameter(Mandatory)][pscustomobject]$Packet,
+        [Parameter(Mandatory)][uint32]$ExpectedActorId,
+        [Parameter(Mandatory)][byte]$ExpectedDirection
+    )
+
+    if ($Packet.PacketType -ne 104)
+    {
+        throw "Expected S2C_CombatEvent=104, received packet type $($Packet.PacketType)."
+    }
+
+    if ($Packet.PacketSize -ne 10 -or $Packet.Payload.Length -ne 6)
+    {
+        throw "Unexpected S2C_CombatEvent packet size: $($Packet.PacketSize) (expected 10)."
+    }
+
+    [byte[]]$payload = $Packet.Payload
+    $eventType = $payload[0]
+    [uint32]$actorId = Read-U32BigEndian $payload 1
+    $direction = $payload[5]
+
+    if ($eventType -ne 1)
+    {
+        throw "CombatEvent has invalid event type: $eventType"
+    }
+
+    if ($actorId -ne $ExpectedActorId)
+    {
+        throw "CombatEvent actorId=$actorId does not match entered playerId=$ExpectedActorId."
+    }
+
+    if ($direction -ne $ExpectedDirection)
+    {
+        throw "CombatEvent direction=$direction does not match expected direction=$ExpectedDirection."
+    }
+
+    Write-Output "PASS: S2C_CombatEvent received (type=$eventType, actorId=$actorId, direction=$direction)"
+}
+
 if ($RunServerFramingSuite)
 {
     if ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or
-        $ExpectMovement -or $InvalidPacketSize -ne -1 -or $ProtocolVersion -ne 3 -or
-        $SendInput -or $InputDirection -ne 'Up' -or $HoldMilliseconds -ne 300 -or $ReadSnapshots -ne 0)
+        $ExpectMovement -or $InvalidPacketSize -ne -1 -or $ProtocolVersion -ne 4 -or
+        $SendInput -or $SendAttack -or $InputDirection -ne 'Up' -or
+        $HoldMilliseconds -ne 300 -or $ReadSnapshots -ne 0)
     {
         throw "-RunServerFramingSuite cannot be combined with individual test scenario options."
     }
@@ -371,6 +416,7 @@ if ($RunServerFramingSuite)
         @{ Name = 'split-header'; Arguments = @{ SplitAt = 2; ReadSnapshots = 2 } },
         @{ Name = 'split-payload'; Arguments = @{ SplitAt = 4; ReadSnapshots = 2 } },
         @{ Name = 'coalesced'; Arguments = @{ CoalescedEnterInput = $true; ExpectMovement = $true; ReadSnapshots = 10 } },
+        @{ Name = 'combat-event'; Arguments = @{ SendAttack = $true } },
         @{ Name = 'invalid-size-0'; Arguments = @{ InvalidPacketSize = 0 } },
         @{ Name = 'invalid-size-3'; Arguments = @{ InvalidPacketSize = 3 } },
         @{ Name = 'invalid-size-4097'; Arguments = @{ InvalidPacketSize = 4097 } },
@@ -403,19 +449,26 @@ if ($SplitSend -and $SplitAt -ne 0)
     throw "Use either -SplitSend or -SplitAt, not both."
 }
 
-if ($CoalescedEnterInput -and ($SplitSend -or $SplitAt -ne 0 -or $SendInput))
+if ($CoalescedEnterInput -and ($SplitSend -or $SplitAt -ne 0 -or $SendInput -or $SendAttack))
 {
-    throw "-CoalescedEnterInput cannot be combined with -SplitSend, -SplitAt, or -SendInput."
+    throw "-CoalescedEnterInput cannot be combined with -SplitSend, -SplitAt, -SendInput, or -SendAttack."
+}
+
+if ($SendAttack -and ($SplitSend -or $SplitAt -ne 0 -or $SendInput -or $ReadSnapshots -ne 0))
+{
+    throw "-SendAttack cannot be combined with split, -SendInput, or -ReadSnapshots options."
 }
 
 if ($InvalidPacketSize -ne -1 -and
-    ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or $ProtocolVersion -ne 3 -or $ReadSnapshots -ne 0))
+    ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or
+     $SendAttack -or $ProtocolVersion -ne 4 -or $ReadSnapshots -ne 0))
 {
     throw "-InvalidPacketSize must be used by itself."
 }
 
-if ($ProtocolVersion -ne 3 -and
-    ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or $ReadSnapshots -ne 0))
+if ($ProtocolVersion -ne 4 -and
+    ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or
+     $SendAttack -or $ReadSnapshots -ne 0))
 {
     throw "A non-current -ProtocolVersion must be tested without split, input, or snapshot options."
 }
@@ -473,7 +526,7 @@ try
         $stream.Write($enterPacket, 0, $enterPacket.Length)
     }
 
-    if ($ProtocolVersion -ne 3)
+    if ($ProtocolVersion -ne 4)
     {
         Assert-ServerClosedConnection $stream "protocol version $ProtocolVersion"
         return
@@ -498,9 +551,9 @@ try
     $version = Read-U16BigEndian $payload 0
     [uint32]$playerId = Read-U32BigEndian $payload 2
 
-    if ($version -ne 3)
+    if ($version -ne 4)
     {
-        throw "Unexpected protocol version: $version (expected 2)."
+        throw "Unexpected protocol version: $version (expected 4)."
     }
 
     $hex = (@($header) + @($payload) | ForEach-Object { $_.ToString("X2") }) -join " "
@@ -515,6 +568,35 @@ try
         {
             Start-Sleep -Milliseconds $HoldMilliseconds
             Send-Input $stream 2 "None"
+        }
+    }
+    elseif ($SendAttack)
+    {
+        Send-Input $stream 1 "None" 1
+
+        $sawCombatEvent = $false
+        for ($index = 0; $index -lt 20; ++$index)
+        {
+            $packet = Read-Packet $stream
+            if ($packet.PacketType -eq 102)
+            {
+                Show-WorldSnapshot $packet
+                continue
+            }
+
+            if ($packet.PacketType -eq 104)
+            {
+                Assert-CombatEvent $packet $playerId 1
+                $sawCombatEvent = $true
+                break
+            }
+
+            throw "Unexpected packet type while waiting for CombatEvent: $($packet.PacketType)"
+        }
+
+        if (!$sawCombatEvent)
+        {
+            throw "S2C_CombatEvent was not received within 20 packets."
         }
     }
     elseif ($CoalescedEnterInput -and $InputDirection -ne "None" -and $HoldMilliseconds -gt 0)

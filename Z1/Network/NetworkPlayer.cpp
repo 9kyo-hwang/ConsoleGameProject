@@ -2,6 +2,7 @@
 #include "NetworkPlayer.h"
 #include <Component/SpriteRendererComponent.h>
 #include <array>
+#include <Engine/Engine.h>
 
 using namespace Craft;
 using namespace Z1::Protocol;
@@ -26,16 +27,36 @@ NetworkPlayer::NetworkPlayer(Vector2 position, std::uint32_t playerId)
 void NetworkPlayer::ApplySnapshot(const Z1::Protocol::SnapshotPlayerState& state)
 {
     assert(_playerId == state.playerId);
-
     if (_playerId != state.playerId)
     {
         return;
     }
 
+    // Snapshot 적용 전, 이전 상태 보관
+    bool hadSnapshot = _hasSnapshot;
+    std::int32_t _prevHp = _hp;
+    bool wasDead = IsDead();
+
+    // 새로운 상태로 갱신
     SetPosition(Vector2(state.x, state.y));
     _facing = state.facing;
     _hp = state.hp;
     _flags = state.flags;
+
+    // 최초 1회에는 안들어옴
+    if (hadSnapshot)
+    {
+        if (!wasDead && IsDead())
+        {
+            Engine::Get().PlayOneShot("Z1/LOZ_Link_Die.wav");
+        }
+        else if (state.hp < _prevHp)
+        {
+            Engine::Get().PlayOneShot("Z1/LOZ_Link_Hurt.wav");
+        }
+    }
+
+    _hasSnapshot = true;
 }
 
 std::shared_ptr<const Craft::Sprite> NetworkPlayer::CreateSprite()

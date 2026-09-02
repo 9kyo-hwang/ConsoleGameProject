@@ -23,6 +23,7 @@
 #include <Network/MyPlayer.h>
 #include <Network/NetworkEnemy.h>
 #include <Network/NetworkProjectile.h>
+#include <Network/NetworkSwordEffect.h>
 
 using namespace Craft;
 using FilePath = std::filesystem::path;
@@ -127,6 +128,11 @@ void OverworldLevel::Tick(float deltaTime)
     {
         _wasOnline = true;
         ApplyLatestNetworkSnapshot(game);   // 서버로부터 받은 정보를 Actor::Tick 보다 먼저 반영
+        for (Z1::Protocol::CombatEvent combatEvent : game.ConsumeCombatEvents())
+        {
+            ApplyCombatEvent(combatEvent);
+        }
+
         Level::Tick(deltaTime); // MyPlayer 입력 전송 및 NetworkPlayer Actor 갱신
 
         // 기존 로컬 플레이의 각종 처리는 실행하지 말자.
@@ -496,16 +502,19 @@ void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
     {
         // 원격 플레이어는 생성 or 갱신
         recvdProjectiles.emplace(state.id);
-
         if (_networkProjectiles.contains(state.id))
         {
             _networkProjectiles[state.id]->ApplySnapshot(state);
             continue;
         }
 
+        // 최초 생성 시 Sound도 재생하도록 변경
         auto remoteProjectile = SpawnActor<NetworkProjectile>(Vector2(state.x, state.y), state.id, state.kind, state.direction);
         remoteProjectile->ApplySnapshot(state);
         _networkProjectiles.emplace(state.id, std::move(remoteProjectile));
+        
+        // Room 넘어갈 때, 다른 요인에 의해 이미 생성된 projectile도 여기에 진입할 수 있음
+        // 이 경우 최초 snapshot 또는 room 전환 snapshot으로 엄밀히 비교해야 함
     }
 
     // 6. 새로 받은 투사체가 기존 투사체 명단에 없다면 제거
@@ -580,6 +589,35 @@ void OverworldLevel::ClearNetworkActors()
     _networkProjectiles.clear();
 
     _lastAppliedServerTick.reset();
+}
+
+void OverworldLevel::ApplyCombatEvent(const Z1::Protocol::CombatEvent& event)
+{
+    using namespace Z1::Protocol;
+
+    if (event.type != CombatEventType::PlayerSwordAttack) return;
+
+    // 나 아니면 타 클라
+    std::shared_ptr<NetworkPlayer> source;
+    if (_myPlayer && _myPlayer->GetPlayerId() == event.actorId)
+    {
+        source = _myPlayer;
+    }
+    else
+    {
+        auto found = _networkPlayers.find(event.actorId);
+        if (found != _networkPlayers.end())
+        {
+            source = found->second;
+        }
+    }
+
+    if (!source) return;
+
+    // TODO
+    auto effect = SpawnActor<NetworkSwordEffect>(event.direction);
+    effect->AttachTo(source, false);
+    Engine::Get().PlayOneShot("Z1/LOZ_Sword_Slash.wav");
 }
 
 bool OverworldLevel::LoadMap()

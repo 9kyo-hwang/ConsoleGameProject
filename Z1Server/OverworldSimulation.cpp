@@ -364,6 +364,15 @@ WorldSnapshot OverworldSimulation::BuildSnapshot(std::uint32_t id)
     return snapshot;
 }
 
+bool OverworldSimulation::IsPlayerInRoom(std::uint32_t playerId, ServerRoomCoordinate room)
+{
+    auto found = _players.find(playerId);
+    if (found == _players.end()) return false;
+
+    const ServerPlayerState& player = found->second;
+    return GetRoomAt(player.x, player.y) == room;
+}
+
 void OverworldSimulation::Tick()
 {
     ++_tick;
@@ -399,6 +408,18 @@ void OverworldSimulation::Tick()
         }
         else if (attackRequested)   // 이동 중이 아니면서 공격 요청이 들어왔다면
         {
+            // 공격 성공 유무와 관계없이, 이벤트는 무조건 발동
+            auto room = GetRoomAt(player.x, player.y);
+            if (!room) continue;
+
+            PendingCombatEvent event
+            {
+                .event = CombatEvent{CombatEventType::PlayerSwordAttack, player.playerId, player.facing},
+                .room = *room
+            };
+
+            _pendingCombatEvents.emplace_back(event);
+
             TryHitEnemy(player);
         }
     }

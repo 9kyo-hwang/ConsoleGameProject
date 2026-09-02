@@ -101,7 +101,7 @@ NetworkPlayer       서버 Snapshot의 Player 표현
 
 NetworkEnemy        서버 Enemy 표현
 NetworkProjectile   서버 Projectile 표현
-NetworkSwordEffect  공격 상태의 시각·사운드 표현
+NetworkSwordEffect  승인된 일반 검 공격의 일시적 시각 표현
 ```
 
 기존 `Player`, `Enemy`, `Projectile`, `SwordAttack`은 싱글플레이 AI·충돌·피해 판정을 포함하므로 네트워크 표현 타입으로 재사용하지 않는다.
@@ -116,7 +116,7 @@ TCP 위에 고정 4바이트 header를 사용한다.
 
 - 모든 다중 byte 정수는 network byte order다.
 - `size`는 header를 포함하며 허용 범위는 4~4096 byte다.
-- protocol version은 현재 `3`이다. v3는 `S2C_WorldSnapshot`에 Projectile 상태 배열을 추가한다.
+- protocol version은 현재 `4`다. v4는 일반 검 단발 사건을 위한 `S2C_CombatEvent`를 추가한다.
 - 수신 byte는 `PacketFramer`에 누적하고 완성된 packet만 handler에 전달한다.
 - header/payload 분할 수신과 한 번에 여러 packet을 받은 경우를 모두 처리한다.
 - 잘못된 size, version, enum, flag 또는 payload 길이는 연결 오류로 처리한다.
@@ -129,13 +129,24 @@ TCP 위에 고정 4바이트 header를 사용한다.
 | S→C | `S2C_Enter` | protocol version과 local playerId 할당 |
 | C→S | `C2S_Input` | sequence, 이동 방향과 공격 edge |
 | S→C | `S2C_WorldSnapshot` | server tick, 관심 Room의 Player·Enemy·Projectile 상태 배열 |
+| S→C | `S2C_CombatEvent` | 서버가 승인한 단발 전투 사건 |
 | S→C | `S2C_Disconnect` | 서버 주도 연결 종료 통지용 예약 packet |
 
-Player, Enemy, Projectile은 별도 packet 종류가 아니라 하나의 전체 상태 Snapshot에 포함한다. v3 payload는 `serverTick`, Player count와 18-byte Player 상태 배열, Enemy count와 19-byte Enemy 상태 배열, Projectile count와 14-byte Projectile 상태 배열 순서다.
+Player, Enemy, Projectile은 별도 packet 종류가 아니라 하나의 전체 상태 Snapshot에 포함한다. WorldSnapshot payload는 `serverTick`, Player count와 18-byte Player 상태 배열, Enemy count와 19-byte Enemy 상태 배열, Projectile count와 14-byte Projectile 상태 배열 순서다.
 
 `SnapshotEnemyState`는 `networkId`, `kind`, 위치, facing, HP, flags를 가진다. `homeRoom`, 최초 spawn 위치와 AI 타이머는 서버 내부 상태이며 wire에 넣지 않는다. dead Enemy는 일반 Snapshot에서 제외하므로 현재 Enemy flags에는 attacking bit만 예약한다. codec은 count 기반 배열을 읽기 전에 남은 길이를 검증하고, enum·flag·Enemy ID와 전체 4096-byte packet 상한을 검증한다.
 
 `SnapshotProjectileState`는 `networkId`, `kind`, 위치와 이동 방향만 가진다. owner Enemy id, `homeRoom`, 피해량과 남은 수명은 서버 내부 상태다. 만료되거나 충돌한 Projectile은 다음 Snapshot 배열에서 빠지며 클라이언트는 대응하는 `NetworkProjectile`을 제거한다.
+
+Snapshot은 최신 지속 상태를 덮어써도 되지만 공격 효과처럼 한 번 발생한 사건은 중간 값을 버리면 안 된다. 서버는 `C2S_Input`의 공격 의도를 Tick에서 승인한 뒤 `S2C_CombatEvent`를 생성하고, 같은 관심 Room의 모든 entered Session에 공격한 Session을 포함해 전송한다. 클라이언트는 받은 이벤트를 순서대로 모두 보관하고 main thread에서 한 번씩 소비한다.
+
+현재 CombatEvent payload는 6 byte다.
+
+```text
+[eventType:uint8][actorId:uint32][direction:uint8]
+```
+
+현재 event type은 `PlayerSwordAttack` 하나다. `actorId`는 표현을 붙일 `MyPlayer` 또는 `NetworkPlayer`를 식별하고, `direction`은 서버가 승인한 공격 방향을 고정한다. Room은 서버의 수신 대상 선택에만 사용하므로 wire에 넣지 않는다. 이벤트 ID, 대상 ID, 피해량, 좌표, 표현 시간, Sprite나 sound 이름은 현재 계약에 포함하지 않는다. 일반 검의 충돌·피해는 이미 서버에서 판정한다. `NetworkSwordEffect`는 로컬 0.5초 수명의 Sprite만 담당하고, 같은 클라이언트 이벤트 처리 경로가 효과음을 한 번 재생한다.
 
 ## 동시성과 소유권
 

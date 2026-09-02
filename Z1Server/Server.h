@@ -44,6 +44,7 @@ private:
 
 private:
     void Tick();
+    void BroadcastCombatEvents(const std::vector<PendingCombatEvent>& events);
     void BroadcastWorldSnapshot();
 
 private:

@@ -379,7 +379,46 @@ void Server::Tick()
 {
     //std::cout << "Server::Tick(10ms)\n";
     _overworld.Tick();
+    BroadcastCombatEvents(_overworld.TakeCombatEvents());
     BroadcastWorldSnapshot();
+}
+
+/// <summary>
+/// Simulation에서 공격 요청마다 쌓은 PendingCombatEvents를
+/// 매 틱에서 꺼내서 순회해
+/// 패킷을 하나 만들고, 같은 방에 속한 모든 세션에게 전파
+/// </summary>
+/// <param name="events"></param>
+void Server::BroadcastCombatEvents(const std::vector<PendingCombatEvent>& events)
+{
+    for (const PendingCombatEvent& pending : events)
+    {
+        std::vector<Byte> packet;
+        if (!BuildPacket_S2CCombatEvent(pending.event, packet))
+        {
+            continue;
+        }
+
+        for (const auto& session : _sessions)
+        {
+            if (!session->IsEntered())
+            {
+                continue;
+            }
+
+            auto playerId = session->GetPlayerId();
+            if (!playerId || !_overworld.IsPlayerInRoom(*playerId, pending.room))
+            {
+                continue;
+            }
+
+            // 패킷 하나를 돌려쓰는 입장이라, move()가 아니라 임시값 만들어서 넘겨야 함
+            if(!session->Send(std::vector<Byte>(packet)))
+            {
+                CloseSession(*session);
+            }
+        }
+    }
 }
 
 /// <summary>

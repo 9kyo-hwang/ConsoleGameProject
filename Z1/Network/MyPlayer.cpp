@@ -29,6 +29,9 @@ void MyPlayer::Tick(float deltaTime)
         return;
     }
 
+    // 현재 자신의 스프라이트 생성 및 사운드 재생은 actionFlags 함께 검사함으로서 시각화 가능
+    // 다만 이 방식은 다른 NetworkPlayer들에게 
+
     if (game.SendNetworkInput(dir, actionFlags))
     {
         _lastSentMoveDir = dir;

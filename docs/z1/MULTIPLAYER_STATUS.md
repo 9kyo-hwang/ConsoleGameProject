@@ -10,7 +10,7 @@
 
 TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Projectile 공격이 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 BlockingMap 충돌을 통과한 Player 좌표와 수신 Player의 관심 Room에 속한 Enemy·Projectile을 `S2C_WorldSnapshot`으로 전송한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다. IOCP completion port HANDLE은 `CompletionPort`가 RAII로 소유한다.
 
-네트워크 모드의 Player·Enemy·Projectile 위치와 HP·사망은 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 BlockingMap 충돌과 전역 Enemy 초기 스폰, Moblin의 Room 내부 A* 추적 이동·Spear 발사, Projectile의 Player 피격·사망, Player 일반 검의 Enemy 피격·사망까지 적용됐다. 클라이언트는 local Snapshot 좌표로 배경과 View의 Room 표현을 바꾸고 Snapshot에서 빠진 사망 Enemy 표현을 제거한다. 검 Sprite·효과음과 최대 HP SwordBeam은 아직 없다.
+네트워크 모드의 Player·Enemy·Projectile 위치와 HP·사망은 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 BlockingMap 충돌과 전역 Enemy 초기 스폰, Moblin의 Room 내부 A* 추적 이동·Spear 발사, Projectile의 Player 피격·사망, Player 일반 검의 Enemy 피격·사망까지 적용됐다. 클라이언트는 local Snapshot 좌표로 배경과 View의 Room 표현을 바꾸고 Snapshot에서 빠진 사망 Enemy 표현을 제거한다. 서버가 승인한 일반 검 공격은 `S2C_CombatEvent`로 같은 Room의 클라이언트에 전파하며, 각 클라이언트가 표현 전용 `NetworkSwordEffect`와 공격 효과음을 재생한다. 최대 HP SwordBeam은 아직 없다.
 
 ## 구현 완료
 
@@ -20,9 +20,10 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - Z1과 Z1Server의 Sockets 링크 및 DLL staging
 - `Z1Shared`의 protocol enum, network byte order 직렬화, packet codec과 `PacketFramer`
 - 4~4096 byte packet 크기 검증과 누적 수신 buffer 상한
-- protocol version 3의 Enter, Input, WorldSnapshot codec
+- protocol version 4의 Enter, Input, WorldSnapshot, CombatEvent codec
 - Player 18-byte·Enemy 19-byte·Projectile 14-byte 배열과 count/남은 payload 길이 검증
 - Enemy/Projectile kind, facing/direction, flags와 non-zero 객체 ID 검증
+- 6-byte CombatEvent payload의 event type, actorId, cardinal direction과 정확한 payload 길이 검증
 
 ### Z1Server
 
@@ -51,13 +52,15 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 일반 검은 좌우 10×3·상하 6×5 Box로 같은 Room의 살아 있는 Enemy를 검사하고, 겹친 대상 중 가장 작은 network ID 하나에 피해 1 적용
 - `Enemy::TakeDamage()`가 실제 피해량만큼 HP를 낮추고 HP 0에서 dead 상태 확정
 - dead Enemy는 전역 registry에 유지하되 Tick과 일반 Snapshot에서 제외
+- 서버 Tick에서 승인된 정지 일반 검 공격마다 Player id·facing과 관심 Room을 `PendingCombatEvent`로 한 번 기록
+- Tick 뒤 쌓인 CombatEvent를 꺼내 공격 Player와 같은 관심 Room의 entered Session에 전송하며 공격한 Session도 수신 대상에 포함
 - entered Session마다 해당 Player의 관심 Room에 속한 Player·Enemy·Projectile Snapshot을 작성
 
 ### Z1 클라이언트
 
 - `Game`이 소유하는 select 기반 `NetworkClient`
 - network thread와 main thread 사이의 bounded incoming/outgoing queue
-- Enter/Snapshot parsing과 방향·공격 입력 전송
+- Enter/Snapshot/CombatEvent parsing과 방향·공격 입력 전송
 - HUD의 online 상태, local playerId, server tick과 player count 표시
 - main thread에서 local `MyPlayer`와 원격 `NetworkPlayer` 생성·갱신·제거
 - main thread에서 Snapshot의 `NetworkEnemy` 생성·갱신·제거
@@ -66,6 +69,9 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 온라인 중 기존 `Player`의 로컬 이동·공격·Enemy 처리와 충돌 판정을 실행하지 않음
 - local `MyPlayer`의 서버 Snapshot 좌표가 다른 Room에 들어가면 Room 배경과 View 갱신
 - Snapshot HP와 dead flag를 `MyPlayer`와 HUD에 반영하고 dead 상태에서는 입력 전송을 중지
+- `Game`이 순서가 중요한 CombatEvent를 별도 queue에 모두 보관하고 `OverworldLevel`이 main thread에서 소비
+- 일반 검 이벤트의 actorId로 `MyPlayer` 또는 `NetworkPlayer`를 찾고, facing별 로컬 오프셋에 표현 전용 `NetworkSwordEffect`를 부착
+- `NetworkSwordEffect`는 충돌·피해 판정 없이 검 Sprite를 0.5초 표시한 뒤 제거되며 각 수신 클라이언트가 검 공격 효과음을 한 번 재생
 
 ## 확인한 동작
 
@@ -88,7 +94,10 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - Player facing 앞의 Sword AABB와 겹친 같은 Room Enemy 한 명만 사망하며 범위 밖·반대 방향 Enemy는 영향을 받지 않는 것 확인
 - 사망 Enemy가 즉시 이동·Projectile 발사를 중단하고 두 클라이언트의 Snapshot 표현에서 함께 제거되는 것 확인
 - Enemy가 사망한 Room을 나갔다 다시 들어와도 해당 Enemy가 재등장하지 않는 것 확인
-- Projectile wire format을 포함한 server framing suite와 Z1Server·Z1 빌드 통과
+- 방향별 일반 검 Sprite 위치와 0.5초 뒤 제거, 빗나간 공격을 포함한 공격 효과음 1회 재생 확인
+- 같은 Room의 실제 Z1 두 개에서 한 Player의 일반 검 CombatEvent가 양쪽에 전달되어 해당 NetworkPlayer 위치에 표현되는 것 확인
+- 이동 중 공격 차단, 단일 입력의 1회 공격과 빠른 연속 입력 횟수만큼의 공격·표현 발생 확인
+- CombatEvent wire format을 포함한 server framing suite와 Z1Server·Z1 빌드 통과
 
 재현 명령은 [Z1 검증](TESTING.md)에 기록한다.
 
@@ -101,9 +110,9 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - Enemy의 `homeRoom` 후보 검사는 좌상단 좌표 기준이다. `CanPlaceEnemy()`는 전체 8×5 Box를 검사하지만, Box 전체의 Room 경계 검사는 강화 대상이다.
 - Player-Enemy 몸체 충돌과 접촉 피해는 아직 없다.
 - Enemy 스폰은 BlockingMap의 전체 8×5 Box 통과 가능 여부만 검사한다. 같은 Room 안의 Enemy 위치 중복 방지는 아직 없다.
-- 일반 검은 서버에서 즉시 한 번 판정되지만 검 Sprite와 `PlayOneShot` 표현은 아직 없다. `PlayerStateAttacking`과 `EnemyStateAttacking`의 실제 사용 여부 및 공격 이벤트 복제 방식은 검 표현 작업 전에 다시 결정한다.
+- 일반 검 표현은 `S2C_CombatEvent`의 단발 이벤트로 처리하므로 현재 `PlayerStateAttacking`과 `EnemyStateAttacking` flag는 사용하지 않는다. 지속 animation이나 방어 상태처럼 Snapshot에 유지할 공격 상태가 생길 때 존치 여부를 다시 결정한다.
 - 최대 HP SwordBeam은 서버 Projectile과 protocol `ProjectileKind`에 아직 없다. 현재 서버 일반 검 판정은 Player HP와 관계없이 동일하게 적용된다.
-- 일반 검의 좌우 10×3·상하 6×5 범위는 싱글플레이 Sword Sprite 크기를 사용한다. 네트워크 검 표현이 없어 체감 범위가 크게 느껴질 수 있으며, 시각 표현과 함께 판정 크기를 조정할 수 있다.
+- 일반 검의 좌우 10×3·상하 6×5 범위는 싱글플레이 Sword Sprite 크기를 사용한다. 시각 표현과 실제 판정 범위의 체감이 맞지 않으면 이 상수만 조정한다.
 - Moblin Projectile은 현재 Spear 한 종류, 고정 피해량 1, lifetime 40 Tick이며 별도 공격 상태나 animation flag는 없다.
 - Projectile은 현재 이동 후보 위치에서 Player 충돌을 검사한다. 방패, 무적 시간, 넉백과 Player별 피격 cooldown은 아직 없다.
 - 현재 구현은 서버 연결 종료 후 싱글플레이 fallback을 시도하지만 정상 동작하지 않는다. 시작 Room이 아닌 곳에서 서버를 종료하면 HUD는 `[OFFLINE]`으로 바뀌어도 기존 네트워크 Player가 남고, 오프라인 `Player`가 하나 생성되어도 키보드 입력이 반영되지 않는 상황이 재현된다. 네트워크 Enemy 등 표현 Actor가 로컬 Actor와 함께 남아 보일 수도 있다.
@@ -120,6 +129,6 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 
 플레이 모드 선택과 Title 복귀 정책은 문서화만 완료했으며 지금 바로 구현하지 않는다. 현재 코드의 미완성 fallback에는 새 보정 로직을 더 추가하지 않고, 향후 플레이 모드 분리 작업에서 제거한다.
 
-다음 전투 작업은 일반 검의 표현·효과음 동기화 방식과 최대 HP SwordBeam의 서버 Projectile 확장 중 어느 것을 먼저 할지 결정한 뒤 진행한다. 일반 검 판정 결과는 이미 서버에서 확정되므로 클라이언트 표현 Actor에는 충돌이나 피해 책임을 주지 않는다. Octorok·Tektite AI, 방패·무적·넉백, 범용 서버 Actor/Pawn 계층과 Enemy 상태 머신은 뒤로 미룬다. 플레이 모드 분리는 별도 작업 단위로 진행한다.
+다음 전투 작업 후보는 최대 HP SwordBeam의 서버 Projectile 확장이다. 일반 검 CombatEvent는 현재 `PlayerSwordAttack` 한 종류만 지원하며, 피격·사망 효과음은 Snapshot HP/dead 변화로 재생한다. Octorok·Tektite AI, 방패·무적·넉백, 범용 서버 Actor/Pawn 계층과 Enemy 상태 머신은 뒤로 미룬다. 플레이 모드 분리는 별도 작업 단위로 진행한다.
 
-Enemy·IOCP 확장 후보의 도입 조건과 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다. 이후 순서는 Player 공격과 Enemy 사망, Session 제거와 안전한 종료다. 완료되지 않은 항목을 구현된 현재 구조처럼 설계 문서에 옮겨 적지 않는다.
+Enemy·IOCP 확장 후보의 도입 조건과 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다. 이후 전투 범위와 별개로 Session 제거와 안전한 종료가 남아 있다. 완료되지 않은 항목을 구현된 현재 구조처럼 설계 문서에 옮겨 적지 않는다.

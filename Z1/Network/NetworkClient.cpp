@@ -95,8 +95,8 @@ bool NetworkClient::Start(const Net::Endpoint& endpoint)
         return false;
     }
 
-    _stopRequested.exchange(false);
-    _connected.exchange(true);
+    _stopRequested.store(false);
+    _connected.store(true);
     _thread = std::thread(&NetworkClient::NetworkLoop, this);
     
     return true;
@@ -382,6 +382,7 @@ bool NetworkClient::HandleServerPacket(PacketType type, std::span<const Byte> pa
     {
     case PacketType::S2C_Enter: return HandleEnter(payload);
     case PacketType::S2C_WorldSnapshot: return HandleWorldSnapshot(payload);
+    case PacketType::S2C_CombatEvent: return HandleCombatEvent(payload);
     default: return false;
     }
 }
@@ -406,4 +407,15 @@ bool NetworkClient::HandleWorldSnapshot(std::span<const Byte> payload)
     }
 
     return PushIncomingMessage(IncomingMessage{ std::move(snapshot) });
+}
+
+bool NetworkClient::HandleCombatEvent(std::span<const Z1::Protocol::Byte> payload)
+{
+    CombatEvent event;
+    if (!ParsePayload_S2CCombatEvent(payload, event))
+    {
+        return false;
+    }
+
+    return PushIncomingMessage(IncomingMessage{std::move(event)});
 }

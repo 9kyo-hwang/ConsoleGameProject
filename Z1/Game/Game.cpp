@@ -11,6 +11,7 @@
 #include <Sockets/Endpoint.h>
 
 using namespace Net;
+using namespace Z1::Protocol;
 
 Game::Game()
 {
@@ -99,6 +100,10 @@ void Game::PumpNetwork()
                 else if constexpr (std::is_same_v<T, WorldSnapshot>)
                 {
                     _latestSnapshot = received;
+                }
+                else if constexpr (std::is_same_v<T, CombatEvent>)
+                {
+                    _pendingCombatEvents.emplace_back(received);
                 }
             }, message);
     }
