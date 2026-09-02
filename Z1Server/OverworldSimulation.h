@@ -32,6 +32,7 @@ public:
 
         Z1::Protocol::InputCommand latestInput{};
         std::optional<std::uint32_t> lastInputSequence;
+        bool attackRequested = false;   // 다음 입력이 올 때까지 flag가 유지되어, '1회'만 발동하도록 플래그
     };
 
 public:
@@ -68,6 +69,7 @@ private:
 
     bool TickProjectile(Projectile& projectile);
     bool TryHitPlayer(const Projectile& projectile, Vector2Int candidate);
+    bool TryHitEnemy(ServerPlayerState& player);    // 플레이어 근접 검 공격
 
 private:
     RoomNavigationGrid BuildNavigationGrid(ServerRoomCoordinate room) const;

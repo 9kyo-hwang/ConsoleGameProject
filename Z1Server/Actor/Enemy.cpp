@@ -29,6 +29,21 @@ void Enemy::MoveTo(Vector2Int position, MoveDirection facing)
     _facing = facing;
 }
 
+std::int32_t Enemy::TakeDamage(std::int32_t damage)
+{
+    if (damage <= 0 || IsDead()) return 0;
+
+    std::int32_t actualDamage = std::min<std::int32_t>(_hp, damage);
+    _hp -= actualDamage;
+
+    if (_hp == 0)
+    {
+        _dead = true;
+    }
+
+    return actualDamage;
+}
+
 Vector2Int Enemy::GetProjectileSpawnPosition()
 {
     return Vector2Int

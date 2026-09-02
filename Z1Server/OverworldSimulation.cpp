@@ -5,6 +5,7 @@
 #include <array>
 #include <random>
 #include <Actor/Enemy.h>
+#include <utility>
 
 using namespace Z1::Protocol;
 
@@ -283,6 +284,12 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
 
     player.lastInputSequence = input.sequence;
     player.latestInput = input;
+    if ((input.actionFlags & InputActionAttack) != 0)
+    {
+        player.attackRequested = true;
+    }
+
+    player.latestInput.actionFlags = 0;  // 1회만 적용되도록
 
     std::cout << "[C2S_Input] player=" << playerId
         << ", sequence=" << input.sequence
@@ -364,31 +371,35 @@ void OverworldSimulation::Tick()
     // 1. 플레이어 위치 갱신하고
     for (auto& [id, player] : _players)
     {
+        const bool attackRequested = std::exchange(player.attackRequested, false);
+
         if (player.dead)
         {
             continue;
         }
 
         const MoveDirection direction = player.latestInput.moveDirection;
-        if (direction == MoveDirection::None)
+        if (direction != MoveDirection::None)
         {
-            continue;
-        }
+            // 입력이 있으면 막히더라도 방향은 바뀜
+            player.facing = direction;
 
-        // 입력이 있으면 막히더라도 방향은 바뀜
-        player.facing = direction;
-
-        const Vector2Int delta = GetMoveDelta(direction);
-        for (std::int32_t step = 0; step < PlayerMoveCellsPerTick; ++step)
-        {
-            const std::int32_t candidateX = player.x + delta.x;
-            const std::int32_t candidateY = player.y + delta.y;
-
-            if (CanPlacePlayer(candidateX, candidateY))
+            const Vector2Int delta = GetMoveDelta(direction);
+            for (std::int32_t step = 0; step < PlayerMoveCellsPerTick; ++step)
             {
-                player.x = candidateX;
-                player.y = candidateY;
+                const std::int32_t candidateX = player.x + delta.x;
+                const std::int32_t candidateY = player.y + delta.y;
+
+                if (CanPlacePlayer(candidateX, candidateY))
+                {
+                    player.x = candidateX;
+                    player.y = candidateY;
+                }
             }
+        }
+        else if (attackRequested)   // 이동 중이 아니면서 공격 요청이 들어왔다면
+        {
+            TryHitEnemy(player);
         }
     }
 
@@ -646,6 +657,93 @@ bool OverworldSimulation::TryHitPlayer(const Projectile& projectile, Vector2Int 
     }
 
     return false;
+}
+
+bool OverworldSimulation::TryHitEnemy(ServerPlayerState& player)
+{
+    constexpr std::int32_t HorizontalSwordWidth = 10;
+    constexpr std::int32_t HorizontalSwordHeight = 3;
+    constexpr std::int32_t VerticalSwordWidth = 6;
+    constexpr std::int32_t VerticalSwordHeight = 5;
+
+    // 플레이어: 8 x 5 
+    // -> 좌우에서 Top 기준 + 1하면 중앙으로 맞춰짐
+    // -> 상하에서 Left 기준 + 1하면 중앙으로 맞춰짐
+
+    // 검 공격 영역의 Left/Top 및 Width/Height
+    std::int32_t left = 0;
+    std::int32_t top = 0;
+    std::int32_t width = 0;
+    std::int32_t height = 0;
+
+    switch (player.facing)
+    {
+    case MoveDirection::Right:
+    {
+        left = player.x + PlayerBoxWidth;
+        top = player.y + 1;
+        width = HorizontalSwordWidth;
+        height = HorizontalSwordHeight;
+        break;
+    }
+    case MoveDirection::Left:
+    {
+        left = player.x - HorizontalSwordWidth;
+        top = player.y + 1;
+        width = HorizontalSwordWidth;
+        height = HorizontalSwordHeight;
+        break;
+    }
+    case MoveDirection::Up:
+    {
+        left = player.x + 1;
+        top = player.y - VerticalSwordHeight;
+        width = VerticalSwordWidth;
+        height = VerticalSwordHeight;
+        break;
+    }
+    case MoveDirection::Down:
+    {
+        left = player.x + 1;
+        top = player.y + PlayerBoxHeight;
+        width = VerticalSwordWidth;
+        height = VerticalSwordHeight;
+        break;
+    }
+    default: return false;
+    }
+
+    const auto room = GetRoomAt(player.x, player.y);
+    if (!room) return false;
+
+    Enemy* target = nullptr;
+    for (auto& [id, enemy] : _enemies)
+    {
+        if (enemy.IsDead() || enemy.GetHomeRoom() != *room)
+        {
+            continue;
+        }
+
+        Vector2Int enemyPos = enemy.GetPosition();
+        bool overlaps =
+            left < enemyPos.x + Enemy::BoxWidth &&
+            enemyPos.x < left + width &&
+            top < enemyPos.y + Enemy::BoxHeight &&
+            enemyPos.y < top + height;
+
+        if (!overlaps) continue;
+
+        // 하나의 적만 공격하도록 ID 가장 작은 것만.
+        if (!target || enemy.GetId() < target->GetId())
+        {
+            target = &enemy;
+        }
+    }
+
+    if (!target) return false;
+
+    target->TakeDamage(1);
+    return true;
 }
 
 RoomNavigationGrid OverworldSimulation::BuildNavigationGrid(ServerRoomCoordinate room) const

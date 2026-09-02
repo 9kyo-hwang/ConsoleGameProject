@@ -10,7 +10,7 @@
 
 TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Projectile 공격이 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 BlockingMap 충돌을 통과한 Player 좌표와 수신 Player의 관심 Room에 속한 Enemy·Projectile을 `S2C_WorldSnapshot`으로 전송한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다. IOCP completion port HANDLE은 `CompletionPort`가 RAII로 소유한다.
 
-네트워크 모드의 Player·Enemy·Projectile 위치와 Player HP는 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 BlockingMap 충돌과 전역 Enemy 초기 스폰, Moblin의 Room 내부 A* 추적 이동·Spear 발사, Projectile의 이동·제거와 Player 피격·사망까지 적용됐다. 클라이언트는 local Snapshot 좌표로 배경과 View의 Room 표현을 바꾸고 `NetworkProjectile`을 표시한다. Player Sword 공격과 Enemy 피격·사망은 아직 없다.
+네트워크 모드의 Player·Enemy·Projectile 위치와 HP·사망은 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 BlockingMap 충돌과 전역 Enemy 초기 스폰, Moblin의 Room 내부 A* 추적 이동·Spear 발사, Projectile의 Player 피격·사망, Player 일반 검의 Enemy 피격·사망까지 적용됐다. 클라이언트는 local Snapshot 좌표로 배경과 View의 Room 표현을 바꾸고 Snapshot에서 빠진 사망 Enemy 표현을 제거한다. 검 Sprite·효과음과 최대 HP SwordBeam은 아직 없다.
 
 ## 구현 완료
 
@@ -46,6 +46,11 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - active Room의 Projectile을 한 server cell씩 이동하고 BlockingMap, Room 경계, 수명 만료 시 registry에서 제거
 - Projectile의 다음 위치와 Player Box를 AABB로 검사해 충돌 시 Player HP를 감소시키고 Projectile을 제거
 - HP가 0이 된 Player는 dead 상태로 전환하고 이동 입력을 정지하며 Enemy 추적 대상에서 제외
+- `C2S_Input`의 `InputActionAttack`을 지속 이동 상태와 분리된 `attackRequested`로 보관하고 다음 Tick에서 한 번만 소비
+- 이동 입력이 있으면 이동만 처리하고, 정지 상태의 공격 요청에만 방향 기준 Sword AABB 판정 적용
+- 일반 검은 좌우 10×3·상하 6×5 Box로 같은 Room의 살아 있는 Enemy를 검사하고, 겹친 대상 중 가장 작은 network ID 하나에 피해 1 적용
+- `Enemy::TakeDamage()`가 실제 피해량만큼 HP를 낮추고 HP 0에서 dead 상태 확정
+- dead Enemy는 전역 registry에 유지하되 Tick과 일반 Snapshot에서 제외
 - entered Session마다 해당 Player의 관심 Room에 속한 Player·Enemy·Projectile Snapshot을 작성
 
 ### Z1 클라이언트
@@ -79,6 +84,10 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - Moblin만 Spear를 생성하며 Spear가 Snapshot 기반 `NetworkProjectile`로 표시되는 것 확인
 - Spear가 blocked tile, `homeRoom` 경계 또는 lifetime 40 Tick에 도달하면 제거되는 것 확인
 - Spear가 Player Box에 닿으면 HP가 1 감소해 HUD에 반영되고, HP 0에서 입력이 중지되며 Enemy가 해당 Player를 더 이상 추적하지 않는 것 확인
+- 정지 상태에서 A 입력 한 번이 공격 요청으로 한 번만 소비되고, 이동 중 A 입력은 일반 검 공격으로 처리되지 않는 것 확인
+- Player facing 앞의 Sword AABB와 겹친 같은 Room Enemy 한 명만 사망하며 범위 밖·반대 방향 Enemy는 영향을 받지 않는 것 확인
+- 사망 Enemy가 즉시 이동·Projectile 발사를 중단하고 두 클라이언트의 Snapshot 표현에서 함께 제거되는 것 확인
+- Enemy가 사망한 Room을 나갔다 다시 들어와도 해당 Enemy가 재등장하지 않는 것 확인
 - Projectile wire format을 포함한 server framing suite와 Z1Server·Z1 빌드 통과
 
 재현 명령은 [Z1 검증](TESTING.md)에 기록한다.
@@ -91,9 +100,10 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - A* 이동은 현재 Moblin에만 적용된다. 목표와 경로는 이동 기회마다 다시 계산하며, target/path cache는 아직 두지 않는다. Octorok과 Tektite는 정적 상태다.
 - Enemy의 `homeRoom` 후보 검사는 좌상단 좌표 기준이다. `CanPlaceEnemy()`는 전체 8×5 Box를 검사하지만, Box 전체의 Room 경계 검사는 강화 대상이다.
 - Player-Enemy 몸체 충돌과 접촉 피해는 아직 없다.
-- Player Sword-Enemy 충돌, Enemy HP 감소·사망과 사망 상태 동기화는 아직 없다.
 - Enemy 스폰은 BlockingMap의 전체 8×5 Box 통과 가능 여부만 검사한다. 같은 Room 안의 Enemy 위치 중복 방지는 아직 없다.
-- 공격 flag는 edge로 전송되지만 서버는 parsing·저장만 하고 Player Sword 공격 판정에는 아직 사용하지 않는다. 구현 시 한 Tick에서 한 번만 소비해야 한다.
+- 일반 검은 서버에서 즉시 한 번 판정되지만 검 Sprite와 `PlayOneShot` 표현은 아직 없다. `PlayerStateAttacking`과 `EnemyStateAttacking`의 실제 사용 여부 및 공격 이벤트 복제 방식은 검 표현 작업 전에 다시 결정한다.
+- 최대 HP SwordBeam은 서버 Projectile과 protocol `ProjectileKind`에 아직 없다. 현재 서버 일반 검 판정은 Player HP와 관계없이 동일하게 적용된다.
+- 일반 검의 좌우 10×3·상하 6×5 범위는 싱글플레이 Sword Sprite 크기를 사용한다. 네트워크 검 표현이 없어 체감 범위가 크게 느껴질 수 있으며, 시각 표현과 함께 판정 크기를 조정할 수 있다.
 - Moblin Projectile은 현재 Spear 한 종류, 고정 피해량 1, lifetime 40 Tick이며 별도 공격 상태나 animation flag는 없다.
 - Projectile은 현재 이동 후보 위치에서 Player 충돌을 검사한다. 방패, 무적 시간, 넉백과 Player별 피격 cooldown은 아직 없다.
 - 현재 구현은 서버 연결 종료 후 싱글플레이 fallback을 시도하지만 정상 동작하지 않는다. 시작 Room이 아닌 곳에서 서버를 종료하면 HUD는 `[OFFLINE]`으로 바뀌어도 기존 네트워크 Player가 남고, 오프라인 `Player`가 하나 생성되어도 키보드 입력이 반영되지 않는 상황이 재현된다. 네트워크 Enemy 등 표현 Actor가 로컬 Actor와 함께 남아 보일 수도 있다.
@@ -110,6 +120,6 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 
 플레이 모드 선택과 Title 복귀 정책은 문서화만 완료했으며 지금 바로 구현하지 않는다. 현재 코드의 미완성 fallback에는 새 보정 로직을 더 추가하지 않고, 향후 플레이 모드 분리 작업에서 제거한다.
 
-게임 기능 작업을 재개할 때는 Player Sword-Enemy 충돌, Enemy HP 감소·사망과 Snapshot 제거를 현재 Projectile AABB 방식에 맞춰 최소 구현한다. Octorok·Tektite AI, 방패·무적·넉백, 범용 서버 Actor/Pawn 계층과 Enemy 상태 머신은 이 vertical slice 뒤로 미룬다. 플레이 모드 분리는 별도 작업 단위로 진행한다.
+다음 전투 작업은 일반 검의 표현·효과음 동기화 방식과 최대 HP SwordBeam의 서버 Projectile 확장 중 어느 것을 먼저 할지 결정한 뒤 진행한다. 일반 검 판정 결과는 이미 서버에서 확정되므로 클라이언트 표현 Actor에는 충돌이나 피해 책임을 주지 않는다. Octorok·Tektite AI, 방패·무적·넉백, 범용 서버 Actor/Pawn 계층과 Enemy 상태 머신은 뒤로 미룬다. 플레이 모드 분리는 별도 작업 단위로 진행한다.
 
 Enemy·IOCP 확장 후보의 도입 조건과 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다. 이후 순서는 Player 공격과 Enemy 사망, Session 제거와 안전한 종료다. 완료되지 않은 항목을 구현된 현재 구조처럼 설계 문서에 옮겨 적지 않는다.

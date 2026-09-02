@@ -72,7 +72,19 @@ Z1Server를 실행한 뒤 실제 Z1을 Enemy가 생성되는 Overworld Room으�
 
 Moblin이 같은 Room의 살아 있는 Player를 A*로 추적하고 Spear를 발사하는지 확인한다. Spear는 `NetworkProjectile`의 `-` 또는 `|`로 표시되어야 하며 blocked tile, Room 경계 또는 lifetime 40 Tick에서 사라져야 한다. Player와 겹치면 Spear가 사라지고 HP가 1 감소해야 한다. HP 0에서는 입력이 중지되고 Moblin이 해당 Player를 추적 대상으로 고르지 않아야 한다.
 
-현재 Player와 Enemy 몸체는 서로를 막지 않으며 접촉 피해도 없다. Player Sword-Enemy 피해, 방패, 피격 무적과 넉백도 네트워크 모드에는 아직 없다. Enemy 스폰 위치는 8×5 Box 전체가 `BlockingMap`의 통행 가능 타일에 들어가는지로 확인한다. 같은 Room 내 위치 중복은 아직 허용되는 알려진 제약이다.
+현재 Player와 Enemy 몸체는 서로를 막지 않으며 접촉 피해도 없다. 방패, 피격 무적과 넉백도 네트워크 모드에는 아직 없다. Enemy 스폰 위치는 8×5 Box 전체가 `BlockingMap`의 통행 가능 타일에 들어가는지로 확인한다. 같은 Room 내 위치 중복은 아직 허용되는 알려진 제약이다.
+
+### 서버 Player 일반 검과 Enemy 사망
+
+Enemy가 있는 Room에서 Player가 정지한 상태로 Enemy를 바라보고 A를 한 번 누른다. 일반 검은 현재 보이지 않지만 서버가 좌우 10×3·상하 6×5 AABB로 같은 Room의 살아 있는 Enemy를 검사한다.
+
+- 한 번의 A 입력이 한 번만 소비되고 겹친 Enemy 중 network ID가 가장 작은 한 명만 피해를 받는다.
+- 이동 방향키를 누른 상태에서 A를 눌러도 일반 검 공격이 실행되지 않는다. 방향키를 놓은 뒤 이전 공격 요청이 뒤늦게 실행되어서도 안 된다.
+- facing 앞의 범위 안 Enemy만 사망하고 범위 밖이나 반대 방향 Enemy는 유지된다.
+- 사망 Enemy는 즉시 이동과 Projectile 생성을 중단하고, 같은 Room을 보는 모든 Z1 클라이언트에서 제거된다.
+- Room을 나갔다 돌아와도 사망 Enemy는 다시 나타나지 않는다.
+
+현재 모든 Enemy HP는 1이고 일반 검 피해도 1이므로 피격과 사망이 동시에 일어난다. 검 Sprite·공격 효과음, 최대 HP SwordBeam과 Player/Enemy 공격 상태 flag 표현은 이 검증 범위에 포함하지 않는다.
 
 ### 서버 종료 후 offline fallback — 폐기 예정인 현재 동작
 
