@@ -127,8 +127,6 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 
 ## 다음 구현 단위
 
-플레이 모드 선택과 Title 복귀 정책은 문서화만 완료했으며 지금 바로 구현하지 않는다. 현재 코드의 미완성 fallback에는 새 보정 로직을 더 추가하지 않고, 향후 플레이 모드 분리 작업에서 제거한다.
+재구성한 전체 순서와 단계별 완료 조건은 [멀티플레이 잔여 작업 로드맵](MULTIPLAYER_ROADMAP.md)을 따른다. 바로 다음 작업은 서버가 실제 계산한 현재 Room의 모든 Moblin A* 최종 경로를 클라이언트에서 켜고 끌 수 있게 시각화하는 것이다.
 
-다음 전투 작업 후보는 최대 HP SwordBeam의 서버 Projectile 확장이다. 일반 검 CombatEvent는 현재 `PlayerSwordAttack` 한 종류만 지원하며, 피격·사망 효과음은 Snapshot HP/dead 변화로 재생한다. Octorok·Tektite AI, 방패·무적·넉백, 범용 서버 Actor/Pawn 계층과 Enemy 상태 머신은 뒤로 미룬다. 플레이 모드 분리는 별도 작업 단위로 진행한다.
-
-Enemy·IOCP 확장 후보의 도입 조건과 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다. 이후 전투 범위와 별개로 Session 제거와 안전한 종료가 남아 있다. 완료되지 않은 항목을 구현된 현재 구조처럼 설계 문서에 옮겨 적지 않는다.
+그 뒤 동일 PC 입력 분리, Session 수명과 서버 종료, Local/Multiplayer 모드 분리와 fallback 제거, Player 사망 후 Title 복귀, Enemy 7초 리스폰 순으로 진행한다. SwordBeam·방패·무적·넉백과 Octorok·Tektite 고유 AI는 필수 범위가 끝난 뒤 시간이 남을 때만 재검토한다. Enemy·IOCP 확장 후보의 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다.

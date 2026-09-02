@@ -52,6 +52,7 @@ Network Overworld
 - Local Play를 선택하면 서버 실행 여부와 관계없이 연결을 시도하지 않는다.
 - Multiplayer를 선택하면 Overworld 진입 전에 서버 연결과 `S2C_Enter` 수신이 필요하다. 대기 중에는 별도 Loading Level을 만들지 않고 Title에 `Connecting...`을 표시하며 게임 월드를 시작하지 않는다.
 - Multiplayer 중 transport 종료, 서버 종료, protocol 오류가 발생하면 자동 재접속하거나 현재 위치에서 Local Play로 이어가지 않는다.
+- Multiplayer의 local Player가 사망하면 같은 네트워크 정리 경로로 Title에 바로 복귀하고 약 3초간 사망 메시지를 표시한다. 다른 Player의 세션과 서버 월드는 계속 유지하며, 다시 입장하면 새 playerId와 초기 상태로 시작한다.
 - 연결 종료 처리는 `Game`의 한 경로에서 수행한다. `NetworkClient` thread를 정지·join하고 queue, framer, partial send, input sequence, local playerId와 마지막 Snapshot을 초기화한 뒤 Title로 전환한다. 떠나는 Network Overworld의 Actor는 Level 종료 과정에서 제거한다.
 - Title에는 메뉴 아래 영역에 연결 실패와 플레이 중 연결 종료를 구분하는 짧은 메시지를 약 3초간 표시한다. 상세 WinSock 오류나 protocol 진단은 로그에만 남기고, 메시지가 표시되는 동안에도 메뉴 입력과 Multiplayer 재시도를 허용한다.
 - Local Play의 Player 상태와 Multiplayer Snapshot 상태 사이에는 HP·위치·아이템을 승계하지 않는다.
@@ -186,8 +187,8 @@ Overworld의 Enemy는 서버가 시작할 때 한 번 결정적으로 생성하�
 - `ServerEnemy`는 안정적인 `networkId`, 종류, `homeRoom`, 최초 `spawnPosition`과 현재 전투 상태를 가진다. `homeRoom`은 생성 뒤 바뀌지 않는다.
 - 초기 스폰은 월드 seed와 `homeRoom`으로 결정한다. 같은 seed로 시작한 서버는 같은 초기 Enemy 배치를 만든다. 이후 처치 여부와 위치는 seed가 아니라 서버의 실제 상태가 원본이다.
 - Enemy는 `homeRoom` 밖으로 이동하지 않는다. Projectile은 명시한 수명 또는 Room 경계에서 제거하며, 마지막 Player가 Room을 떠날 때도 제거한다.
-- Enemy가 사망하면 `dead` 상태로 남고 일반 Snapshot에는 포함하지 않는다. 최초 MVP에는 자동 리스폰을 넣지 않는다.
-- 리스폰이 필요해질 때는 새 seed나 새 Enemy를 만들지 않는다. 죽은 Enemy에 `respawnAtTick`을 기록하고, 시간이 되면 같은 `networkId`와 `spawnPosition`으로 상태를 초기화한다.
+- Enemy가 사망하면 `dead` 상태로 남고 일반 Snapshot에는 포함하지 않는다. 죽은 Enemy에는 20Hz 기준 140 Tick 뒤의 `respawnAtTick`을 기록한다.
+- 약 7초가 지나면 같은 `networkId`와 `spawnPosition`으로 상태를 초기화한다. 살아 있는 Player가 spawn Box를 점유 중이면 비워질 때까지 리스폰을 연기하며 다른 임의 위치는 찾지 않는다. Room이 비어 있어도 리스폰 시간은 흐른다.
 
 Room은 전역 월드 상태의 소유자가 아니라 simulation과 복제의 관심 영역이다. Player의 관심 Room은 서버가 수락한 월드 좌표에서 필요할 때 계산하며, 별도 `currentRoom` 필드로 영구 저장하지 않는다. `homeRoom`에 Player가 한 명 이상 있을 때만 그 Room의 Enemy와 Projectile을 Tick한다. 마지막 Player가 떠난 Room의 Enemy 상태는 전역 레지스트리에 그대로 보존하지만, 일시 객체인 Projectile은 제거한다.
 
