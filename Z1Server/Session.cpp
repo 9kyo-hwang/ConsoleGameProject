@@ -75,7 +75,9 @@ bool Session::TryPopRecvdPacket(Packet& outPacket)
     return true;
 }
 
-// 패킷을 queue에 넣고, send pending이 아니면 WSASend
+/// <summary>
+/// SendQueue에 완성된 패킷을 Push
+/// </summary>
 bool Session::Send(std::vector<Z1::Protocol::Byte>&& packet)
 {
     if (!_socket.IsValid() || packet.empty())
@@ -93,17 +95,24 @@ bool Session::Send(std::vector<Z1::Protocol::Byte>&& packet)
 
     _sendQueue.push_back(std::move(packet));
 
+    // WSASend가 이미 진행 중이라면 Queue에 Push만 하고 빠져나옴
     if (_sendPending)
     {
         return true;
     }
 
+    // Queue의 맨 앞 패킷 전송 시도
     return PostSend();
 }
 
-// 클라가 Send 이벤트를 완료했을 때
+/// <summary>
+/// ioThread가 CP로부터 완료 통지를 꺼냈는데 Send 이벤트인 경우 진입
+/// </summary>
+/// <param name="bytesTransferred"></param>
+/// <returns></returns>
 bool Session::HandleSend(DWORD bytesTransferred)
 {
+    // 전송에 실패했거나, 해당 패킷이 처리됐거나(실제 pop이 여기서 이뤄지므로)
     if (!_sendPending || _sendQueue.empty())
     {
         return false;
@@ -111,7 +120,6 @@ bool Session::HandleSend(DWORD bytesTransferred)
 
     const std::vector<Byte>& packet = _sendQueue.front();
     const size_t remainingSize = packet.size() - _sendOffset;
-
     if (bytesTransferred == 0 || bytesTransferred > remainingSize)
     {
         return false;
@@ -120,13 +128,14 @@ bool Session::HandleSend(DWORD bytesTransferred)
     _sendOffset += bytesTransferred;
     _sendPending = false;
 
-    // 아직 해당 패킷을 다 전송 못했으면 나머지 재등록
+    // 전송한 Front 패킷이 부분적으로만 전송된 경우
+    // Pop하지 않고 offset만 증가시킨 뒤 잔여 부분 다시 WSASend 시도
     if (_sendOffset < packet.size())
     {
         return PostSend();
     }
 
-    // 이번 패킷 전송 완료
+    // Front 패킷 전체 전송이 완료되어 pop + offset = 0
     _sendQueue.pop_front();
     _sendOffset = 0;
 
@@ -136,10 +145,14 @@ bool Session::HandleSend(DWORD bytesTransferred)
         return PostSend();
     }
 
+    // 보낼 패킷이 더 이상 없다면 pending = false로 두고 대기
     return true;
 }
 
-// 전송 큐 맨 앞 패킷에서 아직 못보낸 구간만 WSASend 등록
+/// <summary>
+/// SendQueue의 맨 앞 패킷의 [아직 전송되지 않은 구간]을 WSABUF로 만들어 WSASend 호출
+/// </summary>
+/// <returns></returns>
 bool Session::PostSend()
 {
     if (!_socket.IsValid() || _sendQueue.empty())
@@ -161,7 +174,7 @@ bool Session::PostSend()
     DWORD bytesSent = 0;
     const int result = ::WSASend(_socket.GetNativeHandle(), &_sendBufferView, 1, &bytesSent, 0, &_sendOverlapped, nullptr);
 
-    // 성공했더라도 Completion 기준으로 완료 처리 해야하므로, 전송 큐 pop 하면 안됨!
+    // 성공 또는 Pending: 현재 전송한 Front 패킷은 OS의 비동기 Send 완료 통지를 기다림
     if (result == 0 || ::WSAGetLastError() == WSA_IO_PENDING)
     {
         _sendPending = true;

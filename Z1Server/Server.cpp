@@ -160,6 +160,10 @@ bool Server::HandleInput(Session& session, std::span<const Z1::Protocol::Byte> p
     return _overworld.SetInput(*session.GetPlayerId(), input);
 }
 
+/// <summary>
+/// _acceptThread가 전담해서 blocking accept()을 수행
+/// 성공 시 소켓 큐에 밀어넣음
+/// </summary>
 void Server::AcceptLoop()
 {
     while (!_stopRequested)
@@ -186,7 +190,9 @@ void Server::AcceptLoop()
 }
 
 /// <summary>
-/// IOCP Worker 스레드가 네트워크 이벤트 처리하는 함수
+/// 1. _acceptThread가 등록한 소켓 Session화 + IOCP 연결
+/// 2. 20Hz 주기로 Simulation Tick
+/// 3. IOCP completion 소비 + 세션 송수신 처리
 /// </summary>
 void Server::IOLoop()
 {
@@ -220,6 +226,7 @@ void Server::IOLoop()
             nextTick = now + TickInterval;
         }
 
+        // 각 세션들이 IOCP를 통해 완료한 입출력 이벤트를 하나 꺼내 실제 처리 수행
         const auto remaining = nextTick - Clock::now();
         const long long remainingMs = duration_cast<milliseconds>(remaining).count();
         const DWORD timeoutMs = (DWORD)((remainingMs > 0 ? remainingMs : 1));
@@ -314,7 +321,7 @@ void Server::IOLoop()
 void Server::ProcessAcceptedSockets()
 {
     // 수신 스레드에서 큐잉한 소켓들을 지역 변수 큐로 바꾼 뒤 Register 처리
-    // 왜 지역 변수로 옮기는가?
+    // 왜 지역 변수로 옮기는가? -> AcceptThread에서 _acceptedSocket에 소켓 밀어넣고 있을 수도 있음
     std::deque<Socket> acceptedSockets;
     {
         std::lock_guard lock(_acceptMutex);

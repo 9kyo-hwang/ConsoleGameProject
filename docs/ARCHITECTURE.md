@@ -8,22 +8,55 @@
 
 ```mermaid
 flowchart LR
-    Sound[SoundSystem DLL] --> Engine[CraftEngine DLL]
-    Engine --> Shooting[ShootingGame EXE]
-    Engine --> Sokoban[SokobanGame EXE]
-    Engine --> Z1[Z1 EXE]
-    Winsock[WinSock2] --> Sockets[Sockets DLL]
+    subgraph Platform[Windows 플랫폼]
+        XAudio[XAudio2]
+        Winsock[WinSock2]
+        Console[Win32 Console API]
+    end
+
+    subgraph Libraries[공용 라이브러리]
+        Sound[SoundSystem DLL]
+        Engine[CraftEngine DLL]
+        Sockets[Sockets DLL]
+    end
+
+    subgraph Contracts[Z1 클라/서버 공용]
+        Shared[Z1Shared headers]
+    end
+
+    subgraph Applications[실행 프로젝트]
+        Shooting[ShootingGame EXE]
+        Sokoban[SokobanGame EXE]
+        Z1[Z1 EXE]
+        Server[Z1Server EXE]
+    end
+
+    subgraph Data[런타임 원본 데이터]
+        Config[Config]
+        Content[Content]
+    end
+
+    XAudio --> Sound --> Engine
+    Console --> Engine
+    Winsock --> Sockets
+
+    Engine --> Shooting
+    Engine --> Sokoban
+    Engine --> Z1
     Sockets --> Z1
-    Sockets --> Server[Z1Server EXE]
-    Shared[Z1Shared headers] --> Z1
+    Sockets --> Server
+    Shared --> Z1
     Shared --> Server
-    Config[Config] --> Engine
-    Content[Content] --> Shooting
+
+    Config --> Engine
+    Content --> Shooting
     Content --> Sokoban
     Content --> Z1
+    Content -->|BlockingMap| Server
 ```
 
 화살표는 왼쪽의 기능이나 데이터가 오른쪽 소비자에게 제공된다는 뜻이다.
+`Z1Server`에는 `CraftEngine`으로 향하는 연결이 없다. 서버는 렌더링과 Actor 없이 `Content`의 통행 데이터만 읽고 권위형 월드를 계산한다.
 
 | 구성 요소 | 산출물 | 책임 |
 | --- | --- | --- |

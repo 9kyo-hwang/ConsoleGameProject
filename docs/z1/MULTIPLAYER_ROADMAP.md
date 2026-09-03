@@ -74,7 +74,15 @@ Enemy 사망 시 이미 발사된 소유 Projectile을 즉시 제거할지는 �
 - 경로가 사라져야 하는 조건에서 오래된 선이 남지 않는다.
 - 표시 On/Off가 AI, Snapshot과 일반 입력에 영향을 주지 않는다.
 
-### 2. 동일 PC 멀티클라이언트 입력 분리
+### 2. 닫힌 Session 제거
+
+transport 종료와 protocol 오류를 closing 상태로 한 번만 전환하고, outstanding I/O completion이 정리된 뒤에만 Session을 제거한다. 이후 단계에서 연결·종료를 반복 검증할 수 있는 최소 기반을 먼저 만든다.
+
+- `OverworldSimulation::RemovePlayer()`를 정확히 한 번 호출한다.
+- 다른 Session의 다음 Snapshot에서 종료된 Player가 사라진다.
+- 반복 접속·종료에도 Session과 Player가 누적되지 않는다.
+
+### 3. 동일 PC 멀티클라이언트 입력 분리
 
 이후 모든 다중 클라이언트 검증을 안정화하기 위한 작업이다. 세부 후보와 위험은 [콘솔 입력 시스템 개선 검토](CONSOLE_INPUT_DESIGN.md)를 따른다.
 
@@ -91,25 +99,6 @@ Enemy 사망 시 이미 발사된 소유 Projectile을 즉시 제거할지는 �
 - 같은 PC의 Z1 두 개 중 입력 대상인 client의 Session만 이동한다.
 - key-down, key-up, held와 빠른 tap이 기존 의미를 유지한다.
 - Z1, ShootingGame과 SokobanGame의 기존 입력을 회귀 검증한다.
-
-### 3. Session 수명과 서버 종료 안정화
-
-개별 연결 정리와 서버 프로세스 종료를 한 번에 크게 바꾸지 않고 두 하위 단계로 나눈다.
-
-#### 3-1. 닫힌 Session 제거
-
-- transport 종료와 protocol 오류를 Session의 closing 상태로 한 번만 전환한다.
-- outstanding I/O completion이 정리된 뒤 `_sessions` registry에서 제거한다.
-- `OverworldSimulation::RemovePlayer()`를 정확히 한 번 호출한다.
-- 다른 Session의 다음 Snapshot에서 종료된 Player가 사라진다.
-- 반복 접속·종료에도 Session과 Player가 누적되지 않는다.
-
-#### 3-2. 서버 프로세스 종료
-
-- accept를 중지하고 accept thread를 join한다.
-- 신규 I/O post를 막고 진행 중인 completion을 drain한다.
-- server thread와 Session을 정리한 뒤 completion port를 닫는다.
-- 정상 종료 중 use-after-free, 무한 대기와 중복 close가 없어야 한다.
 
 ### 4. Local/Multiplayer 모드 분리와 fallback 제거
 
@@ -155,7 +144,14 @@ Enemy 사망 시 이미 발사된 소유 Projectile을 즉시 제거할지는 �
 - 스폰 위치를 Player가 점유하는 동안 Enemy가 겹쳐 나타나지 않는다.
 - 클라이언트 재접속은 Enemy의 리스폰 시간을 초기화하지 않는다.
 
-### 7. 선택 전투 기능
+### 7. 서버 프로세스 종료 안정화
+
+- accept를 중지하고 accept thread를 join한다.
+- 신규 I/O post를 막고 진행 중인 completion을 drain한다.
+- server thread와 Session을 정리한 뒤 completion port를 닫는다.
+- 정상 종료 중 use-after-free, 무한 대기와 중복 close가 없어야 한다.
+
+### 8. 선택 전투 기능
 
 필수 단계가 안정된 뒤 남은 시간에만 다음 순서로 추가한다.
 

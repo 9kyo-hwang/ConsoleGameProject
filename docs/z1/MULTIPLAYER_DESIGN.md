@@ -84,6 +84,69 @@ Z1 EXE
 
 `Sockets`는 IOCP, Session, Z1 packet 또는 게임 규칙을 알지 않는다. `Z1Server`는 CraftEngine, Renderer, Input, Sound와 Z1 Actor를 링크하지 않는다. `Z1Shared`에는 Sprite, Actor, Level이나 서버 Session 타입을 넣지 않는다.
 
+## 네트워크 시퀀스
+
+다음 그림은 현재 구현된 입장, 입력 전송, 서버 판정과 클라이언트 표현 경로를 함께 보여준다. packet 생성·framing·payload parsing은 `NetworkClient`와 `Server`/`Session` 내부 처리로 나타낸다. 이때 양쪽은 각각 컴파일된 `Z1Shared`의 같은 구현을 사용한다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Level as OverworldLevel<br/>(client main thread)
+    participant Game as Game<br/>(client main thread)
+    participant Client as NetworkClient<br/>(client network thread)
+    participant Session as Server / Session<br/>(IOCP loop)
+    participant World as OverworldSimulation<br/>(20Hz authority)
+
+    Game->>Client: Start(127.0.0.1:7777)
+    Client->>Client: C2S_Enter packet 생성
+    Client->>Session: C2S_Enter(version)
+    Session->>Session: framing + Enter payload 검증
+    Session->>World: AddPlayer(playerId)
+    Session-->>Client: S2C_Enter(version, playerId)
+    Client->>Client: framing + Enter payload parsing
+    Client->>Client: incoming queue에 EnterMessage 보관
+    Level->>Game: PumpNetwork()
+    Game->>Client: TryPopIncomingMessage()
+    Client-->>Game: EnterMessage
+    Game->>Game: PumpNetwork()가 local playerId 저장
+
+    loop 입력 상태가 바뀌거나 공격 키를 누를 때
+        Level->>Level: Actor Tick에서 MyPlayer 입력 확인
+        Level->>Game: SendNetworkInput(direction, attack edge)
+        Game->>Client: QueueInput(direction, attack edge)
+        Client->>Client: C2S_Input packet 생성
+        Client->>Session: C2S_Input
+        Session->>Session: framing + Input payload 검증
+        Session->>World: SetInput(playerId, input)
+    end
+
+    loop 서버 Tick · 50ms / 20Hz
+        World->>World: 이동·지형·전투·HP·사망 판정
+        opt 서버가 공격을 승인함
+            World-->>Session: 같은 Room의 PendingCombatEvent
+            Session-->>Client: S2C_CombatEvent
+        end
+        World-->>Session: playerId의 관심 Room Snapshot
+        Session-->>Client: S2C_WorldSnapshot
+    end
+
+    Client->>Client: 수신 byte framing + payload 검증
+    Client->>Client: typed incoming message queue에 보관
+
+    loop client frame · OverworldLevel::Tick
+        Level->>Game: PumpNetwork()
+        Game->>Client: TryPopIncomingMessage()
+        Client-->>Game: queued Snapshot·CombatEvent
+        Game->>Game: 최신 Snapshot과 이벤트 보관
+        Level->>Game: 최신 Snapshot 조회·CombatEvent 소비
+        Game-->>Level: Snapshot·미소비 이벤트
+        Level->>Level: Snapshot 적용·이벤트 표현
+        Level->>Level: Level::Tick()으로 Actor Tick
+    end
+```
+
+이 그림은 프로세스와 thread 사이의 경계를 중심으로 표현한다. 지속 상태인 `S2C_WorldSnapshot`은 `Game`이 최신 값을 보관하고, 단발 사건인 `S2C_CombatEvent`는 순서를 유지한 채 모두 보관한다. `OverworldLevel` 내부의 Actor별 적용 과정은 [Z1 아키텍처의 클라이언트 프레임 적용 순서](ARCHITECTURE.md#클라이언트-프레임-적용-순서)를 따른다.
+
 ## 서버와 클라이언트 상태
 
 목표로 하는 서버의 최소 권위 상태는 다음과 같다.
