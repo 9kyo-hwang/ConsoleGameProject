@@ -12,7 +12,8 @@ namespace Z1::Protocol
         S2C_Enter = 101,            // [size:uint16][type:uint16][version:uint16][id:uint32]
         S2C_WorldSnapshot = 102,
         S2C_Disconnect = 103,
-        S2C_CombatEvent = 104       // 최신 1개 상태를 유지하는 Snapshot과 달리, 단발성으로 발생
+        S2C_CombatEvent = 104,       // 최신 1개 상태를 유지하는 Snapshot과 달리, 단발성으로 발생
+        S2C_EnemyPathDebug = 105    // [tick:u32][id:u32][roomX:32][roomY:32][count:u8][indices:u8 x count]
     };
 
     inline constexpr std::uint16_t ProtocolVersion = 4;
@@ -30,6 +31,7 @@ namespace Z1::Protocol
     /**************
     * C2S_Input
     ***************/
+#pragma region C2S_Input
 
     // 서버에서 상하좌우 이동 방향을 나타낼 때 사용
     enum class MoveDirection : std::uint8_t
@@ -55,11 +57,12 @@ namespace Z1::Protocol
     * C2S_Input: 헤더(크기, 타입) 4바이트 + 페이로드 6바이트(sequence(uint32) + movedir(uint8) + actionflag(uint8, 공격 입력))
     * 예: 00 0A 00 02 00 00 00 01 01 00 -> C2S_Input(00 02), sequence = 1(00 00 00 01), Up(01), action flag 0(00) 
     */
+#pragma endregion
 
     /*************
     * S2C_Snapshot
     **************/
-
+#pragma region S2C_WorldSnapshot
     inline constexpr std::uint8_t PlayerStateDead = 1 << 0;
     inline constexpr std::uint8_t PlayerStateAttacking = 1 << 1;
     inline constexpr std::uint8_t ValidPlayerState = (PlayerStateDead | PlayerStateAttacking);
@@ -118,10 +121,12 @@ namespace Z1::Protocol
         std::vector<SnapshotEnemyState> enemies;
         std::vector<SnapshotProjectileState> projectiles;
     };
+#pragma endregion
 
     /******************
     * S2C_CombatEvent
     *******************/
+#pragma region S2C_CombatEvent
     enum class CombatEventType : std::uint8_t 
     {
         Invalid = 0,
@@ -135,4 +140,19 @@ namespace Z1::Protocol
         std::uint32_t actorId = 0;  // 넉백이 포함되려면 targetId도 필요해짐
         MoveDirection direction = MoveDirection::None;  // 검이나 넉백 방향 등
     };
+#pragma endregion
+
+#pragma region S2C_EnemyPathDebug
+    struct EnemyPathDebug
+    {
+        std::uint32_t tick = 0;
+        std::uint32_t id = 0;
+        std::int32_t roomX;
+        std::int32_t roomY;
+
+        // Room 하나 당 16 x 11 크기로 최대 176 -> 1바이트
+        // 비어있으면 경로 렌더 X
+        std::vector<std::uint8_t> tileIndices;  
+    };
+#pragma endregion
 }

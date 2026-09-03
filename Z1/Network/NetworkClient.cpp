@@ -383,6 +383,7 @@ bool NetworkClient::HandleServerPacket(PacketType type, std::span<const Byte> pa
     case PacketType::S2C_Enter: return HandleEnter(payload);
     case PacketType::S2C_WorldSnapshot: return HandleWorldSnapshot(payload);
     case PacketType::S2C_CombatEvent: return HandleCombatEvent(payload);
+    case PacketType::S2C_EnemyPathDebug: return HandleEnemyPathDebug(payload);
     default: return false;
     }
 }
@@ -418,4 +419,15 @@ bool NetworkClient::HandleCombatEvent(std::span<const Z1::Protocol::Byte> payloa
     }
 
     return PushIncomingMessage(IncomingMessage{std::move(event)});
+}
+
+bool NetworkClient::HandleEnemyPathDebug(std::span<const Z1::Protocol::Byte> payload)
+{
+    EnemyPathDebug debug;
+    if (!ParsePayload_S2CEnemyPathDebug(payload, debug))
+    {
+        return false;
+    }
+
+    return PushIncomingMessage(IncomingMessage{std::move(debug)});
 }

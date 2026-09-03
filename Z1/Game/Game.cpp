@@ -105,6 +105,10 @@ void Game::PumpNetwork()
                 {
                     _pendingCombatEvents.emplace_back(received);
                 }
+                else if constexpr (std::is_same_v<T, EnemyPathDebug>)
+                {
+                    _latestEnemyPaths[received.id] = received;
+                }
             }, message);
     }
 }

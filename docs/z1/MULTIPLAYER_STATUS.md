@@ -1,6 +1,6 @@
 # Z1 멀티플레이 개발 현황
 
-마지막 갱신: 2026-09-02
+마지막 갱신: 2026-09-03
 
 ## 문서 역할
 
@@ -8,7 +8,7 @@
 
 ## 현재 위치
 
-TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Projectile 공격이 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 BlockingMap 충돌을 통과한 Player 좌표와 수신 Player의 관심 Room에 속한 Enemy·Projectile을 `S2C_WorldSnapshot`으로 전송한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다. IOCP completion port HANDLE은 `CompletionPort`가 RAII로 소유한다.
+TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Projectile 공격이 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 BlockingMap 충돌을 통과한 Player 좌표와 수신 Player의 관심 Room에 속한 Enemy·Projectile을 `S2C_WorldSnapshot`으로 전송한다. 서버가 Moblin의 실제 A* 최종 경로를 `S2C_EnemyPathDebug`로 전송하고 클라이언트가 `F3` 토글로 표시한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다. IOCP completion port HANDLE은 `CompletionPort`가 RAII로 소유한다.
 
 네트워크 모드의 Player·Enemy·Projectile 위치와 HP·사망은 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 BlockingMap 충돌과 전역 Enemy 초기 스폰, Moblin의 Room 내부 A* 추적 이동·Spear 발사, Projectile의 Player 피격·사망, Player 일반 검의 Enemy 피격·사망까지 적용됐다. 클라이언트는 local Snapshot 좌표로 배경과 View의 Room 표현을 바꾸고 Snapshot에서 빠진 사망 Enemy 표현을 제거한다. 서버가 승인한 일반 검 공격은 `S2C_CombatEvent`로 같은 Room의 클라이언트에 전파하며, 각 클라이언트가 표현 전용 `NetworkSwordEffect`와 공격 효과음을 재생한다. 최대 HP SwordBeam은 아직 없다.
 
@@ -20,7 +20,7 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - Z1과 Z1Server의 Sockets 링크 및 DLL staging
 - `Z1Shared`의 protocol enum, network byte order 직렬화, packet codec과 `PacketFramer`
 - 4~4096 byte packet 크기 검증과 누적 수신 buffer 상한
-- protocol version 4의 Enter, Input, WorldSnapshot, CombatEvent codec
+- protocol version 4의 Enter, Input, WorldSnapshot, CombatEvent, EnemyPathDebug codec
 - Player 18-byte·Enemy 19-byte·Projectile 14-byte 배열과 count/남은 payload 길이 검증
 - Enemy/Projectile kind, facing/direction, flags와 non-zero 객체 ID 검증
 - 6-byte CombatEvent payload의 event type, actorId, cardinal direction과 정확한 payload 길이 검증
@@ -41,6 +41,7 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 20Hz Tick에서 Player가 있는 active Room을 계산하고, 해당 Room의 살아 있는 Enemy만 갱신
 - `RoomPathfinder`가 Enemy Box 기준의 16×11 `RoomNavigationGrid`에서 Manhattan distance A* 최단 경로 계산
 - Moblin은 같은 `homeRoom`의 가장 가까운 살아 있는 Player를 대상으로, 4 Tick마다 경로의 다음 tile을 향해 한 server cell 이동
+- Moblin이 실제 `RoomPathfinder::FindPath()` 결과를 Enemy ID별 최신 `EnemyPathDebug`로 기록하고, 관심 Room의 entered Session에 전송
 - Enemy 후보 위치는 `homeRoom` 좌표와 `CanPlaceEnemy()`를 통과한 뒤 `Enemy::MoveTo()`로 확정되며 다음 Snapshot에 반영
 - 서버 `Projectile`이 id·kind·owner Enemy id·`homeRoom`·위치·방향·피해량·남은 수명을 소유
 - Moblin이 공격 cooldown에 따라 가장 가까운 살아 있는 Player 방향으로 Spear를 생성
@@ -70,6 +71,8 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - local `MyPlayer`의 서버 Snapshot 좌표가 다른 Room에 들어가면 Room 배경과 View 갱신
 - Snapshot HP와 dead flag를 `MyPlayer`와 HUD에 반영하고 dead 상태에서는 입력 전송을 중지
 - `Game`이 순서가 중요한 CombatEvent를 별도 queue에 모두 보관하고 `OverworldLevel`이 main thread에서 소비
+- `Game`이 Enemy ID별 최신 `EnemyPathDebug`를 map에 보관하고, `OverworldLevel`이 현재 Room의 경로를 main thread에서 렌더링
+- `F3` 토글로 Enemy 경로 디버그 표시를 켜고 끄며, Enemy 사망·Room 이동 시 빈 경로와 Room 필터로 이전 표시를 제거
 - 일반 검 이벤트의 actorId로 `MyPlayer` 또는 `NetworkPlayer`를 찾고, facing별 로컬 오프셋에 표현 전용 `NetworkSwordEffect`를 부착
 - `NetworkSwordEffect`는 충돌·피해 판정 없이 검 Sprite를 0.5초 표시한 뒤 제거되며 각 수신 클라이언트가 검 공격 효과음을 한 번 재생
 
@@ -96,6 +99,8 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - Enemy가 사망한 Room을 나갔다 다시 들어와도 해당 Enemy가 재등장하지 않는 것 확인
 - 방향별 일반 검 Sprite 위치와 0.5초 뒤 제거, 빗나간 공격을 포함한 공격 효과음 1회 재생 확인
 - 같은 Room의 실제 Z1 두 개에서 한 Player의 일반 검 CombatEvent가 양쪽에 전달되어 해당 NetworkPlayer 위치에 표현되는 것 확인
+- 실제 Z1에서 서버 Moblin이 장애물을 우회할 때 `S2C_EnemyPathDebug` 경로가 이동 경로와 일치하게 표시되고, `F3` 토글로 표시를 전환하는 것 확인
+- Enemy 사망 또는 Player의 Room 이동 시 이전 경로가 사라지고, ASCII 디버그 Sprite 캐싱 후 타일 밀림 없이 렌더링되는 것 확인
 - 이동 중 공격 차단, 단일 입력의 1회 공격과 빠른 연속 입력 횟수만큼의 공격·표현 발생 확인
 - CombatEvent wire format을 포함한 server framing suite와 Z1Server·Z1 빌드 통과
 
@@ -106,7 +111,8 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 서버는 Player의 Room을 영구 상태로 보관하지 않는다. 수신 Player의 서버 좌표에서 관심 Room을 계산하고, 그 Room의 Player·Enemy만 Snapshot에 담는다.
 - 접근 가능한 Room 경로 whitelist는 서버에 아직 없다. BlockingMap과 전체 맵 경계로 도달 가능한 모든 Room을 이동할 수 있다.
 - 클라이언트 네트워크 Room 전환은 Snapshot Player 위치의 기준점으로 판정한다. 싱글플레이의 leading-edge 전환 규칙과 통일하는 작업은 남아 있다.
-- A* 이동은 현재 Moblin에만 적용된다. 목표와 경로는 이동 기회마다 다시 계산하며, target/path cache는 아직 두지 않는다. Octorok과 Tektite는 정적 상태다.
+- A* 이동과 최종 경로 시각화는 현재 Moblin에만 적용된다. 목표와 경로는 이동 기회마다 다시 계산하며, 서버 AI의 target/path cache는 아직 두지 않는다. 클라이언트 경로 map은 Enemy ID별 최신값을 보관하고 현재 Room만 렌더링한다. Octorok과 Tektite는 정적 상태다.
+- Enemy 경로 디버그는 현재 모든 경로에 공통 표시 Sprite를 사용하며 Enemy별 문자·색상 구분은 후속 개선 사항이다.
 - Enemy의 `homeRoom` 후보 검사는 좌상단 좌표 기준이다. `CanPlaceEnemy()`는 전체 8×5 Box를 검사하지만, Box 전체의 Room 경계 검사는 강화 대상이다.
 - Player-Enemy 몸체 충돌과 접촉 피해는 아직 없다.
 - Enemy 스폰은 BlockingMap의 전체 8×5 Box 통과 가능 여부만 검사한다. 같은 Room 안의 Enemy 위치 중복 방지는 아직 없다.
@@ -127,6 +133,6 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 
 ## 다음 구현 단위
 
-재구성한 전체 순서와 단계별 완료 조건은 [멀티플레이 잔여 작업 로드맵](MULTIPLAYER_ROADMAP.md)을 따른다. 바로 다음 작업은 서버가 실제 계산한 현재 Room의 모든 Moblin A* 최종 경로를 클라이언트에서 켜고 끌 수 있게 시각화하는 것이다.
+재구성한 전체 순서와 단계별 완료 조건은 [멀티플레이 잔여 작업 로드맵](MULTIPLAYER_ROADMAP.md)을 따른다. A* 최종 경로 시각화는 완료됐으며, 바로 다음 작업은 닫힌 Session을 registry에서 안전하게 제거하는 것이다.
 
-그 뒤 동일 PC 입력 분리, Session 수명과 서버 종료, Local/Multiplayer 모드 분리와 fallback 제거, Player 사망 후 Title 복귀, Enemy 7초 리스폰 순으로 진행한다. SwordBeam·방패·무적·넉백과 Octorok·Tektite 고유 AI는 필수 범위가 끝난 뒤 시간이 남을 때만 재검토한다. Enemy·IOCP 확장 후보의 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다.
+그 뒤 동일 PC 입력 분리, Local/Multiplayer 모드 분리와 fallback 제거, Player 사망 후 Title 복귀, Enemy 7초 리스폰, 서버 프로세스 종료 안정화 순으로 진행한다. SwordBeam·방패·무적·넉백과 Octorok·Tektite 고유 AI는 필수 범위가 끝난 뒤 시간이 남을 때만 재검토한다. Enemy·IOCP 확장 후보의 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다.

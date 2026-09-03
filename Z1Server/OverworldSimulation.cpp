@@ -364,6 +364,45 @@ WorldSnapshot OverworldSimulation::BuildSnapshot(std::uint32_t id)
     return snapshot;
 }
 
+std::vector<EnemyPathDebug> OverworldSimulation::BuildEnemyPathDebug(std::uint32_t playerId)
+{
+    auto found = _players.find(playerId);
+    if (found == _players.end())
+    {
+        return {};
+    }
+
+    const auto& player = found->second;
+    const auto room = GetRoomAt(player.x, player.y);
+    if (!room) return {};
+
+    std::vector<EnemyPathDebug> dbgPaths;
+    dbgPaths.reserve(_dbgPaths.size());
+
+    for (const auto& [enemyId, dbgPath] : _dbgPaths)
+    {
+        auto it = _enemies.find(enemyId);
+        if (it == _enemies.end()) continue;
+
+        const Enemy& enemy = it->second;    // 기존 [] 연산자로 꺼내오면 기본 생성자 호출을 시도해서 에러
+        const ServerRoomCoordinate enemyRoom{ dbgPath.roomX, dbgPath.roomY };
+        if (enemyRoom != room)  // IsDead() 검사 제외: 죽은 적에 대한 empty paths를 보내야 함
+        {
+            continue;
+        }
+
+        dbgPaths.push_back(dbgPath);
+    }
+
+    sort(dbgPaths.begin(), dbgPaths.end(),
+        [](const EnemyPathDebug& lhs, const EnemyPathDebug& rhs)
+        {
+            return lhs.id < rhs.id;
+        });
+
+    return dbgPaths;
+}
+
 bool OverworldSimulation::IsPlayerInRoom(std::uint32_t playerId, ServerRoomCoordinate room)
 {
     auto found = _players.find(playerId);
@@ -440,9 +479,15 @@ void OverworldSimulation::Tick()
     // 3. 적 목록에서 activeRoom에 속한 것들 활성화
     for (auto& [id, enemy] : _enemies)
     {
+        // 적이 죽었거나, 현재 활성 Room이 아니라면 경로 표시 안하도록 기록을 Clear
         const ServerRoomCoordinate homeRoom = enemy.GetHomeRoom();
         if (enemy.IsDead() || !activeRooms[homeRoom.y * OverworldRoomColumns + homeRoom.x])
         {
+            if (_dbgPaths.contains(id))
+            {
+                RecordEnemyChasePath(enemy, {});
+            }
+            
             continue;
         }
 
@@ -549,14 +594,17 @@ void OverworldSimulation::TickEnemy(Enemy& enemy)
     const bool movable = (enemy.GetKind() == EnemyKind::Moblin) && (_tick + enemy.GetId()) % 4 == 0;  // 4틱 경과?
     const bool attackable = (enemy.GetKind() == EnemyKind::Moblin) && enemy.IsAttackReady();
 
-    if (!movable && !attackable) return;
-
     // 가장 가까운 플레이어 위치 찾기
     ServerPlayerState closestPlayer;
     if (!FindClosestPlayer(enemy.GetHomeRoom(), enemy.GetPosition(), closestPlayer))
     {
+        // 빈 경로
+        RecordEnemyChasePath(enemy, {});
         return;
     }
+
+    // 일단 경로는 시도(빈 경로 기록을 위해)
+    if (!movable && !attackable) return;
 
     if (attackable)
     {
@@ -573,6 +621,7 @@ void OverworldSimulation::TickEnemy(Enemy& enemy)
     const TileCoordinate goal = ToLocalTile(homeRoom, Vector2Int(closestPlayer.x, closestPlayer.y));
 
     auto path = _pathfinder.FindPath(BuildNavigationGrid(homeRoom), start, goal);
+    RecordEnemyChasePath(enemy, path);
     if (path.empty()) return;   // 바로 다음 칸이 goal이면 empty인 상황
 
     Vector2Int next = ToWorldCellPosition(homeRoom, path[0]);
@@ -765,6 +814,23 @@ bool OverworldSimulation::TryHitEnemy(ServerPlayerState& player)
 
     target->TakeDamage(1);
     return true;
+}
+
+void OverworldSimulation::RecordEnemyChasePath(const Enemy& enemy, const std::vector<TileCoordinate>& path)
+{
+    EnemyPathDebug dbg;
+    dbg.tick = _tick;
+    dbg.id = enemy.GetId();
+    dbg.roomX = enemy.GetHomeRoom().x;
+    dbg.roomY = enemy.GetHomeRoom().y;
+    dbg.tileIndices.reserve(path.size());
+
+    for (TileCoordinate tile : path)
+    {
+        dbg.tileIndices.push_back(tile.y * 16 + tile.x);
+    }
+
+    _dbgPaths[enemy.GetId()] = dbg;
 }
 
 RoomNavigationGrid OverworldSimulation::BuildNavigationGrid(ServerRoomCoordinate room) const

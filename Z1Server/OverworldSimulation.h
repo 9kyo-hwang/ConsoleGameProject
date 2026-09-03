@@ -63,6 +63,8 @@ public:
         return std::exchange(_pendingCombatEvents, std::vector<PendingCombatEvent>());
     }
 
+    std::vector<Z1::Protocol::EnemyPathDebug> BuildEnemyPathDebug(std::uint32_t playerId);
+
     bool IsPlayerInRoom(std::uint32_t playerId, ServerRoomCoordinate room);
 
     void Tick();
@@ -86,6 +88,8 @@ private:
     bool TryHitPlayer(const Projectile& projectile, Vector2Int candidate);
     bool TryHitEnemy(ServerPlayerState& player);    // 플레이어 근접 검 공격
 
+    void RecordEnemyChasePath(const Enemy& enemy, const std::vector<TileCoordinate>& path);
+
 private:
     RoomNavigationGrid BuildNavigationGrid(ServerRoomCoordinate room) const;
     RoomPathfinder _pathfinder;
@@ -103,5 +107,6 @@ private:
     std::uint32_t _tick = 0;
 
     std::vector<PendingCombatEvent> _pendingCombatEvents;
+    std::unordered_map<std::uint32_t, Z1::Protocol::EnemyPathDebug> _dbgPaths;
 };
 

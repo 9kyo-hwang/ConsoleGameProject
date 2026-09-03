@@ -123,6 +123,11 @@ void OverworldLevel::Tick(float deltaTime)
     Game& game = dynamic_cast<Game&>(Engine::Get());
     game.PumpNetwork(); // OverworldLevel에서, 메인 스레드가 네트워크 큐를 소비하도록
 
+    if (Input::Get().GetKeyDown(VK_F3))
+    {
+        _showEnemyPathDebug = !_showEnemyPathDebug;
+    }
+
     bool isOnline = game.IsServerConnected();
     if (isOnline)
     {
@@ -274,15 +279,16 @@ void OverworldLevel::Draw()
 
     if (_roomSprite)
     {
-        renderer.SubmitWorld(
-            _roomSprite, 
-            roomCellOrigin,
-            0
-        );
+        renderer.SubmitWorld(_roomSprite, roomCellOrigin, 0);
     }
 
     Level::Draw();
-
+    
+    if (_showEnemyPathDebug)
+    {
+        DrawLatestEnemyPathDebug(game, renderer, roomCellOrigin);
+    }
+    
     renderer.Submit(Sprite::Create("[Overworld]"), Vector2(2, 1));
 
     if (_myPlayer)
@@ -618,6 +624,29 @@ void OverworldLevel::ApplyCombatEvent(const Z1::Protocol::CombatEvent& event)
     auto effect = SpawnActor<NetworkSwordEffect>(event.direction);
     effect->AttachTo(source, false);
     Engine::Get().PlayOneShot("Z1/LOZ_Sword_Slash.wav");
+}
+
+void OverworldLevel::DrawLatestEnemyPathDebug(Game& game, Renderer& renderer, const Vector2 roomCellOrigin)
+{
+    const auto sprite = Sprite::Create(TileCellSize, '+', Color::DarkViolet);
+    for (const auto& [id, debugPath] : game.GetLatestEnemyPathDebugs())
+    {
+        if (RoomCoordinate{ debugPath.roomX, debugPath.roomY } != _currentRoom)
+        {
+            continue;
+        }
+
+        for (std::uint8_t index : debugPath.tileIndices)
+        {
+            // (y: 3, x: 7) -> 3 * 16 + 16 = 55 | 55 / 16 = 3, 55 % 16 = 7, 
+            // y * width + x
+            const int localY = index / RoomTileWidth;
+            const int localX = index % RoomTileWidth;
+            const Vector2 worldPosition = roomCellOrigin + Vector2(localX, localY) * TileCellSize;
+
+            renderer.SubmitWorld(sprite, worldPosition, 5);
+        }
+    }
 }
 
 bool OverworldLevel::LoadMap()

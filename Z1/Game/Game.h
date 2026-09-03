@@ -4,6 +4,7 @@
 #include <vector>
 #include <Network/NetworkClient.h>
 #include <optional>
+#include <unordered_map>
 
 namespace Craft
 {
@@ -58,6 +59,11 @@ public: // Network
         return std::exchange(_pendingCombatEvents, std::vector<Z1::Protocol::CombatEvent>());
     }
 
+    inline const std::unordered_map<std::uint32_t, Z1::Protocol::EnemyPathDebug>& GetLatestEnemyPathDebugs()
+    {
+        return _latestEnemyPaths;
+    }
+
 private:
     struct PlayerState
     {
@@ -76,5 +82,8 @@ private:    // Network
 
     // 이벤트는 모두 들고 있고, 모두 소비해야 함
     std::vector< Z1::Protocol::CombatEvent> _pendingCombatEvents;
+
+    // EnemyPathDebug는 id 별로 최신값 1개씩만 가지고 있다.
+    std::unordered_map<std::uint32_t, Z1::Protocol::EnemyPathDebug> _latestEnemyPaths;
 };
 

@@ -46,6 +46,7 @@ private:
     void Tick();
     void BroadcastCombatEvents(const std::vector<PendingCombatEvent>& events);
     void BroadcastWorldSnapshot();
+    void BroadcastEnemyPathDebugs();
 
 private:
     Net::Socket _listener;

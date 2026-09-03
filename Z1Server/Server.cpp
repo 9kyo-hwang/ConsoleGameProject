@@ -388,6 +388,7 @@ void Server::Tick()
     _overworld.Tick();
     BroadcastCombatEvents(_overworld.TakeCombatEvents());
     BroadcastWorldSnapshot();
+    BroadcastEnemyPathDebugs();
 }
 
 /// <summary>
@@ -451,6 +452,28 @@ void Server::BroadcastWorldSnapshot()
         if (!BuildPacket_S2CWorldSnapshot(snapshot, packet) || !session->Send(std::move(packet)))
         {
             CloseSession(*session);
+        }
+    }
+}
+
+void Server::BroadcastEnemyPathDebugs()
+{
+    for (const std::unique_ptr<Session>& session : _sessions)
+    {
+        if (!session->IsEntered())
+        {
+            continue;
+        }
+
+        // playerID와 같은 Room에 속하는 적들의 경로 목록 획득
+        auto playerId = session->GetPlayerId();
+        for (const EnemyPathDebug& enemyPath : _overworld.BuildEnemyPathDebug(*playerId))
+        {
+            std::vector<Byte> packet;
+            if (!BuildPacket_S2CEnemyPathDebug(enemyPath, packet) || !session->Send(std::move(packet)))
+            {
+                CloseSession(*session);
+            }
         }
     }
 }

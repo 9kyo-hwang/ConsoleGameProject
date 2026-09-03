@@ -1,6 +1,6 @@
 # Z1 멀티플레이 잔여 작업 로드맵
 
-마지막 갱신: 2026-09-02
+마지막 갱신: 2026-09-03
 
 ## 문서 목적
 
@@ -51,7 +51,7 @@ Enemy 사망 시 이미 발사된 소유 Projectile을 즉시 제거할지는 �
 
 ## 작업 순서
 
-### 1. 서버 A* 최종 경로 시각화
+### 1. 서버 A* 최종 경로 시각화 (완료)
 
 외부 과제 요구사항이므로 다른 선택 전투 기능보다 먼저 완료한다.
 
@@ -62,10 +62,10 @@ Enemy 사망 시 이미 발사된 소유 Projectile을 즉시 제거할지는 �
 - 클라이언트는 경로를 재계산하지 않고 서버가 보낸 최종 경로만 표시한다.
 - Moblin이 경로를 다시 계산할 때마다 해당 Enemy의 최신 표시 경로를 교체한다.
 - 추적 대상이 없거나 경로 탐색 실패·Enemy 사망·Room 이탈 시 이전 표시를 제거한다.
-- `F1` 같은 로컬 디버그 키로 표시를 켜고 끈다. 입력이 꺼져 있어도 게임 판정과 서버 AI는 변하지 않는다.
-- 여러 Moblin 경로를 구분할 수 있도록 Enemy별 문자나 색상을 순환한다.
+- `F3` 로컬 디버그 키로 표시를 켜고 끈다. 입력이 꺼져 있어도 게임 판정과 서버 AI는 변하지 않는다.
+- 여러 Moblin 경로를 모두 순회해 표시한다. 현재는 공통 디버그 표시 Sprite를 사용한다.
 
-최소 wire 후보는 WorldSnapshot과 분리한 `S2C_PathDebug` packet이다. 한 Moblin의 `enemyId`, `homeRoom`, 경로 node 수와 16×11 Room의 tile index 배열을 보낸다. tile index는 `tileY * 16 + tileX`의 0~175 값이라 1 byte로 표현할 수 있다. 실제 구현 전 packet 이름·payload와 protocol version 증가는 codec 변경 범위에서 확정한다.
+`WorldSnapshot`과 분리한 `S2C_EnemyPathDebug` packet으로 한 Moblin의 `tick`, `enemyId`, `homeRoom`, 경로 node 수와 16×11 Room의 tile index 배열을 보낸다. tile index는 `tileY * 16 + tileX`의 0~175 값이라 1 byte로 표현할 수 있다. 현재는 protocol version을 올리지 않고 v4 packet 목록에 추가했다.
 
 완료 조건:
 
@@ -73,6 +73,13 @@ Enemy 사망 시 이미 발사된 소유 Projectile을 즉시 제거할지는 �
 - 같은 Room의 모든 Moblin 경로가 표시되고 갱신된다.
 - 경로가 사라져야 하는 조건에서 오래된 선이 남지 않는다.
 - 표시 On/Off가 AI, Snapshot과 일반 입력에 영향을 주지 않는다.
+
+완료 검증:
+
+- 서버가 실제 A* 계산 결과를 `S2C_EnemyPathDebug`로 전송하고 클라이언트가 Enemy ID별 최신 경로를 표시한다.
+- `F3` 입력으로 경로 표시를 켜고 끌 수 있다.
+- Enemy 사망과 Player의 Room 이동에서 이전 경로가 사라진다.
+- 디버그 Sprite를 캐싱하고 ASCII 표시 문자를 사용해 타일이 밀려 보이는 렌더링 오류가 없다.
 
 ### 2. 닫힌 Session 제거
 

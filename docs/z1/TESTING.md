@@ -52,7 +52,9 @@ Z1Server를 먼저 실행한 뒤 PowerShell dummy client로 TCP framing과 기�
 .\tools\test-z1-enter.ps1 -RunServerFramingSuite
 ```
 
-이 suite는 protocol v4의 정상 Enter/Snapshot, header와 payload 분할, 연속 packet, Input 이동·정지, Enemy·Projectile 배열 파싱, 일반 검 입력에 대한 CombatEvent의 크기·type·actorId·방향, 잘못된 packet size와 protocol version 거부를 확인한다. 기본 endpoint는 `127.0.0.1:7777`이다.
+이 suite는 protocol v4의 정상 Enter/Snapshot, header와 payload 분할, 연속 packet, Input 이동·정지, Enemy·Projectile 배열 파싱, 일반 검 입력에 대한 CombatEvent의 크기·type·actorId·방향, 잘못된 packet size와 protocol version 거부를 확인한다. 기본 endpoint는 `127.0.0.1:7777`이다. Snapshot을 읽는 경로는 `S2C_EnemyPathDebug`도 함께 파싱하므로 두 packet이 섞여도 framing 검사가 중단되지 않는다.
+
+실제 경로 packet을 반드시 확인하려면 Moblin이 있는 Room으로 이동할 수 있는 입력 방향과 유지 시간을 지정해 `-ExpectEnemyPathDebug`를 추가한다. 이 옵션은 최대 200개의 서버 packet을 읽으면서 `tick`, Enemy ID, Room 좌표, node count, tile index 범위와 payload 길이를 검증한다. 시작 Room `(7,7)`에는 Enemy가 없으므로 해당 Room에 머문 상태에서는 이 옵션을 사용하지 않는다.
 
 스크립트 통과는 실제 Z1 통합을 대체하지 않는다. transport나 Snapshot 표현을 변경했다면 Z1Server와 Z1을 함께 실행해 연결, playerId, 이동, 연결 종료 후 Actor 정리를 확인한다.
 
@@ -73,6 +75,15 @@ Z1Server를 실행한 뒤 실제 Z1을 Enemy가 생성되는 Overworld Room으�
 Moblin이 같은 Room의 살아 있는 Player를 A*로 추적하고 Spear를 발사하는지 확인한다. Spear는 `NetworkProjectile`의 `-` 또는 `|`로 표시되어야 하며 blocked tile, Room 경계 또는 lifetime 40 Tick에서 사라져야 한다. Player와 겹치면 Spear가 사라지고 HP가 1 감소해야 한다. HP 0에서는 입력이 중지되고 Moblin이 해당 Player를 추적 대상으로 고르지 않아야 한다.
 
 현재 Player와 Enemy 몸체는 서로를 막지 않으며 접촉 피해도 없다. 방패, 피격 무적과 넉백도 네트워크 모드에는 아직 없다. Enemy 스폰 위치는 8×5 Box 전체가 `BlockingMap`의 통행 가능 타일에 들어가는지로 확인한다. 같은 Room 내 위치 중복은 아직 허용되는 알려진 제약이다.
+
+### Moblin A* 경로 디버그 표시
+
+Z1Server와 Z1을 실행하고 Moblin이 생성되는 Overworld Room으로 이동한다. `F3`를 눌러 경로 표시를 켜면 서버가 계산한 현재 경로가 Room 타일 위에 표시되어야 하며, 장애물을 우회하는 표시 순서가 Moblin의 실제 이동과 일치해야 한다. 다시 `F3`를 누르면 표시가 사라지고 AI·Snapshot·일반 입력은 계속 동작해야 한다.
+
+- 같은 Room에 여러 Moblin이 있으면 수신된 각 Enemy ID의 경로가 표시되고 새 경로 계산 때 갱신된다.
+- 경로 탐색 실패 또는 추적 대상 상실의 빈 경로에서는 이전 표시가 남지 않는다.
+- Moblin 사망 또는 Player의 Room 이동 뒤 이전 Room의 경로가 현재 화면에 남지 않는다.
+- 디버그 표시가 타일 경계를 밀어내거나 깨진 다중 바이트 문자로 보이지 않아야 한다.
 
 ### 서버 Player 일반 검과 Enemy 사망
 

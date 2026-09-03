@@ -441,4 +441,83 @@ namespace Z1::Protocol
         event = std::move(parsed);
         return true;
     }
+
+    inline constexpr std::size_t EnemyPathDebugFixedPayloadSize
+        = sizeof(std::uint32_t) // tick
+        + sizeof(std::uint32_t) // id
+        + sizeof(std::int32_t)  // roomX
+        + sizeof(std::int32_t)  // roomY
+        + sizeof(std::uint8_t); // numIndices
+
+    inline bool BuildPacket_S2CEnemyPathDebug(const EnemyPathDebug& path, std::vector<Byte>& packet)
+    {
+        const std::size_t payloadSize = EnemyPathDebugFixedPayloadSize + path.tileIndices.size();
+        if (payloadSize > MaxPacketSize - PacketHeaderSize)
+        {
+            return false;
+        }
+
+        PacketWriter payload(payloadSize);
+        payload.WriteU32(path.tick);
+        payload.WriteU32(path.id);
+        payload.Write32(path.roomX);
+        payload.Write32(path.roomY);
+
+        const std::size_t numIndices = path.tileIndices.size();
+        if (numIndices > 16 * 11) return false;
+
+        payload.WriteU8((std::uint8_t)numIndices);
+        for (std::uint8_t index : path.tileIndices)
+        {
+            if (index >= 16 * 11) return false;
+            payload.WriteU8(index);
+        }
+
+        return BuildPacket(PacketType::S2C_EnemyPathDebug, payload.Bytes(), packet);
+    }
+
+    inline bool ParsePayload_S2CEnemyPathDebug(std::span<const Byte> payload, EnemyPathDebug& outPath)
+    {
+        PacketReader reader(payload);
+
+        EnemyPathDebug parsed;
+        if (!reader.ReadU32(parsed.tick) ||
+            !reader.ReadU32(parsed.id) ||
+            !reader.Read32(parsed.roomX) ||
+            !reader.Read32(parsed.roomY))
+        {
+            return false;
+        }
+
+        std::uint8_t numIndices = 0;
+        if (!reader.ReadU8(numIndices) || numIndices > 16 * 11)
+        {
+            return false;
+        }
+
+        if (reader.Remaining() != sizeof(std::uint8_t) * numIndices)
+        {
+            return false;
+        }
+
+        parsed.tileIndices.reserve(numIndices);
+        for (std::uint8_t i = 0; i < numIndices; ++i)
+        {
+            std::uint8_t index = 0;
+            if (!reader.ReadU8(index) || index >= 16 * 11)
+            {
+                return false;
+            }
+
+            parsed.tileIndices.push_back(index);
+        }
+
+        if (!reader.IsAtEnd())
+        {
+            return false;
+        }
+
+        outPath = std::move(parsed);
+        return true;
+    }
 }

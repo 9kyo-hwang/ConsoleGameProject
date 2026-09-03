@@ -11,6 +11,7 @@ param(
     [switch]$CoalescedEnterInput,
     [switch]$RunServerFramingSuite,
     [switch]$ExpectMovement,
+    [switch]$ExpectEnemyPathDebug,
     [ValidateSet(-1, 0, 3, 4097)]
     [int]$InvalidPacketSize = -1,
     [ValidateRange(0, 65535)]
@@ -395,10 +396,72 @@ function Assert-CombatEvent
     Write-Output "PASS: S2C_CombatEvent received (type=$eventType, actorId=$actorId, direction=$direction)"
 }
 
+function Show-EnemyPathDebug
+{
+    param([Parameter(Mandatory)][pscustomobject]$Packet)
+
+    if ($Packet.PacketType -ne 105)
+    {
+        throw "Expected S2C_EnemyPathDebug=105, received packet type $($Packet.PacketType)."
+    }
+
+    [byte[]]$payload = $Packet.Payload
+    $fixedPayloadSize = 17 # tick, enemyId, roomX, roomY and count
+    $roomCountX = 16
+    $roomCountY = 8
+    $roomTileCount = 16 * 11
+    if ($payload.Length -lt $fixedPayloadSize)
+    {
+        throw "EnemyPathDebug payload is too small: $($payload.Length) bytes."
+    }
+
+    [uint32]$tick = Read-U32BigEndian $payload 0
+    [uint32]$enemyId = Read-U32BigEndian $payload 4
+    $roomX = Read-I32BigEndian $payload 8
+    $roomY = Read-I32BigEndian $payload 12
+    $count = [int]$payload[16]
+
+    if ($enemyId -eq 0)
+    {
+        throw "EnemyPathDebug has invalid enemyId=0."
+    }
+
+    if ($roomX -lt 0 -or $roomX -ge $roomCountX -or
+        $roomY -lt 0 -or $roomY -ge $roomCountY)
+    {
+        throw "EnemyPathDebug has invalid room=($roomX, $roomY)."
+    }
+
+    if ($count -gt $roomTileCount)
+    {
+        throw "EnemyPathDebug has invalid node count=$count."
+    }
+
+    if ($payload.Length - $fixedPayloadSize -ne $count)
+    {
+        throw "EnemyPathDebug has unexpected payload length: $($payload.Length) bytes for count=$count."
+    }
+
+    $indices = New-Object System.Collections.Generic.List[int]
+    for ($index = 0; $index -lt $count; ++$index)
+    {
+        $tileIndex = [int]$payload[$fixedPayloadSize + $index]
+        if ($tileIndex -ge $roomTileCount)
+        {
+            throw "EnemyPathDebug node[$index] has invalid tile index=$tileIndex."
+        }
+
+        [void]$indices.Add($tileIndex)
+    }
+
+    $pathText = if ($indices.Count -eq 0) { "<empty>" } else { ($indices -join ',') }
+    Write-Output "PathDebug: tick=$tick, enemyId=$enemyId, room=($roomX, $roomY), nodes=$count, indices=$pathText"
+}
+
 if ($RunServerFramingSuite)
 {
     if ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or
-        $ExpectMovement -or $InvalidPacketSize -ne -1 -or $ProtocolVersion -ne 4 -or
+        $ExpectMovement -or $ExpectEnemyPathDebug -or $InvalidPacketSize -ne -1 -or $ProtocolVersion -ne 4 -or
         $SendInput -or $SendAttack -or $InputDirection -ne 'Up' -or
         $HoldMilliseconds -ne 300 -or $ReadSnapshots -ne 0)
     {
@@ -459,16 +522,24 @@ if ($SendAttack -and ($SplitSend -or $SplitAt -ne 0 -or $SendInput -or $ReadSnap
     throw "-SendAttack cannot be combined with split, -SendInput, or -ReadSnapshots options."
 }
 
+if ($ExpectEnemyPathDebug -and
+    (!$SendInput -or $InputDirection -eq 'None' -or $HoldMilliseconds -le 0 -or
+     $SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or
+     $SendAttack -or $ExpectMovement -or $ReadSnapshots -ne 0))
+{
+    throw "-ExpectEnemyPathDebug requires a non-empty -SendInput hold and cannot be combined with split, coalesced, attack, movement, or snapshot options."
+}
+
 if ($InvalidPacketSize -ne -1 -and
     ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or
-     $SendAttack -or $ProtocolVersion -ne 4 -or $ReadSnapshots -ne 0))
+     $SendAttack -or $ExpectEnemyPathDebug -or $ProtocolVersion -ne 4 -or $ReadSnapshots -ne 0))
 {
     throw "-InvalidPacketSize must be used by itself."
 }
 
 if ($ProtocolVersion -ne 4 -and
     ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or
-     $SendAttack -or $ReadSnapshots -ne 0))
+     $SendAttack -or $ExpectEnemyPathDebug -or $ReadSnapshots -ne 0))
 {
     throw "A non-current -ProtocolVersion must be tested without split, input, or snapshot options."
 }
@@ -591,6 +662,12 @@ try
                 break
             }
 
+            if ($packet.PacketType -eq 105)
+            {
+                Show-EnemyPathDebug $packet
+                continue
+            }
+
             throw "Unexpected packet type while waiting for CombatEvent: $($packet.PacketType)"
         }
 
@@ -605,10 +682,52 @@ try
         Send-Input $stream 2 "None"
     }
 
-    for ($index = 0; $index -lt $ReadSnapshots; ++$index)
+    if ($ExpectEnemyPathDebug)
+    {
+        $sawEnemyPathDebug = $false
+        for ($index = 0; $index -lt 200; ++$index)
+        {
+            $packet = Read-Packet $stream
+            if ($packet.PacketType -eq 102)
+            {
+                continue
+            }
+
+            if ($packet.PacketType -eq 105)
+            {
+                Show-EnemyPathDebug $packet
+                $sawEnemyPathDebug = $true
+                break
+            }
+
+            throw "Unexpected packet type while waiting for EnemyPathDebug: $($packet.PacketType)"
+        }
+
+        if (!$sawEnemyPathDebug)
+        {
+            throw "S2C_EnemyPathDebug was not received within 200 packets."
+        }
+
+        Write-Output "PASS: S2C_EnemyPathDebug received."
+    }
+
+    $snapshotsRead = 0
+    while ($snapshotsRead -lt $ReadSnapshots)
     {
         $snapshot = Read-Packet $stream
-        Show-WorldSnapshot $snapshot
+        if ($snapshot.PacketType -eq 102)
+        {
+            Show-WorldSnapshot $snapshot
+            ++$snapshotsRead
+        }
+        elseif ($snapshot.PacketType -eq 105)
+        {
+            Show-EnemyPathDebug $snapshot
+        }
+        else
+        {
+            throw "Unexpected packet type while reading snapshots: $($snapshot.PacketType)"
+        }
     }
 
     if($KeepAlive)
@@ -617,7 +736,7 @@ try
 
         while($true)
         {
-            [void](Read-Packet $stream) # Snapshot 계속 drain
+            [void](Read-Packet $stream) # server packet 계속 drain
         }
     }
 

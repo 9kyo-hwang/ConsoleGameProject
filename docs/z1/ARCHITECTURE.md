@@ -90,7 +90,7 @@ flowchart LR
         end
 
         Game -->|서버로 전송할 패킷 큐| ClientNetwork
-        ClientNetwork -->|서버로부터 받은 입장/스냅샷/이벤트 메시지 큐| Game
+        ClientNetwork -->|서버로부터 받은 입장/스냅샷/이벤트/경로 디버그 메시지 큐| Game
     end
 
     subgraph Server[Z1Server EXE]
@@ -103,7 +103,7 @@ flowchart LR
         Accept --> Accepted --> IOLoop
         IOLoop --> Session
         IOLoop --> Simulation
-        Simulation -->|Room별 Snapshot·CombatEvent| IOLoop
+        Simulation -->|Room별 Snapshot·CombatEvent·EnemyPathDebug| IOLoop
     end
 
     ClientNetwork <-->|TCP| Session
@@ -138,7 +138,7 @@ sequenceDiagram
 
     opt 다음 20Hz Tick 시각 도달
         IO->>World: Tick()
-        World-->>IO: CombatEvent · 수신자별 WorldSnapshot
+        World-->>IO: CombatEvent · 수신자별 WorldSnapshot · EnemyPathDebug
         IO->>Session: Send(완성 packet)
         Session->>Session: send queue 뒤에 push
         alt 전송 대기 없음
@@ -194,7 +194,7 @@ sequenceDiagram
 
     loop client frame · OverworldLevel::Tick
         Level->>Game: PumpNetwork()
-        Game->>Game: incoming queue를 소비해<br/>최신 Snapshot·CombatEvent 보관
+        Game->>Game: incoming queue를 소비해<br/>최신 Snapshot·EnemyPathDebug와 CombatEvent 보관
 
         Level->>Game: GetLatestSnapshot()
         Game-->>Level: latest Snapshot
@@ -227,9 +227,12 @@ sequenceDiagram
         Level->>MyPlayer: Tick · 입력 변화 확인
         MyPlayer->>Game: SendNetworkInput()
         Level->>Remote: Tick · Snapshot 표현 갱신
+        Level->>Game: DrawLatestEnemyPathDebug() · GetLatestEnemyPathDebugs()
+        Game-->>Level: Enemy ID별 최신 경로 map
+        Level->>Level: Draw()에서 F3가 켜진 현재 Room 경로 렌더링
     end
 ```
 
-`Game`은 수신 상태를 보관할 뿐 Network Actor를 직접 변경하지 않는다. ID별 생성·갱신·제거는 `ApplyLatestNetworkSnapshot`, 단발 효과 표현은 `ApplyCombatEvent`가 담당하며 둘 다 `Level::Tick`이 Actor Tick을 호출하기 전에 main thread에서 실행된다. 이때 새로 `SpawnActor`한 Actor는 엔진의 지연 추가 규칙에 따라 다음 프레임부터 Tick에 참여하고, `Destroy`한 Actor는 즉시 비활성화된 뒤 프레임 끝에 목록에서 제거된다.
+`Game`은 수신 상태를 보관할 뿐 Network Actor를 직접 변경하지 않는다. ID별 생성·갱신·제거는 `ApplyLatestNetworkSnapshot`, 단발 효과 표현은 `ApplyCombatEvent`, A* 경로 디버그 표현은 `DrawLatestEnemyPathDebug`가 담당하며 모두 main thread에서 실행된다. 이때 새로 `SpawnActor`한 Actor는 엔진의 지연 추가 규칙에 따라 다음 프레임부터 Tick에 참여하고, `Destroy`한 Actor는 즉시 비활성화된 뒤 프레임 끝에 목록에서 제거된다.
 
 현재 원격 playerId는 `NetworkPlayer` Actor로 생성·갱신·제거한다. 로컬 Player는 아직 기존 싱글플레이 Actor와 판정을 사용하므로 서버 권위형 전환이 완료된 상태가 아니다. 정확한 완료 범위와 다음 작업은 [멀티플레이 현황](MULTIPLAYER_STATUS.md)을 따른다.
