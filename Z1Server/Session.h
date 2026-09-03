@@ -19,6 +19,11 @@ public:
     inline OVERLAPPED* GetRecvOverlapped() noexcept { return &_recvOverlapped; }
     inline OVERLAPPED* GetSendOverlapped() noexcept { return &_sendOverlapped; }
 
+    // Pending bool 변수를 풀어주는 역할.
+    inline bool HasIoPending() const noexcept { return _recvPending || _sendPending; }
+    inline void AckRecvCompletion() noexcept { _recvPending = false; }
+    inline void AckSendCompletion() noexcept { _sendPending = false; }
+
     // WSARecv 완료된 byte 수신 -> TCP 누적 -> 헤더 크기 검증 -> 완성된 패킷 분리 -> Server가 꺼낼 수 있도록 보관
     bool PostRecv();
     bool HandleRecv(DWORD bytesTransferred);
@@ -27,7 +32,9 @@ public:
     bool Send(std::vector<Z1::Protocol::Byte>&& packet);    // 이미 framing된, "완성된" 패킷만 받음
     bool HandleSend(DWORD bytesTransferred);
 
-    // TODO: bool IsClosing() const noexcept;
+    inline bool IsClosing() const noexcept { return _closing; }
+    inline void SetClosing() noexcept { _closing = true; }
+    inline bool CanDestroy() const noexcept { return _closing && !HasIoPending(); }
     void Close() { _socket.Close(); }
 
 private:
@@ -40,6 +47,7 @@ public:
 
 private:
     Net::Socket _socket;
+    bool _closing = false;
 
     // 수신 완료 전까지 살아있어야 해서 지역 변수 X
     OVERLAPPED _recvOverlapped{};           // IOCP 완료 결과를 식별하는 구조체
@@ -49,6 +57,7 @@ private:
     std::array<Z1::Protocol::Byte, 4096> _recvBuffer{}; // WSARecv가 직접 채우는 임시 버퍼
     Z1::Protocol::PacketFramer _framer;
     std::deque<Z1::Protocol::Packet> _recvdPackets;              // 수신 큐
+    bool _recvPending = false;
 
     inline static constexpr std::size_t MaxQueuedSendPackets = 64;
     OVERLAPPED _sendOverlapped{};

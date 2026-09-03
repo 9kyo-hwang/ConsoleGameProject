@@ -117,9 +117,10 @@ flowchart LR
 
 `IOLoop`의 한 반복은 다음 순서를 따른다.
 
-1. `ProcessAcceptedSockets()`가 accept queue를 swap하고, 각 socket을 `Session`으로 만들어 completion port에 associate한 뒤 `PostRecv()`를 호출한다.
-2. 다음 20Hz Tick 시각에 도달했을 때만 `Tick()`을 호출한다. 지연된 경우 최대 5회 catch-up하며, 매 반복에 반드시 Tick하는 것은 아니다.
-3. 다음 Tick까지 남은 시간을 timeout으로 `GetQueuedCompletionStatus`를 호출해 completion 하나를 소비한다. recv completion은 framing·packet dispatch·다음 `PostRecv()`로, send completion은 `HandleSend()`로 이어진다.
+1. `RemoveClosedSessions()`가 이전 반복에서 closing으로 표시됐고 pending I/O가 모두 끝난 Session만 registry에서 제거한다.
+2. `ProcessAcceptedSockets()`가 accept queue를 swap하고, 각 socket을 `Session`으로 만들어 completion port에 associate한 뒤 `PostRecv()`를 호출한다.
+3. 다음 20Hz Tick 시각에 도달했을 때만 `Tick()`을 호출한다. 지연된 경우 최대 5회 catch-up하며, 매 반복에 반드시 Tick하는 것은 아니다.
+4. 다음 Tick까지 남은 시간을 timeout으로 `GetQueuedCompletionStatus`를 호출해 completion 하나를 소비한다. recv/send `OVERLAPPED`를 먼저 식별해 해당 pending을 해제한 뒤, recv completion은 framing·packet dispatch·다음 `PostRecv()`로, send completion은 `HandleSend()`로 이어진다. 실패·취소 completion도 새 I/O를 등록하지 않고 종료 경로로 들어간다.
 
 ```mermaid
 sequenceDiagram
@@ -131,6 +132,7 @@ sequenceDiagram
     participant Kernel as Winsock kernel
     participant IOCP as completion port
 
+    IO->>IO: RemoveClosedSessions()<br/>closing && pending 없음만 erase
     Accept->>Pending: Accept한 socket push
     IO->>Pending: ProcessAcceptedSockets() · queue swap
     IO->>Session: 생성 · associate(Session*) · PostRecv()
@@ -154,12 +156,21 @@ sequenceDiagram
     IOCP-->>IO: completion 하나
 
     alt recv completion
+        IO->>Session: AckRecvCompletion() · recvPending = false
+        alt 실패·bytes = 0·closing
+            IO->>Session: CloseSession() · 재등록하지 않음
+        else 정상 completion
         IO->>Session: HandleRecv(bytes)
         Session->>Session: PacketFramer에 누적 · 완성 packet 분리
         IO->>IO: HandleClientPacket() 전부 dispatch
         IO->>Session: PostRecv()
         Session->>Kernel: 다음 overlapped WSARecv 등록
+        end
     else send completion
+        IO->>Session: AckSendCompletion() · sendPending = false
+        alt 실패·bytes = 0·closing
+            IO->>Session: CloseSession() · 재등록하지 않음
+        else 정상 completion
         IO->>Session: HandleSend(bytes)
         alt front의 부분 전송
             Session->>Session: sendOffset 증가 · front 유지
@@ -170,14 +181,21 @@ sequenceDiagram
         else front 전체 전송, queue 비어 있음
             Session->>Session: front pop · sendPending = false
         end
+        end
     end
 ```
 
 `Session::Send()`는 `C2S_Enter` 처리, `BroadcastCombatEvents()`, `BroadcastWorldSnapshot()`에서 호출된다. 모든 호출은 현재 `IOLoop` 안에서 일어난다. `Send()`는 항상 packet을 queue에 넣고, `_sendPending`이 false일 때만 `PostSend()`로 front packet의 overlapped `WSASend`를 시작한다.
 
-send completion을 받은 뒤 `HandleSend()`는 전송 바이트 수를 반영한다. 부분 전송이면 같은 front packet의 남은 바이트를 다시 등록하고, 전체 전송이면 front를 pop한 뒤 대기 packet이 있을 때 다음 `WSASend`를 같은 호출 흐름에서 시작한다. 따라서 다음 송신 등록은 별도 Tick이나 새 `Send()` 호출을 기다리지 않지만, 실제 전송 완료는 다시 비동기로 IOCP completion을 통해 알려진다.
+send completion을 받은 뒤 `HandleSend()`는 전송 바이트 수를 반영한다. IOLoop이 먼저 completion을 acknowledge해 `_sendPending`을 해제하고, 부분 전송이면 같은 front packet의 남은 바이트를 다시 등록하고, 전체 전송이면 front를 pop한 뒤 대기 packet이 있을 때 다음 `WSASend`를 같은 호출 흐름에서 시작한다. 따라서 다음 송신 등록은 별도 Tick이나 새 `Send()` 호출을 기다리지 않지만, 실제 전송 완료는 다시 비동기로 IOCP completion을 통해 알려진다.
 
-이 설명은 현재의 단일 `IOLoop` 소유권을 전제로 한다. Session closing·outstanding I/O completion drain·registry 제거는 아직 완료되지 않았으며, 해당 수명 정책은 [멀티플레이 로드맵](MULTIPLAYER_ROADMAP.md)과 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)의 후속 작업 범위다.
+### Session 종료와 registry 수명
+
+`Session::IsClosing()`은 socket의 유효성(`IsValid()`)과 별개의 수명 상태다. peer disconnect, protocol 오류와 I/O 실패가 발생하면 `CloseSession()`이 closing을 한 번만 표시하고 `OverworldSimulation::RemovePlayer()`와 `socket.Close()`를 한 번씩 실행한다. socket close 뒤에도 취소된 overlapped I/O completion이 도착할 수 있으므로 Session은 즉시 파괴하지 않는다.
+
+`PostRecv()`와 `PostSend()`가 성공 또는 `WSA_IO_PENDING`을 반환하면 각각 pending을 세팅한다. IOLoop은 completion의 `OVERLAPPED` 주소를 Recv/Send와 비교해 성공·실패·취소 여부와 관계없이 pending을 해제한다. `closing && !_recvPending && !_sendPending`인 Session만 다음 IOLoop 반복 시작의 `RemoveClosedSessions()`에서 `_sessions`에서 제거한다. closing Session은 이후 Broadcast와 새 I/O 등록에서 제외한다.
+
+이 설명은 현재의 단일 `IOLoop` 소유권을 전제로 한다. 런타임 중 Session closing·outstanding I/O completion drain·registry 제거는 구현됐지만, `Server::Stop()`에서 모든 Session을 닫고 IOCP를 drain하는 전체 프로세스 종료 안정화는 별도 후속 작업이다.
 
 ## 클라이언트 프레임 적용 순서
 

@@ -41,7 +41,8 @@ private:
     bool RegisterAcceptedSocket(Net::Socket&& socket);
 
     void CloseSession(Session& session);
-
+    void RemoveClosedSessions();
+        
 private:
     void Tick();
     void BroadcastCombatEvents(const std::vector<PendingCombatEvent>& events);

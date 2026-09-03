@@ -2,7 +2,7 @@
 
 ## 문서 역할
 
-이 문서는 현재 Z1Server에 구현하지 않은 IOCP·Session·송신 구조 후보를 나중에 재검토하기 위한 메모다. [멀티플레이 설계](MULTIPLAYER_DESIGN.md)의 확정 계약이나 [멀티플레이 현황](MULTIPLAYER_STATUS.md)의 다음 구현 단위를 대체하지 않는다. 구현을 결정하면 해당 문서들에 결과와 검증 방법을 반영한다.
+이 문서는 현재 Z1Server에 구현하지 않았거나 보류한 IOCP·Session·송신 구조 후보를 나중에 재검토하기 위한 메모다. [멀티플레이 설계](MULTIPLAYER_DESIGN.md)의 확정 계약이나 [멀티플레이 현황](MULTIPLAYER_STATUS.md)의 다음 구현 단위를 대체하지 않는다. 구현을 결정하면 해당 문서들에 결과와 검증 방법을 반영한다.
 
 비교 대상으로 삼은 Rookiss ServerCore는 학습용 IOCP 서버 구조다. 여기서의 클래스 모양을 그대로 옮기는 것이 목표가 아니라, Z1의 규모와 현재 책임 경계에 맞는 원칙만 선택한다.
 
@@ -37,16 +37,16 @@ TCP는 `WSABUF` 경계를 수신자에게 보존하지 않는다. Scatter-Gather
 
 ## 차용 후보
 
-### 1. Session 종료 상태와 outstanding I/O 수명 관리
+### 1. Session 종료 상태와 outstanding I/O 수명 관리 (현재 적용)
 
 가장 우선순위가 높은 후보다. socket을 닫는 시점과 Session 객체를 파괴해도 되는 시점은 다르다. 닫힌 socket의 overlapped recv/send completion은 나중에 도착할 수 있으므로, completion key가 가리키는 Session을 즉시 제거하면 안 된다.
 
-Rookiss는 I/O event가 owner `shared_ptr`를 보유해 이 수명을 보장한다. Z1은 현재 stable `Session*` completion key와 registry 소유권으로 같은 문제를 피하고 있으므로, 다음 정책을 명시적으로 완성하는 방향을 검토한다.
+Rookiss는 I/O event가 owner `shared_ptr`를 보유해 이 수명을 보장한다. Z1은 `unique_ptr<Session>` registry와 stable `Session*` completion key를 유지하면서 같은 수명을 다음처럼 보장한다.
 
-- `Connected`, `Entered`, `Closing`, `Closed` 같은 명시적 Session 상태를 둔다.
-- 종료 처리는 idempotent하게 만든다. Player 제거, socket close, send 중단은 최초 종료 전이에서 한 번만 실행한다.
-- Snapshot 대상은 entered이면서 열려 있는 Session으로 제한한다.
-- Session registry 제거는 outstanding recv/send 취소 completion을 처리한 뒤에만 수행한다.
+- `_closing` flag로 종료 전이를 idempotent하게 만들고, Player 제거와 socket close는 최초 전이에서 한 번만 실행한다.
+- Snapshot·CombatEvent·EnemyPathDebug 대상과 새 I/O 등록을 closing이 아닌 entered Session으로 제한한다.
+- `_recvPending`과 `_sendPending`을 추적하고, IOLoop이 Recv/Send `OVERLAPPED` completion을 성공·실패·취소 여부와 관계없이 acknowledge한다.
+- IOLoop 반복문 시작의 deferred sweep에서 `closing && no pending I/O` Session만 registry에서 제거한다.
 
 registry에서 장기적으로 제거하려면 두 선택지가 있다.
 
@@ -55,7 +55,7 @@ registry에서 장기적으로 제거하려면 두 선택지가 있다.
 | 현재 `unique_ptr` registry를 유지하고 pending operation 수를 추적 | 현재 구조를 가장 작게 확장 | cancellation completion과 deferred erase 규칙을 명확히 해야 함 |
 | operation context가 `shared_ptr<Session>`을 보유 | Rookiss와 같은 명확한 완료 전 수명 보장 | operation 구조와 Session 소유 모델이 커짐 |
 
-먼저 전자를 검토한다. raw `Session*` completion key를 유지한 채 즉시 erase하는 방식은 허용하지 않는다.
+현재는 첫 번째 선택지를 적용한다. raw `Session*` completion key를 유지한 채 즉시 erase하는 방식은 허용하지 않는다. `Server::Stop()`에서 모든 Session을 닫고 IOCP completion을 drain하는 전체 종료 barrier와 더 세분화된 operation context는 아직 후속 검토 대상이다.
 
 ### 2. 접속·큐 상한과 backpressure
 
@@ -124,4 +124,3 @@ Session A Session B Session C
 2. 여러 실제 Z1 client와 dummy client로 Tick 시간, send queue high-water mark, packet 크기, 접속·종료 반복을 측정한다.
 3. 종료 Session이 Player 제거·Snapshot 제외·I/O completion drain을 정확히 한 번씩 처리하는지 먼저 보완한다.
 4. 관찰된 병목 하나에만 대응하는 항목을 선택한다. 추정만으로 Service, worker pool, Scatter-Gather를 함께 도입하지 않는다.
-

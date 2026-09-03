@@ -56,6 +56,9 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 서버 Tick에서 승인된 정지 일반 검 공격마다 Player id·facing과 관심 Room을 `PendingCombatEvent`로 한 번 기록
 - Tick 뒤 쌓인 CombatEvent를 꺼내 공격 Player와 같은 관심 Room의 entered Session에 전송하며 공격한 Session도 수신 대상에 포함
 - entered Session마다 해당 Player의 관심 Room에 속한 Player·Enemy·Projectile Snapshot을 작성
+- `CloseSession()`이 Session을 `_closing`으로 한 번만 전환하고, `RemovePlayer()`와 socket close를 중복 호출하지 않음
+- Recv/Send `OVERLAPPED` completion을 IOLoop에서 확인해 `_recvPending`/`_sendPending`을 해제하고, closing Session은 새 I/O와 Broadcast에서 제외
+- IOLoop 반복문 시작의 `RemoveClosedSessions()`가 pending I/O가 남지 않은 Session만 `_sessions`에서 제거
 
 ### Z1 클라이언트
 
@@ -101,6 +104,7 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 같은 Room의 실제 Z1 두 개에서 한 Player의 일반 검 CombatEvent가 양쪽에 전달되어 해당 NetworkPlayer 위치에 표현되는 것 확인
 - 실제 Z1에서 서버 Moblin이 장애물을 우회할 때 `S2C_EnemyPathDebug` 경로가 이동 경로와 일치하게 표시되고, `F3` 토글로 표시를 전환하는 것 확인
 - Enemy 사망 또는 Player의 Room 이동 시 이전 경로가 사라지고, ASCII 디버그 Sprite 캐싱 후 타일 밀림 없이 렌더링되는 것 확인
+- peer disconnect와 protocol 오류가 `CloseSession()`의 단일 종료 전이로 수렴하고, pending completion drain 뒤 registry sweep 대상이 되는 것 확인
 - 이동 중 공격 차단, 단일 입력의 1회 공격과 빠른 연속 입력 횟수만큼의 공격·표현 발생 확인
 - CombatEvent wire format을 포함한 server framing suite와 Z1Server·Z1 빌드 통과
 
@@ -125,14 +129,13 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - fallback 위치를 `_myPlayer` 또는 마지막 Snapshot에서 보존해 `EnsureOfflinePlayers()`에 전달하는 변경, `_wasOnline` 전환 flag, 비활성 `_player`의 `Destroy()`/reset을 시도했지만 최신 재현에서는 해결되지 않았다. 이 fallback은 더 이상 목표 동작이 아니며 현재 코드도 완료된 기능으로 간주하지 않는다.
 - 향후 Title에서 기본 선택이 Local Play인 위/아래 메뉴로 Local Play와 Multiplayer를 분리한다. 별도 Loading Level 없이 Title에서 입장 완료를 기다리고, 연결 실패·종료는 Local Play 전환 대신 네트워크 상태를 정리한 뒤 약 3초간 안내와 함께 Title로 복귀한다. 자세한 확정 정책은 [멀티플레이 설계의 플레이 모드와 연결 종료 정책](MULTIPLAYER_DESIGN.md#플레이-모드와-연결-종료-정책)을 따른다.
 - Multiplayer MVP에서 Cave·Dungeon 입구는 진입을 막고 짧은 미지원 안내를 표시한다. Cave·Dungeon 네트워크 입장과 상태 동기화는 시간 여유가 생긴 뒤 별도 논의한다.
-- 닫힌 Session을 `_sessions` registry에서 제거하는 최종 수명 처리가 완료되지 않았다.
-- closing 상태, outstanding I/O, cancellation과 completion drain을 포함한 안전한 서버 종료가 완료되지 않았다.
+- 런타임 중 닫힌 Session의 closing 전이, pending Recv/Send completion drain과 `_sessions` registry 제거가 적용됐다. `Server::Stop()`에서 모든 Session을 닫고 IOCP를 drain하는 전체 프로세스 종료 안정화는 별도 후속 작업이다.
 - `S2C_Disconnect`는 선언만 되어 있다.
 - 자동 재접속과 Session 복구는 지원하지 않는다.
 - 같은 PC의 Z1 프로세스들이 동일한 물리 키를 함께 감지한다. 자세한 내용은 [콘솔 입력 설계](CONSOLE_INPUT_DESIGN.md)를 따른다.
 
 ## 다음 구현 단위
 
-재구성한 전체 순서와 단계별 완료 조건은 [멀티플레이 잔여 작업 로드맵](MULTIPLAYER_ROADMAP.md)을 따른다. A* 최종 경로 시각화는 완료됐으며, 바로 다음 작업은 닫힌 Session을 registry에서 안전하게 제거하는 것이다.
+재구성한 전체 순서와 단계별 완료 조건은 [멀티플레이 잔여 작업 로드맵](MULTIPLAYER_ROADMAP.md)을 따른다. A* 최종 경로 시각화와 런타임 중 닫힌 Session registry 제거는 완료됐으며, 바로 다음 작업은 동일 PC 멀티클라이언트 입력 분리다.
 
 그 뒤 동일 PC 입력 분리, Local/Multiplayer 모드 분리와 fallback 제거, Player 사망 후 Title 복귀, Enemy 7초 리스폰, 서버 프로세스 종료 안정화 순으로 진행한다. SwordBeam·방패·무적·넉백과 Octorok·Tektite 고유 AI는 필수 범위가 끝난 뒤 시간이 남을 때만 재검토한다. Enemy·IOCP 확장 후보의 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다.

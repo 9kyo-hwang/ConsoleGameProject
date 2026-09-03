@@ -81,13 +81,26 @@ Enemy 사망 시 이미 발사된 소유 Projectile을 즉시 제거할지는 �
 - Enemy 사망과 Player의 Room 이동에서 이전 경로가 사라진다.
 - 디버그 Sprite를 캐싱하고 ASCII 표시 문자를 사용해 타일이 밀려 보이는 렌더링 오류가 없다.
 
-### 2. 닫힌 Session 제거
+### 2. 닫힌 Session 제거 (완료)
 
-transport 종료와 protocol 오류를 closing 상태로 한 번만 전환하고, outstanding I/O completion이 정리된 뒤에만 Session을 제거한다. 이후 단계에서 연결·종료를 반복 검증할 수 있는 최소 기반을 먼저 만든다.
+transport 종료와 protocol 오류를 closing 상태로 한 번만 전환하고, outstanding I/O completion이 정리된 뒤에만 Session을 제거한다. `_sessions`는 IO thread가 안전한 지점에서 sweep하며, Session 객체를 IOCP completion이 남아 있는 동안 파괴하지 않는다.
+
+구현 범위:
+
+- `CloseSession()`이 `_closing` 전환, `RemovePlayer()`와 socket close를 한 번만 수행한다.
+- `PostRecv()`와 `PostSend()`가 outstanding I/O를 pending으로 기록하고, IOLoop이 Recv/Send `OVERLAPPED` completion을 확인할 때 이를 해제한다. 성공·실패·취소 completion 모두 같은 규칙을 따른다.
+- closing Session은 Broadcast와 다음 I/O 등록 대상에서 제외한다.
+- `RemoveClosedSessions()`가 IOLoop 반복문 시작의 안전한 지점에서 `closing && no pending I/O` Session만 `_sessions`에서 제거한다.
 
 - `OverworldSimulation::RemovePlayer()`를 정확히 한 번 호출한다.
 - 다른 Session의 다음 Snapshot에서 종료된 Player가 사라진다.
 - 반복 접속·종료에도 Session과 Player가 누적되지 않는다.
+
+완료 검증:
+
+- peer disconnect, malformed packet, I/O failure와 SendQueue 상한 초과가 같은 idempotent 종료 경로로 수렴한다.
+- 취소된 Recv/Send completion을 소비하기 전에는 Session이 registry에 남고, 양쪽 pending이 모두 해제된 뒤에만 제거된다.
+- closing Session은 이후 Snapshot·CombatEvent·EnemyPathDebug Broadcast에서 건너뛴다.
 
 ### 3. 동일 PC 멀티클라이언트 입력 분리
 

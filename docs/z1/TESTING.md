@@ -58,6 +58,18 @@ Z1Server를 먼저 실행한 뒤 PowerShell dummy client로 TCP framing과 기�
 
 스크립트 통과는 실제 Z1 통합을 대체하지 않는다. transport나 Snapshot 표현을 변경했다면 Z1Server와 Z1을 함께 실행해 연결, playerId, 이동, 연결 종료 후 Actor 정리를 확인한다.
 
+### Session 종료와 registry 정리
+
+`tools/test-z1-enter.ps1 -RunServerFramingSuite`를 반복 실행하거나 dummy client를 연결한 뒤 종료한다. Visual Studio debugger 또는 서버 로그에서 다음을 확인한다.
+
+- peer disconnect, malformed packet과 I/O failure가 `CloseSession()`으로 수렴한다.
+- 같은 Session에서 `_closing` 전환, `RemovePlayer()`와 socket close가 각각 한 번만 발생한다.
+- 취소된 Recv/Send completion이 도착하기 전에는 `_sessions`의 Session이 유지된다.
+- `_recvPending`과 `_sendPending`이 모두 해제된 다음 IOLoop 반복 시작에서 `RemoveClosedSessions()`가 해당 Session을 제거한다.
+- 반복 접속·종료 후 `_sessions`와 Simulation의 Player 수가 누적되지 않는다.
+
+이 검증은 런타임 연결 종료 정리 범위다. `Server::Stop()`에서 모든 Session을 닫고 IOCP completion을 drain하는 프로세스 전체 종료 검증은 별도 후속 작업이다.
+
 ### KeepAlive dummy client
 
 `MyPlayer`와 원격 표현을 수동으로 확인할 때는 Z1Server를 실행한 뒤 별도 PowerShell에서 다음 dummy client를 유지한다.

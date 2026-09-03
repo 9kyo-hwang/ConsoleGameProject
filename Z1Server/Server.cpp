@@ -205,6 +205,8 @@ void Server::IOLoop()
 
     while (true)
     {
+        RemoveClosedSessions(); // 단일 스레드이므로, 다른 작업 전에 먼저 제거해놓고 시작
+
         ProcessAcceptedSockets();
 
         const auto now = Clock::now();
@@ -247,31 +249,26 @@ void Server::IOLoop()
 
         // completionKey를 Session*로 넘겼었음!
         Session* session = (Session*)event.completionKey;
-        if (!event.succeeded)
+        if (!session || !event.overlapped)
         {
-            // 각 세션은 accept 시 unique_ptr로 서버에서 관리하고,
-            // 아직 vector에서 세션을 제거하는 로직이 없어 유효함
-            if (session != nullptr)
-            {
-                CloseSession(*session);  
-            }
-
             continue;
         }
-
-        // case 1: Recv 이벤트 완료
+        
+        // 실패 확인 전, Completion 통지는 이미 왔으므로
+        // overlapped 이벤트 종류를 보고 pending = false로 세팅해야 함
         if (event.overlapped == session->GetRecvOverlapped())
         {
-            // 상대방이 전송한 데이터가 0이면 접속 종료를 요청한 것
-            if (event.bytesTransferred == 0)
+            session->AckRecvCompletion();
+            if (!event.succeeded || event.bytesTransferred == 0)
             {
-                std::cout << "Client Disconnected\n";
+                std::cout << "\t[FAIL] GQCS || Client disconnected.\n";
                 CloseSession(*session);
                 continue;
             }
 
             if (!session->HandleRecv(event.bytesTransferred))
             {
+                std::cout << "\t[FAIL] HandleRecv\n";
                 CloseSession(*session);
                 continue;
             }
@@ -282,39 +279,44 @@ void Server::IOLoop()
             {
                 if (!HandleClientPacket(*session, packet))
                 {
+                    std::cout << "\t[FAIL] HandleClientPacket\n";
                     CloseSession(*session);
                     isValidSession = false;
                     break;
                 }
             }
 
-            if (!isValidSession)
+            if (isValidSession)
             {
+                if (!_stopRequested && !session->PostRecv())
+                {
+                    std::cout << "\t[FAIL] PostRecv\n";
+                    CloseSession(*session);
+                }
+            }
+        }
+        else if (event.overlapped == session->GetSendOverlapped())
+        {
+            session->AckSendCompletion();
+            if (!event.succeeded || event.bytesTransferred == 0)
+            {
+                std::cout << "\t[FAIL] GQCS || Client disconnected.\n";
+                CloseSession(*session);
                 continue;
             }
 
-            if (!_stopRequested && !session->PostRecv())
-            {
-                CloseSession(*session);
-            }
-
-            continue;
-        }
-
-        // case 2: Send 이벤트 완료
-        if (event.overlapped == session->GetSendOverlapped())
-        {
             // Send Completion에서 전송한 바이트 수가 0이라면 비정상 전송
             if (!session->HandleSend(event.bytesTransferred))
             {
+                std::cout << "\t[FAIL] HandleSend\n";
                 CloseSession(*session);
             }
-
-            continue;
         }
-
-        // 등록하지 않은 OVERLAPPED 완료 통지
-        CloseSession(*session);
+        else
+        {
+            std::cout << "\t[FAIL] Invalid Overlapped Event\n";
+            CloseSession(*session);
+        }
     }
 }
 
@@ -372,12 +374,25 @@ bool Server::RegisterAcceptedSocket(Net::Socket&& clientSocket)
 
 void Server::CloseSession(Session& session)
 {
+    if (session.IsClosing()) return;
+
+    session.SetClosing();
+
     if (const auto playerId = session.GetPlayerId())
     {
         _overworld.RemovePlayer(*playerId);
     }
 
     session.Close();
+}
+
+void Server::RemoveClosedSessions()
+{
+    std::erase_if(_sessions, 
+        [](const std::unique_ptr<Session>& session)
+        {
+            return session->CanDestroy();
+        });
 }
 
 // 서버 시뮬레이션 역할을 하는 Tick
@@ -409,7 +424,7 @@ void Server::BroadcastCombatEvents(const std::vector<PendingCombatEvent>& events
 
         for (const auto& session : _sessions)
         {
-            if (!session->IsEntered())
+            if (!session->IsEntered() || session->IsClosing())
             {
                 continue;
             }
@@ -439,7 +454,7 @@ void Server::BroadcastWorldSnapshot()
 {
     for (const std::unique_ptr<Session>& session : _sessions)
     {
-        if (!session->IsEntered())
+        if (!session->IsEntered() || session->IsClosing())
         {
             continue;
         }
@@ -460,7 +475,7 @@ void Server::BroadcastEnemyPathDebugs()
 {
     for (const std::unique_ptr<Session>& session : _sessions)
     {
-        if (!session->IsEntered())
+        if (!session->IsEntered() || session->IsClosing())
         {
             continue;
         }

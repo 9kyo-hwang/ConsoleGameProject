@@ -20,16 +20,11 @@ bool Session::PostRecv()
 
     DWORD bytesRecvd = 0;
     const int result = ::WSARecv(_socket.GetNativeHandle(), &_recvBufferView, 1, &bytesRecvd, &_recvFlags, &_recvOverlapped, nullptr);
-    if (result == 0)
+    if (result == 0 || WSA_IO_PENDING == ::WSAGetLastError())
     {
         // IOCP에 연결된 Socket Completion 대기(GetQueuedCompletionStatus에서 처리)
-        return true;
-    }
-
-    const int error = ::WSAGetLastError();
-    if (error == WSA_IO_PENDING)
-    {
-        // 정상적인 비동기 대기
+        // 혹은 정상적인 비동기 대기
+        _recvPending = true;
         return true;
     }
 
@@ -112,8 +107,8 @@ bool Session::Send(std::vector<Z1::Protocol::Byte>&& packet)
 /// <returns></returns>
 bool Session::HandleSend(DWORD bytesTransferred)
 {
-    // 전송에 실패했거나, 해당 패킷이 처리됐거나(실제 pop이 여기서 이뤄지므로)
-    if (!_sendPending || _sendQueue.empty())
+    // 해당 패킷이 처리됐거나(실제 pop이 여기서 이뤄지므로)
+    if (_sendQueue.empty())
     {
         return false;
     }
@@ -126,7 +121,6 @@ bool Session::HandleSend(DWORD bytesTransferred)
     }
 
     _sendOffset += bytesTransferred;
-    _sendPending = false;
 
     // 전송한 Front 패킷이 부분적으로만 전송된 경우
     // Pop하지 않고 offset만 증가시킨 뒤 잔여 부분 다시 WSASend 시도
