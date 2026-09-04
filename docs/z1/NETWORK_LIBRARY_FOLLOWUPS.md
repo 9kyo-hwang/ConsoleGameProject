@@ -17,6 +17,38 @@ Z1Server는 다음의 작은 구조를 유지한다.
 
 `PacketFramer`가 TCP 수신 누적, packet 경계 복원과 잘못된 크기 거부를 담당하므로, Rookiss의 sliding `RecvBuffer`를 별도로 도입하지 않는다. 송신도 현재는 한 번에 하나의 완성 packet을 보내며 partial send를 명시적으로 처리한다.
 
+## 클라이언트 전용 network thread 선택 배경과 평가
+
+### Rookiss 클라이언트와의 차이
+
+참고 프로젝트의 Rookiss 클라이언트는 `ServerCore`의 IOCP 네트워크 기능을 사용하지만, 활성화된 구조에서는 별도 network worker를 두지 않는다. `Game::Update()`가 `NetworkManager::Update()`를 호출하고, 그 안에서 `GetQueuedCompletionStatus` timeout 0인 `IocpCore::Dispatch(0)`으로 준비된 completion을 한 프레임에 하나씩 처리한다. packet handler도 같은 main thread에서 실행되므로 역직렬화한 결과를 Scene과 GameObject에 바로 적용할 수 있다.
+
+이 방식은 클라이언트 메인 루프와 콘텐츠 갱신을 `GameCoding` 프로젝트가 같이 소유하므로 프레임 순서에 네트워크 polling을 직접 배치하기 쉽다. 대신 수신 지연과 처리량이 프레임 속도에 종속되고, handler 비용이 그대로 프레임 시간에 포함된다. 완료가 모였을 때 프레임당 한 건만 처리하는 현재 예제는 completion backlog도 만들 수 있다.
+
+### Z1이 선택한 경계
+
+CraftEngine의 `Engine::Run()`은 `ProcessInput()`, `mainLevel->Tick()`, collision, draw 순서를 소유하고, `Game` 파생 타입이 재정의할 application-level `PreTick` 훅은 현재 없다. 그래서 Rookiss처럼 `Game::Update()`에 polling을 한 줄 추가하는 구조는 아니지만, 이것이 전용 thread를 강제한 것은 아니다. `TitleLevel::Tick()`과 `NetworkOverworldLevel::Tick()`에서 main-thread nonblocking polling을 수행하는 방식도 가능한 대안이었다.
+
+현재 전용 network thread를 선택한 실질적인 이유는 처리량 확보보다 다음 책임 격리에 있다.
+
+- 연결 이후의 socket I/O와 TCP framing을 CraftEngine 프레임 속도와 분리한다.
+- network thread는 raw byte, packet 경계, payload 검증과 역직렬화까지만 수행한다.
+- 검증된 typed `IncomingMessage`를 queue로 넘기고, `Game::PumpNetwork()`와 Level이 main thread에서 게임 상태와 Actor를 변경한다.
+
+이 선택은 현재 요구에 필수였던 최적화로 기록하지 않는다. 단일 서버 연결과 20Hz 수준의 가벼운 패킷을 다루는 MVP에서는 main-thread nonblocking polling이 더 작은 시작점이었다. 전용 thread는 초기 요구보다 이른 선택이었지만, 현재는 transport와 gameplay 사이의 thread 경계를 명시적으로 유지하는 구조로 동작한다.
+
+또한 현재 `NetworkClient::Start()`의 blocking `connect()`는 network thread를 시작하기 전 main thread에서 수행된다. 따라서 현재 구조를 “모든 네트워크 blocking을 프레임에서 제거한 구조”로 설명하지 않는다. 전용 thread의 격리 범위는 연결이 완료된 뒤의 송수신이며, 최초 연결 정지는 아래의 별도 과제다.
+
+### 계층 배치와 재검토 기준
+
+Z1 packet 규약을 아는 `NetworkClient`를 CraftEngine으로 옮기지 않는다. 범용 socket 자원과 connect·send·recv는 `Sockets`, wire format과 codec·framer는 `Z1Shared`, packet 분기와 세션 상태는 Z1의 `NetworkClient`, Actor 반영은 Z1 `Level`의 책임으로 유지한다.
+
+다른 콘텐츠도 프레임당 외부 service 갱신이 필요해질 때는 CraftEngine에 network API가 아닌 protocol-agnostic `PreTick` 또는 subsystem update hook을 추가하는 방식을 우선 검토한다. 현재 구조가 안정적으로 동작하고 다음 기능을 막지 않는 동안은 전용 thread를 유지한다. 다만 다음 조건에서는 main-thread bounded polling으로의 단순화를 재검토한다.
+
+- thread·queue·종료 동기화가 반복적인 결함이나 기능 추가의 주요 방해가 된다.
+- 클라이언트 코드의 학습성과 단순성을 위해 프레임 종속 처리량을 수용하기로 결정한다.
+- CraftEngine에 범용 프레임 hook이 생겨 Level별 polling 호출을 중복하지 않고도 일관된 순서를 보장할 수 있다.
+
 ## 보류한 클라이언트 논블로킹 연결
 
 ### 확인된 현재 동작

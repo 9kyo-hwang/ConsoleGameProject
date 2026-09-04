@@ -72,6 +72,8 @@ Overworld의 시작 Room에는 적이 없다. 다른 접근 가능 Room은 Room 
 
 `Game`은 `NetworkClient`를 소유하고 localhost Loopback(`127.0.0.1:7777`) 연결을 시도한다. network thread는 TCP 송수신과 패킷 파싱만 수행하고, 받은 메시지는 queue를 통해 main thread에 넘긴다. `NetworkOverworldLevel`이 queue를 소비해 Snapshot을 적용한다.
 
+전용 network thread는 현재 패킷 처리량을 만족시키기 위한 필수 최적화가 아니라, 연결 이후의 socket I/O와 framing을 CraftEngine 프레임 속도에서 격리하고 Actor·Level 변경은 main thread에서만 수행하려고 선택한 경계다. 단일 서버와 가벼운 패킷을 다루는 현재 MVP에서는 Level `Tick()`의 main-thread nonblocking polling도 가능한 대안이었으며, 현재 구조는 처리량보다 책임 격리를 우선한 결과다. 최초 blocking `connect()`는 thread 시작 전 main thread에서 실행되므로 이 격리의 범위에 포함되지 않는다. 선택 배경과 대안 비교는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md#클라이언트-전용-network-thread-선택-배경과-평가)를 따른다.
+
 ```mermaid
 flowchart LR
     subgraph Client[Z1 EXE]
