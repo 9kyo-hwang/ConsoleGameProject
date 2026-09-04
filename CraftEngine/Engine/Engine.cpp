@@ -85,8 +85,6 @@ namespace Craft
                     mainLevel->SavePreviousActorStates();
                 }
 
-				SavePreviousInputStates();
-
 				previousCount = currentCount;
 			}
 		}
@@ -133,7 +131,7 @@ namespace Craft
 	void Engine::ProcessInput()
 	{
         assert(input != nullptr);
-        input->ProcessInput();
+        input->ReadConsoleInputEvents();
 	}
 
 	void Engine::OnInitialized()
@@ -190,12 +188,6 @@ namespace Craft
         // 즉 Level - Engine - Collision 구조로 Engine이 중재자
         collision->ProcessCollision(mainLevel->actors);
     }
-
-	void Engine::SavePreviousInputStates()
-	{
-        assert(input != nullptr);
-        input->SaveKeyStates();
-	}
 
 	void Engine::Shutdown()
 	{

@@ -1,6 +1,6 @@
 # Z1 멀티플레이 잔여 작업 로드맵
 
-마지막 갱신: 2026-09-03
+마지막 갱신: 2026-09-04
 
 ## 문서 목적
 
@@ -102,7 +102,7 @@ transport 종료와 protocol 오류를 closing 상태로 한 번만 전환하고
 - 취소된 Recv/Send completion을 소비하기 전에는 Session이 registry에 남고, 양쪽 pending이 모두 해제된 뒤에만 제거된다.
 - closing Session은 이후 Snapshot·CombatEvent·EnemyPathDebug Broadcast에서 건너뛴다.
 
-### 3. 동일 PC 멀티클라이언트 입력 분리
+### 3. 동일 PC 멀티클라이언트 입력 분리 (완료)
 
 이후 모든 다중 클라이언트 검증을 안정화하기 위한 작업이다. 세부 후보와 위험은 [콘솔 입력 시스템 개선 검토](CONSOLE_INPUT_DESIGN.md)를 따른다.
 
@@ -119,6 +119,14 @@ transport 종료와 protocol 오류를 closing 상태로 한 번만 전환하고
 - 같은 PC의 Z1 두 개 중 입력 대상인 client의 Session만 이동한다.
 - key-down, key-up, held와 빠른 tap이 기존 의미를 유지한다.
 - Z1, ShootingGame과 SokobanGame의 기존 입력을 회귀 검증한다.
+
+완료 검증:
+
+- `CraftEngine::Input`이 `STD_INPUT_HANDLE`의 `KEY_EVENT_RECORD` 및 `FOCUS_EVENT`를 drain하여 포커스된 콘솔 창의 입력만 소비한다.
+- `KeyState`의 `held`, `pressed`, `released` 분리로 키 auto-repeat 시 `GetKeyDown` 중복 방지 및 1프레임 탭 엣지를 보존한다.
+- `FOCUS_EVENT`로 포커스 이탈 시 모든 키가 해제되어 이동 멈춤(`None`)이 보장된다.
+- 같은 PC에서 실제 Z1 두 개를 실행하고 각 콘솔 창에 입력했을 때, 포커스된 창의 세션만 `C2S_Input`이 갱신되어 각 캐릭터가 독립적으로 이동한다.
+- Title 레벨 `VK_RETURN` 입력 및 인게임 조작이 정상 동작한다.
 
 ### 4. Local/Multiplayer 모드 분리와 fallback 제거
 

@@ -72,7 +72,6 @@ namespace Craft
 		void Tick(float deltaTime); // 게임 플레이 업데이트 함수.
 		void Draw();    // 레벨 그리기 함수.
         void ProcessCollision();  // 충돌 처리 함수
-		void SavePreviousInputStates(); // 프레임 간 입력 값 저장을 위한 함수.
 		void Shutdown();    // 엔진 종료 시 정리가 필요할 때 사용할 함수.
         void LoadSettings();  // 엔진 설정 로드 함수
 

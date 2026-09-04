@@ -4,12 +4,11 @@
 
 이 문서는 CraftEngine의 현재 키 입력 방식이 같은 PC에서 실행한 여러 Z1 클라이언트에 미치는 영향과 개선 후보를 기록한다. Z1 protocol과 서버 입력 검증은 [멀티플레이 설계](MULTIPLAYER_DESIGN.md)에서 다루고, 여기서는 클라이언트가 어느 키 입력을 자신의 입력으로 받아들일지만 다룬다.
 
-현재 결론은 다음과 같다.
+현재 결론 및 진행 상태는 다음과 같다.
 
-- `MyPlayer`/`NetworkPlayer` 분리는 Actor별 입력 책임을 해결하지만, 여러 프로세스가 같은 물리 키 상태를 읽는 문제까지 해결하지는 않는다.
-- Z1 두 개를 같은 PC에서 실행하면 두 프로세스의 `GetAsyncKeyState` polling이 같은 방향키를 감지해 각 Session의 `C2S_Input`을 모두 갱신할 수 있다.
-- replicated Player 구현을 막지는 않는다. 그 단계의 다중 클라이언트 검증은 실제 Z1 하나와 입력을 보내지 않거나 정해진 입력만 보내는 dummy client를 함께 사용한다.
-- 이후 입력 개선은 `KEY_EVENT_RECORD` 기반 console input buffer 소비를 우선 후보로 검증한다. CraftEngine의 기존 `GetKey`/`GetKeyDown`/`GetKeyUp` 공개 API는 유지한다.
+- `MyPlayer`/`NetworkPlayer` 분리로 한 클라이언트 내의 Actor별 입력 책임을 해결했다.
+- `CraftEngine::Input`을 콘솔 입력 버퍼의 `KEY_EVENT_RECORD` 및 `FOCUS_EVENT` 소비(후보 A)로 전환하여, 동일 PC에서 여러 Z1을 실행해도 포커스된 콘솔 창에만 입력이 전달되도록 분리를 완료했다.
+- CraftEngine의 기존 `GetKey`/`GetKeyDown`/`GetKeyUp` 공개 API는 그대로 유지된다.
 
 ## 현재 Z1에서 확인된 현상
 
@@ -172,11 +171,22 @@ Rookiss처럼 각 client가 실제 `HWND`와 message loop를 소유하고 `GetKe
 7. 위 검증에서 Windows Terminal host가 low-level input record를 기대대로 격리하지 못할 경우 foreground 조건을 덧붙이지 말고, GUI input window 또는 terminal input library 도입 여부를 다시 결정한다.
 
 ## 완료 기준
+ 
+ - 같은 PC에서 Z1 두 개를 실행하고 한 window/tab에 입력했을 때 해당 Session의 `C2S_Input`만 갱신된다.
+ - focus를 바꾸거나 이동키를 놓았을 때 이전 Session에 `MoveDirection::None`이 전달되어 서버 이동이 멈춘다.
+ - 원격 `NetworkPlayer`는 입력을 읽지 않고 snapshot으로만 움직인다.
+ - key auto-repeat이 `GetKeyDown`을 반복 발생시키지 않는다.
+ - 짧은 press/release가 같은 frame에 들어와도 `GetKeyDown`과 `GetKeyUp` edge를 잃지 않는다.
+ - Z1, ShootingGame, SokobanGame의 기존 키 입력 동작에 회귀가 없다.
+ - stdin이 console이 아닌 환경의 동작이 명시적이며 전역 polling으로 조용히 fallback하지 않는다.
 
-- 같은 PC에서 Z1 두 개를 실행하고 한 window/tab에 입력했을 때 해당 Session의 `C2S_Input`만 갱신된다.
-- focus를 바꾸거나 이동키를 놓았을 때 이전 Session에 `MoveDirection::None`이 전달되어 서버 이동이 멈춘다.
-- 원격 `NetworkPlayer`는 입력을 읽지 않고 snapshot으로만 움직인다.
-- key auto-repeat이 `GetKeyDown`을 반복 발생시키지 않는다.
-- 짧은 press/release가 같은 frame에 들어와도 `GetKeyDown`과 `GetKeyUp` edge를 잃지 않는다.
-- Z1, ShootingGame, SokobanGame의 기존 키 입력 동작에 회귀가 없다.
-- stdin이 console이 아닌 환경의 동작이 명시적이며 전역 polling으로 조용히 fallback하지 않는다.
+## 구현 결과 (2026-09-04 적용 완료)
+
+후보 A(`KEY_EVENT_RECORD` 및 `FOCUS_EVENT` 기반 콘솔 입력 버퍼 소비)가 `CraftEngine::Input`에 적용되었다.
+
+- **버퍼 이벤트 소비**: `GetNumberOfConsoleInputEvents`로 논블로킹 확인 후 `ReadConsoleInputW`로 대기 중인 레코드를 일괄 drain하여 처리
+- **키 상태 세분화**: `KeyState`를 `held`, `pressed`, `released`로 관리하여 키 반복(`bKeyDown=TRUE` 연속 수신) 시 `GetKeyDown` 중복 방지 및 1프레임 내 빠른 탭(Press/Release) 엣지 보존
+- **포커스 이탈 대응**: `FOCUS_EVENT` 수신 시 `!bSetFocus`이면 눌려 있던 모든 키를 `released` 처리하여 창 전환 시 조작 멈춤(`None`) 보장
+- **공개 API 유지**: 기존 `GetKey`, `GetKeyDown`, `GetKeyUp`의 시그니처와 의미를 유지하여 기존 게임 콘텐츠 호환성 확보
+- **검증 완료**: 동일 PC에서 실제 Z1 클라이언트 2개를 실행하고 각 콘솔 창 포커스에 따라 독립적으로 입력(`C2S_Input`)이 전송되어 각 Player가 분리 조작됨을 확인
+

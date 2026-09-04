@@ -1,6 +1,6 @@
 # Z1 멀티플레이 개발 현황
 
-마지막 갱신: 2026-09-03
+마지막 갱신: 2026-09-04
 
 ## 문서 역할
 
@@ -8,7 +8,7 @@
 
 ## 현재 위치
 
-TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Projectile 공격이 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 BlockingMap 충돌을 통과한 Player 좌표와 수신 Player의 관심 Room에 속한 Enemy·Projectile을 `S2C_WorldSnapshot`으로 전송한다. 서버가 Moblin의 실제 A* 최종 경로를 `S2C_EnemyPathDebug`로 전송하고 클라이언트가 `F3` 토글로 표시한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다. IOCP completion port HANDLE은 `CompletionPort`가 RAII로 소유한다.
+TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Projectile 공격이 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 BlockingMap 충돌을 통과한 Player 좌표와 수신 Player의 관심 Room에 속한 Enemy·Projectile을 `S2C_WorldSnapshot`으로 전송한다. 서버가 Moblin의 실제 A* 최종 경로를 `S2C_EnemyPathDebug`로 전송하고 클라이언트가 `F3` 토글로 표시한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다. `CraftEngine::Input`이 콘솔 입력 버퍼 기반으로 전환되어 동일 PC에서 여러 Z1 클라이언트를 실행해도 포커스된 콘솔 창의 입력만 독립적으로 처리된다. IOCP completion port HANDLE은 `CompletionPort`가 RAII로 소유한다.
 
 네트워크 모드의 Player·Enemy·Projectile 위치와 HP·사망은 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 BlockingMap 충돌과 전역 Enemy 초기 스폰, Moblin의 Room 내부 A* 추적 이동·Spear 발사, Projectile의 Player 피격·사망, Player 일반 검의 Enemy 피격·사망까지 적용됐다. 클라이언트는 local Snapshot 좌표로 배경과 View의 Room 표현을 바꾸고 Snapshot에서 빠진 사망 Enemy 표현을 제거한다. 서버가 승인한 일반 검 공격은 `S2C_CombatEvent`로 같은 Room의 클라이언트에 전파하며, 각 클라이언트가 표현 전용 `NetworkSwordEffect`와 공격 효과음을 재생한다. 최대 HP SwordBeam은 아직 없다.
 
@@ -79,6 +79,15 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 일반 검 이벤트의 actorId로 `MyPlayer` 또는 `NetworkPlayer`를 찾고, facing별 로컬 오프셋에 표현 전용 `NetworkSwordEffect`를 부착
 - `NetworkSwordEffect`는 충돌·피해 판정 없이 검 Sprite를 0.5초 표시한 뒤 제거되며 각 수신 클라이언트가 검 공격 효과음을 한 번 재생
 
+### CraftEngine 입력 시스템 및 다중 클라이언트 분리
+
+- `CraftEngine::Input`을 `GetAsyncKeyState` 전역 polling에서 `STD_INPUT_HANDLE` 기반 `KEY_EVENT_RECORD` 이벤트 소비로 전환
+- `GetNumberOfConsoleInputEvents`로 대기 이벤트 개수를 확인한 뒤 `ReadConsoleInputW`로 버퍼를 일괄 drain하여 논블로킹 처리
+- `KeyState`를 `held`, `pressed`, `released`로 분리해 키 auto-repeat 시 `GetKeyDown` 중복 방지 및 1프레임 내 빠른 press/release 엣지 보존
+- `FOCUS_EVENT`(`!bSetFocus`) 수신 시 눌려 있던 모든 키를 `released`로 전환해 창 전환 시 이동 멈춤(`MoveDirection::None`) 보장
+- `Engine::SavePreviousInputStates()` 및 `Input::SaveKeyStates()`를 제거하고 매 프레임 `ReadConsoleInputEvents()`로 상태를 갱신
+- `CraftEngine::Input`의 기존 공개 API(`GetKey`, `GetKeyDown`, `GetKeyUp`) 유지
+
 ## 확인한 동작
 
 - Enter packet의 정상·header 분할·payload 분할 수신
@@ -89,6 +98,8 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 실제 Z1 방향키의 sequence 증가와 서버 좌표 변화
 - 실제 Z1 두 개에서 상대 playerId의 `NetworkPlayer` 생성과 Snapshot 위치 반영
 - 실제 Z1 하나와 KeepAlive dummy client에서 local `MyPlayer`와 원격 `NetworkPlayer` 생성, local 입력 전송과 서버 좌표 반영 확인
+- 같은 PC에서 실제 Z1 클라이언트 두 개와 Z1Server를 실행했을 때, 현재 포커스된 콘솔 창에만 키보드 입력이 전달되어 각 세션의 `MyPlayer`가 독립적으로 조작되는 것 확인
+- Title 레벨에서 `VK_RETURN` 입력으로 정상 게임 시작 확인
 - 실제 Z1에서 BlockingMap 벽에 Player Box가 닿으면 서버 좌표가 더 이상 갱신되지 않음
 - Z1Server와 Z1 `Debug|x64` 빌드 성공
 - Enemy가 있는 Overworld Room에서 서버 Snapshot 기반 `NetworkEnemy` Sprite 표시 확인
@@ -132,10 +143,9 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 런타임 중 닫힌 Session의 closing 전이, pending Recv/Send completion drain과 `_sessions` registry 제거가 적용됐다. `Server::Stop()`에서 모든 Session을 닫고 IOCP를 drain하는 전체 프로세스 종료 안정화는 별도 후속 작업이다.
 - `S2C_Disconnect`는 선언만 되어 있다.
 - 자동 재접속과 Session 복구는 지원하지 않는다.
-- 같은 PC의 Z1 프로세스들이 동일한 물리 키를 함께 감지한다. 자세한 내용은 [콘솔 입력 설계](CONSOLE_INPUT_DESIGN.md)를 따른다.
 
 ## 다음 구현 단위
 
-재구성한 전체 순서와 단계별 완료 조건은 [멀티플레이 잔여 작업 로드맵](MULTIPLAYER_ROADMAP.md)을 따른다. A* 최종 경로 시각화와 런타임 중 닫힌 Session registry 제거는 완료됐으며, 바로 다음 작업은 동일 PC 멀티클라이언트 입력 분리다.
+재구성한 전체 순서와 단계별 완료 조건은 [멀티플레이 잔여 작업 로드맵](MULTIPLAYER_ROADMAP.md)을 따른다. A* 최종 경로 시각화, 런타임 중 닫힌 Session registry 제거와 동일 PC 멀티클라이언트 입력 분리는 완료됐으며, 바로 다음 작업은 Local/Multiplayer 모드 분리와 fallback 제거다.
 
-그 뒤 동일 PC 입력 분리, Local/Multiplayer 모드 분리와 fallback 제거, Player 사망 후 Title 복귀, Enemy 7초 리스폰, 서버 프로세스 종료 안정화 순으로 진행한다. SwordBeam·방패·무적·넉백과 Octorok·Tektite 고유 AI는 필수 범위가 끝난 뒤 시간이 남을 때만 재검토한다. Enemy·IOCP 확장 후보의 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다.
+그 뒤 Player 사망 후 Title 복귀, Enemy 7초 리스폰, 서버 프로세스 종료 안정화 순으로 진행한다. SwordBeam·방패·무적·넉백과 Octorok·Tektite 고유 AI는 필수 범위가 끝난 뒤 시간이 남을 때만 재검토한다. Enemy·IOCP 확장 후보의 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다.
