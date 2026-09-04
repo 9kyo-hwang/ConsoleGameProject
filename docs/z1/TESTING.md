@@ -20,7 +20,7 @@
 
 ### 시작과 오버월드
 
-- 타이틀의 `Press Enter To Play` 뒤 `Enter`로 새 게임이 시작된다.
+- 타이틀의 기본 선택인 `LocalPlay`에서 `Enter`를 누르면 새 싱글플레이 게임이 시작된다.
 - 시작 Room `(7, 7)`에서 Player와 HUD의 HP·검 상태가 표시된다.
 - 막힌 타일과 맵 밖으로 이동할 수 없고 Player Box 전체가 통행 가능 영역에 있을 때만 이동한다.
 - `(7,7) → (7,6) → (8,6) → (8,5) → (8,4) → (8,3) → (7,3)` 경로의 Room을 왕복하고 허용하지 않은 경계를 넘지 않는다.
@@ -78,7 +78,7 @@ Z1Server를 먼저 실행한 뒤 PowerShell dummy client로 TCP framing과 기�
 .\tools\test-z1-enter.ps1 -KeepAlive
 ```
 
-이후 실제 Z1 하나를 실행한다. dummy와 Z1이 서로 다른 playerId로 Snapshot에 나타나고, Z1의 local `MyPlayer` 입력·서버 이동·원격 `NetworkPlayer` 생성과 정지를 확인한다. dummy PowerShell에서 `Ctrl+C`를 누르면 연결이 종료되며, Z1에서 원격 표현 제거와 offline 복귀를 확인한다.
+이후 실제 Z1 하나를 실행한다. dummy와 Z1이 서로 다른 playerId로 Snapshot에 나타나고, Z1의 local `MyPlayer` 입력·서버 이동·원격 `NetworkPlayer` 생성과 정지를 확인한다. dummy PowerShell에서 `Ctrl+C`를 누르면 dummy 연결만 종료되며, 실제 Z1은 online 상태를 유지하고 dummy에 대응하는 원격 `NetworkPlayer` 표현만 제거해야 한다.
 
 ### 서버 Enemy와 Projectile 표현
 
@@ -114,29 +114,34 @@ Enemy가 있는 Room에서 Player가 정지한 상태로 Enemy를 바라보고 A
 
 현재 모든 Enemy HP는 1이고 일반 검 피해도 1이므로 피격과 사망이 동시에 일어난다. 최대 HP SwordBeam과 Player/Enemy 공격 상태 flag 표현은 이 검증 범위에 포함하지 않는다.
 
-### 서버 종료 후 offline fallback — 폐기 예정인 현재 동작
+### 플레이 모드 분리와 연결 종료·사망 복귀 검증
 
-1. Z1Server와 Z1을 실행하고 시작 Room이 아닌 Enemy Room으로 이동한다.
-2. `MyPlayer`, `NetworkEnemy`와 필요하면 KeepAlive dummy의 `NetworkPlayer`가 표시되는 것을 확인한다.
-3. Z1Server를 종료하고 HUD가 `[OFFLINE]`으로 바뀐 뒤 방향키를 입력한다.
+Local Play와 Multiplayer의 진입 분리 및 연결 종료·사망 시 Title 복귀 동작을 확인한다.
 
-현재 재현 결과는 실패다. 기존 네트워크 Player가 제거되지 않고 오프라인 `Player`가 추가로 보이며, 새 `Player`에는 키보드 입력이 반영되지 않는다. 네트워크 표현과 Room의 로컬 Enemy가 함께 남아 보일 수도 있다. fallback 위치 전달, `_wasOnline` 전환 flag와 비활성 `_player` 정리를 적용한 상태에서도 같은 증상이 재현된다.
+1. **모드 선택과 Local Play 독립 검증**:
+   - Title에서 위/아래 키로 `LocalPlay`, `MultiPlay`를 순환 선택하고 Enter로 확정할 수 있는지 확인한다. 기본 선택은 `LocalPlay`다.
+   - 서버가 꺼져 있거나 켜져 있는 상태에서 `LocalPlay`를 선택하면 `NetworkClient::Start()`를 호출하지 않고 싱글플레이 `OverworldLevel`로 즉시 시작되는지 확인한다.
 
-이 fallback은 더 이상 목표 동작이 아니므로 성공시키기 위한 추가 보정은 하지 않는다. 향후 플레이 모드 분리 전까지는 현재 알려진 오류로 남긴다.
+2. **Multiplayer 연결 실패 및 Title 대기 검증**:
+   - Z1Server가 실행되지 않은 상태에서 Title의 `MultiPlay`를 선택한다.
+   - `connect()` 대기 후 Title 메뉴 아래에 `서버에 연결할 수 없습니다.` 메시지가 약 3초간 표시되는지 확인한다.
+   - 메시지가 표시되는 동안에도 위/아래 키로 메뉴를 조작할 수 있고 `LocalPlay`를 바로 시작할 수 있는지 확인한다.
 
-### 향후 플레이 모드와 연결 종료 검증
+3. **Multiplayer 정상 연결과 서버 종료 복귀 검증**:
+   - Z1Server를 실행한 상태에서 `MultiPlay`를 선택해 `Connecting to server...` 표시 후 `NetworkOverworldLevel`로 정상 진입하는지 확인한다.
+   - 인게임 플레이 중 Z1Server 콘솔을 강제 종료(Ctrl+C 등)한다.
+   - Z1 클라이언트가 소켓 연결 끊김을 감지하고 모든 네트워크 Actor를 정리한 뒤 Title로 복귀하며, `서버와의 연결이 끊어졌습니다.` 메시지가 약 3초간 표시되는지 확인한다.
 
-플레이 모드 분리를 구현할 때 다음을 확인한다.
+4. **Multiplayer 플레이어 사망 시 Title 복귀 검증**:
+   - Z1Server를 실행하고 `MultiPlay`로 접속하여 적 투사체(Spear)에 피격되어 Player HP가 0이 되도록 한다.
+   - 사망 즉시 소켓 종료 및 정리 후 Title로 복귀하며, `플레이어가 사망하였습니다.` 메시지가 약 3초간 표시되는지 확인한다.
+   - 서버에서 해당 세션이 정상 제거되어 다른 클라이언트의 Snapshot에서 사망 Player가 사라지는지 확인한다.
+   - Title에서 다시 `MultiPlay`를 선택해 새 Player로 Overworld 시작 Room에 재접속할 수 있는지 확인한다.
+   - 재접속 직후 첫 입력과 `C2S_Enter`가 정상 처리되고, 이전 세션의 미전송 input, partial packet, 수신 Snapshot·CombatEvent 또는 playerId가 나타나지 않는지 확인한다.
+   - 서버 미실행 연결 실패를 한 번 이상 거친 뒤 서버를 실행하고 다시 `MultiPlay`를 선택해 새 socket으로 정상 접속되는지 확인한다.
 
-- Title은 `Local Play`, `Multiplayer` 순서로 표시되고 기본 선택은 `Local Play`다. 위/아래 키로 순환 선택하고 Enter로 확정할 수 있다.
-- Local Play 선택 시 서버가 실행 중이어도 연결하지 않고 기존 싱글플레이가 정상 동작한다.
-- Multiplayer 선택 시 별도 Level 전환 없이 Title에 `Connecting...`을 표시하고, 연결과 Enter가 완료된 뒤에만 Network Overworld로 진입한다.
-- 최초 연결 실패 시 로컬 게임을 시작하지 않고 Title 메뉴 아래에 약 3초간 실패 메시지를 표시한다.
-- Multiplayer 도중 서버가 종료되면 네트워크 Player·Enemy·Projectile과 client 상태를 정리하고 Title로 돌아가 약 3초간 연결 종료 메시지를 표시한다.
-- 메시지가 표시되는 동안에도 메뉴를 조작하고 Multiplayer 연결을 다시 시도할 수 있다.
-- 종료 직전 서버 좌표, HP와 Enemy 상태가 새 Local Play에 승계되지 않는다.
-- Title에서 다시 Local Play를 시작하거나 Multiplayer 연결을 재시도할 수 있다.
-- Multiplayer에서는 Cave·Dungeon 입구에 닿아도 Level을 전환하지 않고 짧은 미지원 안내를 표시한다. 같은 입구가 Local Play에서는 기존대로 동작한다.
+5. **Cave·Dungeon 입구 처리 보류 사항**:
+   - Multiplayer에서 Cave·Dungeon 입구 진입 시 미지원 안내 메시지 처리는 현재 보류되었다. 로컬 플레이와 달리 현재 서버에서는 Overworld 전체 Room(16×8) 접근이 가능하여 던전 입구가 여러 좌표에 분산되어 있으므로, 전체 입구 좌표 조사 및 안내 표시는 향후 시간 여유가 생겼을 때 다시 시도한다. (Local Play에서는 기존대로 동굴/던전 진입이 정상 동작한다.)
 
 ## 다중 클라이언트 독립 입력 검증
 

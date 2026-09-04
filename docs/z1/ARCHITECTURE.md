@@ -2,7 +2,7 @@
 
 ## 문서 범위
 
-이 문서는 Z1 싱글플레이 콘텐츠의 현재 실행 구조와 데이터 책임을 설명한다. 공용 엔진 계약은 [솔루션 아키텍처](../ARCHITECTURE.md), 네트워크 목표 구조는 [멀티플레이 설계](MULTIPLAYER_DESIGN.md), 구현 진척은 [멀티플레이 현황](MULTIPLAYER_STATUS.md)에서 관리한다.
+이 문서는 Z1의 Local Play와 Multiplayer 콘텐츠에 현재 적용된 실행 구조와 데이터 책임을 설명한다. 공용 엔진 계약은 [솔루션 아키텍처](../ARCHITECTURE.md), 네트워크 목표 구조는 [멀티플레이 설계](MULTIPLAYER_DESIGN.md), 구현 진척은 [멀티플레이 현황](MULTIPLAYER_STATUS.md)에서 관리한다.
 
 ## 게임 상태와 Level
 
@@ -10,16 +10,18 @@
 
 ```text
 Title
-  └─ 새 게임 → Overworld
-                  ├─ SwordCave ↔ Overworld
-                  ├─ Dungeon1 ↔ Overworld
-                  ├─ HP 0 → GameOver → Title
-                  └─ 보스·트라이포스 → Clear → Title
+  ├─ Local Play → Overworld
+  │                 ├─ SwordCave ↔ Overworld
+  │                 ├─ Dungeon1 ↔ Overworld
+  │                 ├─ HP 0 → GameOver → Title
+  │                 └─ 보스·트라이포스 → Clear → Title
+  └─ Multiplayer → NetworkOverworld
+                    └─ 연결 종료 / 사망 → Title
 
-Development                  수동 엔진 기능 확인 장면
+Development                  enum과 프로젝트 파일만 유지하며 현재 생성·진입 경로 없음
 ```
 
-새 게임을 시작하면 Overworld, SwordCave, Dungeon1 Level을 다시 만들고 Player 상태를 최대 HP 20, 검 미소지로 초기화한다. Level 전환 시 `Game`이 HP와 검 보유 상태를 보관하고 새 Level의 Player에 복원한다.
+새 게임을 시작하면 모드에 따라 Level을 생성한다. Local Play는 Overworld, SwordCave, Dungeon1 Level을 만들고 Player 상태를 최대 HP 20, 검 미소지로 초기화한다. 이 세 Local Play Level 사이를 전환할 때 `Game`이 HP와 검 보유 상태를 보관하고 새 Level의 Player에 복원한다. Multiplayer는 서버 연결과 `S2C_Enter` 수신을 마친 뒤 전용 `NetworkOverworldLevel`로 진입하며, `MyPlayer`를 포함한 게임 상태에 서버 Snapshot을 적용한다.
 
 ## 좌표와 Room
 
@@ -39,7 +41,8 @@ Development                  수동 엔진 기능 확인 장면
 | `OverworldMap` | TileMap/BlockingMap 파싱·검증, TileId 보관, Engine Tilemap 구성과 Room Sprite 합성 |
 | `CaveMap` | 동굴 문자 맵 파싱, 검과 출구 표식 위치 제공, Tilemap 구성 |
 | `DungeonMap` | Dungeon 1 문자 맵 파싱, 보스·하트·트라이포스 표식 제공, Tilemap 구성 |
-| `OverworldLevel` | 현재 Room과 View, Player·Enemy·Projectile 수명, 이동·전투·입구 전환 |
+| `OverworldLevel` | 싱글플레이 전용 오버월드. 현재 Room과 View, Player·Enemy·Projectile 수명, 이동·전투·입구 전환 |
+| `NetworkOverworldLevel` | 멀티플레이 전용 오버월드. 서버 Snapshot 수신·적용, MyPlayer/원격 Actor 관리, CombatEvent 표현, 경로 디버그 렌더링, 연결 끊김 및 사망 시 Title 복귀 |
 | `CaveLevel` | 검 획득, Player 상태와 오버월드 복귀 |
 | `DungeonLevel` | Room 전환, 일반 적과 Aquamentus, 보상·클리어·출구 처리 |
 
@@ -67,7 +70,7 @@ Overworld의 시작 Room에는 적이 없다. 다른 접근 가능 Room은 Room 
 
 ## 네트워크 연결 지점
 
-`Game`은 `NetworkClient`를 소유하고 localhost Loopback(`127.0.0.1:7777`) 연결을 시도한다. network thread는 TCP 송수신과 패킷 파싱만 수행하고, 받은 메시지는 queue를 통해 main thread에 넘긴다. `OverworldLevel`이 queue를 소비해 Snapshot을 적용한다.
+`Game`은 `NetworkClient`를 소유하고 localhost Loopback(`127.0.0.1:7777`) 연결을 시도한다. network thread는 TCP 송수신과 패킷 파싱만 수행하고, 받은 메시지는 queue를 통해 main thread에 넘긴다. `NetworkOverworldLevel`이 queue를 소비해 Snapshot을 적용한다.
 
 ```mermaid
 flowchart LR
@@ -76,12 +79,13 @@ flowchart LR
             Input[Input]
             MyPlayer[MyPlayer]
             Game[Game]
-            Level[OverworldLevel]
+            Level[NetworkOverworldLevel]
             Actors[NetworkPlayer<br/>NetworkEnemy<br/>NetworkProjectile<br/>NetworkSwordEffect]
 
             Input --> MyPlayer
             MyPlayer -->|이동 방향·공격 시도| Game
             Game -->|서버 최신 스냅샷·전투 이벤트| Level
+            Level -->|생성·Snapshot 적용| MyPlayer
             Level -->|생성·갱신·제거| Actors
         end
 
@@ -199,58 +203,88 @@ send completion을 받은 뒤 `HandleSend()`는 전송 바이트 수를 반영�
 
 ## 클라이언트 프레임 적용 순서
 
-다음 그림은 `OverworldLevel::Tick`이 `Game`에 보관된 최신 네트워크 상태를 클라이언트 표현 Actor에 적용하는 과정을 확대해서 보여준다. `Remote Actors`는 `NetworkPlayer`, `NetworkEnemy`, `NetworkProjectile`을 묶어 표현한다.
+다음 그림은 `NetworkOverworldLevel`이 `Game`에 보관된 최신 네트워크 상태를 클라이언트 표현 Actor에 적용하고, 연결 종료나 local Player 사망 시 Title로 복귀하는 과정을 확대해서 보여준다. `Remote Actors`는 `NetworkPlayer`, `NetworkEnemy`, `NetworkProjectile`을 묶어 표현한다.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Level as OverworldLevel
+    participant Level as NetworkOverworldLevel
     participant Game
+    participant Client as NetworkClient
     participant MyPlayer
     participant Remote as Remote Actors<br/>Player·Enemy·Projectile
     participant Effect as NetworkSwordEffect
+    participant Menu as TitleLevel
 
-    loop client frame · OverworldLevel::Tick
+    loop NetworkOverworldLevel::Tick
         Level->>Game: PumpNetwork()
-        Game->>Game: incoming queue를 소비해<br/>최신 Snapshot·EnemyPathDebug와 CombatEvent 보관
+        loop 수신 message가 남아 있음
+            Game->>Client: TryPopIncomingMessage()
+            Client-->>Game: Enter·Snapshot·CombatEvent·EnemyPathDebug
+            Game->>Game: local playerId·최신 상태·이벤트 보관
+        end
 
-        Level->>Game: GetLatestSnapshot()
-        Game-->>Level: latest Snapshot
+        alt NetworkClient 연결 종료
+            Level->>Game: OnDisconnect("서버와의 연결이 끊어졌습니다.")
+            Game->>Client: Stop()
+            Game->>Game: client-facing 상태 정리 · ChangeLevel(State::Title)
+            Game->>Menu: SetNoticeMessage(reason)
+            Level->>Level: Clear()
+        else 연결 유지
+            Level->>Game: GetLatestSnapshot()
+            Game-->>Level: latest Snapshot
 
-        opt 처음 보는 serverTick
-            loop Snapshot players
-                alt local playerId
-                    Level->>MyPlayer: 없으면 SpawnActor
-                    Level->>MyPlayer: ApplySnapshot + Room 반영
-                else remote playerId
+            opt 처음 보는 serverTick
+                loop Snapshot players
+                    alt local playerId
+                        Level->>MyPlayer: 없으면 SpawnActor
+                        Level->>MyPlayer: ApplySnapshot + Room 반영
+                    else remote playerId
+                        Level->>Remote: ID별 SpawnActor 또는 ApplySnapshot
+                    end
+                end
+                Level->>Remote: Snapshot에서 사라진 Player Destroy
+
+                loop Snapshot enemies·projectiles
                     Level->>Remote: ID별 SpawnActor 또는 ApplySnapshot
                 end
+                Level->>Remote: Snapshot에서 사라진 Enemy·Projectile Destroy
             end
-            Level->>Remote: Snapshot에서 사라진 Player Destroy
 
-            loop Snapshot enemies·projectiles
-                Level->>Remote: ID별 SpawnActor 또는 ApplySnapshot
+            Level->>Game: ConsumeCombatEvents()
+            Game-->>Level: 미소비 이벤트 전체
+            loop CombatEvent
+                Level->>Effect: SpawnActor 후 공격자에게 AttachTo
+                Level->>Level: 검 효과음 1회 재생
             end
-            Level->>Remote: Snapshot에서 사라진 Enemy·Projectile Destroy
-        end
 
-        Level->>Game: ConsumeCombatEvents()
-        Game-->>Level: 미소비 이벤트 전체
-        loop CombatEvent
-            Level->>Effect: SpawnActor 후 공격자에게 AttachTo
-            Level->>Level: 검 효과음 1회 재생
-        end
+            Level->>Level: Level::Tick()
+            Level->>MyPlayer: Tick · 입력 변화 확인
+            MyPlayer->>Game: SendNetworkInput()
 
-        Level->>Level: Level::Tick()
-        Level->>MyPlayer: Tick · 입력 변화 확인
-        MyPlayer->>Game: SendNetworkInput()
-        Level->>Remote: Tick · Snapshot 표현 갱신
-        Level->>Game: DrawLatestEnemyPathDebug() · GetLatestEnemyPathDebugs()
-        Game-->>Level: Enemy ID별 최신 경로 map
-        Level->>Level: Draw()에서 F3가 켜진 현재 Room 경로 렌더링
+            opt MyPlayer가 dead Snapshot 상태
+                Level->>Game: OnDisconnect("플레이어가 사망하였습니다.")
+                Game->>Client: Stop()
+                Game->>Game: client-facing 상태 정리 · ChangeLevel(State::Title)
+                Game->>Menu: SetNoticeMessage(reason)
+                Level->>Level: Clear()
+            end
+        end
+    end
+
+    loop NetworkOverworldLevel::Draw
+        Level->>Level: Room 배경 · Actor · HUD 렌더링
+        opt F3 경로 디버그 표시
+            Level->>Level: DrawLatestEnemyPathDebug()
+            Level->>Game: GetLatestEnemyPathDebugs()
+            Game-->>Level: Enemy ID별 최신 경로 map
+            Level->>Level: 현재 Room 경로 렌더링
+        end
     end
 ```
 
-`Game`은 수신 상태를 보관할 뿐 Network Actor를 직접 변경하지 않는다. ID별 생성·갱신·제거는 `ApplyLatestNetworkSnapshot`, 단발 효과 표현은 `ApplyCombatEvent`, A* 경로 디버그 표현은 `DrawLatestEnemyPathDebug`가 담당하며 모두 main thread에서 실행된다. 이때 새로 `SpawnActor`한 Actor는 엔진의 지연 추가 규칙에 따라 다음 프레임부터 Tick에 참여하고, `Destroy`한 Actor는 즉시 비활성화된 뒤 프레임 끝에 목록에서 제거된다.
+`Game`은 수신 상태를 보관할 뿐 Network Actor를 직접 변경하지 않는다. ID별 생성·갱신·제거는 `UpdateSnapshot`, 단발 효과 표현은 `ApplyCombatEvent`, A* 경로 디버그 표현은 `DrawLatestEnemyPathDebug`가 담당하며 모두 main thread에서 실행된다. 이때 새로 `SpawnActor`한 Actor는 엔진의 지연 추가 규칙에 따라 다음 프레임부터 Tick에 참여하고, `Destroy`한 Actor는 즉시 비활성화된 뒤 프레임 끝에 목록에서 제거된다.
 
-현재 원격 playerId는 `NetworkPlayer` Actor로 생성·갱신·제거한다. 로컬 Player는 아직 기존 싱글플레이 Actor와 판정을 사용하므로 서버 권위형 전환이 완료된 상태가 아니다. 정확한 완료 범위와 다음 작업은 [멀티플레이 현황](MULTIPLAYER_STATUS.md)을 따른다.
+원격 playerId는 `NetworkPlayer` Actor로, 로컬 playerId는 `MyPlayer` Actor로 생성·갱신·제거하며, 위치·HP·사망 판정은 서버 권위형 Snapshot을 따른다. 정확한 완료 범위와 다음 작업은 [멀티플레이 현황](MULTIPLAYER_STATUS.md)을 따른다.
+
+`NetworkClient::Stop()`은 stop을 요청하고 network thread를 join한 뒤 socket을 닫는다. 그 다음 main→network 전송 queue, network thread의 pending 전송 packet과 partial-send offset, network→main 수신 message queue, `PacketFramer` 누적 byte와 input sequence를 초기화한다. `Game::Disconnect()`는 이어서 local playerId, 최신 Snapshot, CombatEvent와 EnemyPathDebug처럼 main thread가 보관한 상태를 초기화한다. 따라서 다음 Multiplayer 입장은 이전 transport와 게임 수신 상태를 승계하지 않는다.

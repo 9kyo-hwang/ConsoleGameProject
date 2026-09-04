@@ -33,7 +33,7 @@ Z1 멀티플레이는 이미 구현한 서버 권위 경계를 유지하되, 완
 
 ## 플레이 모드와 연결 종료 정책
 
-Local Play와 Multiplayer는 게임 도중 자동으로 오가는 상태가 아니라 새 게임을 시작할 때 선택하는 별도 세션 모드다. `Game`이 선택된 모드를 소유하고 해당 게임 세션 동안 바꾸지 않는다. `OverworldLevel`은 단순한 `IsServerConnected()` 결과만으로 로컬 Actor를 생성하거나 네트워크 Actor를 로컬 Actor로 교체하지 않는다.
+Local Play와 Multiplayer는 게임 도중 자동으로 오가는 상태가 아니라 새 게임을 시작할 때 선택하는 별도 세션 모드다. `OverworldLevel`은 Local Play만 담당하고 서버 연결 상태로 동작을 분기하지 않는다. Multiplayer의 Snapshot 소비와 표현 Actor 관리는 별도 `NetworkOverworldLevel`이 담당한다.
 
 ```text
 Title
@@ -48,19 +48,19 @@ Network Overworld
 
 최소 정책은 다음과 같다.
 
-- Title은 Sokoban의 메뉴와 같은 위/아래 선택과 Enter 확정 방식을 사용한다. 메뉴는 `Local Play`, `Multiplayer` 두 항목이며 기본 선택은 `Local Play`다.
+- Title은 Sokoban의 메뉴와 같은 위/아래 선택과 Enter 확정 방식을 사용한다. 화면에는 `LocalPlay`, `MultiPlay` 두 항목을 표시하며 기본 선택은 `LocalPlay`다.
 - Local Play를 선택하면 서버 실행 여부와 관계없이 연결을 시도하지 않는다.
-- Multiplayer를 선택하면 Overworld 진입 전에 서버 연결과 `S2C_Enter` 수신이 필요하다. 대기 중에는 별도 Loading Level을 만들지 않고 Title에 `Connecting...`을 표시하며 게임 월드를 시작하지 않는다.
+- Multiplayer를 선택하면 Overworld 진입 전에 서버 연결과 `S2C_Enter` 수신이 필요하다. 대기 중에는 별도 Loading Level을 만들지 않고 Title에 `Connecting to server...`를 표시하며 게임 월드를 시작하지 않는다.
 - Multiplayer 중 transport 종료, 서버 종료, protocol 오류가 발생하면 자동 재접속하거나 현재 위치에서 Local Play로 이어가지 않는다.
 - Multiplayer의 local Player가 사망하면 같은 네트워크 정리 경로로 Title에 바로 복귀하고 약 3초간 사망 메시지를 표시한다. 다른 Player의 세션과 서버 월드는 계속 유지하며, 다시 입장하면 새 playerId와 초기 상태로 시작한다.
-- 연결 종료 처리는 `Game`의 한 경로에서 수행한다. `NetworkClient` thread를 정지·join하고 queue, framer, partial send, input sequence, local playerId와 마지막 Snapshot을 초기화한 뒤 Title로 전환한다. 떠나는 Network Overworld의 Actor는 Level 종료 과정에서 제거한다.
+- 연결 종료 처리는 `Game`의 한 경로에서 수행한다. `NetworkClient::Stop()`이 thread를 정지·join한 뒤 socket, 양방향 queue, pending 전송 packet, framer, partial-send offset과 input sequence를 초기화하고, `Game::Disconnect()`가 local playerId, 마지막 Snapshot, CombatEvent와 EnemyPathDebug를 초기화한 뒤 Title로 전환한다. 떠나는 Network Overworld의 Actor는 Level 종료 과정에서 제거한다. `NetworkClient::Start()`도 socket 연결·설정뿐 아니라 `C2S_Enter` 생성 또는 queue 등록이 실패한 모든 경로에서 생성한 socket을 닫는다.
 - Title에는 메뉴 아래 영역에 연결 실패와 플레이 중 연결 종료를 구분하는 짧은 메시지를 약 3초간 표시한다. 상세 WinSock 오류나 protocol 진단은 로그에만 남기고, 메시지가 표시되는 동안에도 메뉴 입력과 Multiplayer 재시도를 허용한다.
 - Local Play의 Player 상태와 Multiplayer Snapshot 상태 사이에는 HP·위치·아이템을 승계하지 않는다.
 - Multiplayer MVP는 Overworld로 제한한다. Cave와 Dungeon 입구는 진입시키지 않고 현재 화면에 짧은 미지원 안내를 표시한다. Local Play의 입구 동작은 바꾸지 않는다.
 
-이 정책은 향후 모드 선택 작업의 목표이며 현재 코드에는 아직 적용되지 않았다. 기존 연결 종료 후 offline fallback 코드는 새 정책을 구현할 때 제거한다.
+이 정책은 현재 Local/Multiplayer 모드 분리, 전용 `NetworkOverworldLevel`, offline fallback 제거와 Title 복귀 경로에 적용되어 있다.
 
-현재 localhost 범위에서는 동기 connect가 빠르게 끝나므로 별도 연결 Level, 비동기 connect, 취소 입력과 자체 timeout을 추가하지 않는다. 외부 endpoint를 지원하거나 실제 접속 대기가 사용자 경험 문제가 될 때 다시 검토한다.
+현재 `NetworkClient::Start()`는 main thread에서 blocking `connect()`를 먼저 호출하므로 서버 미실행 상태에서 Title의 입력과 렌더링이 약 2초간 멈추는 사례가 관찰됐다. Title의 3초 제한도 이 호출이 반환된 뒤 시작하므로 TCP 연결 시간은 포함하지 않는다. 논블로킹 connect는 연결 상태, `select()` 완료 처리, `C2S_Enter` 전송 시점과 종료 수명을 함께 바꿔야 하므로 이번 모드 분리 작업에서는 보류한다. 판단 근거와 재검토 범위는 [네트워크 라이브러리 확장 검토 메모의 클라이언트 논블로킹 연결](NETWORK_LIBRARY_FOLLOWUPS.md#보류한-클라이언트-논블로킹-연결)에 기록한다.
 
 자동 재접속, 서버 목록, 로비, 진행 중 세션 복구와 Cave·Dungeon 멀티플레이 입장 처리는 MVP 이후 항목으로 유지한다.
 
@@ -91,12 +91,14 @@ Z1 EXE
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Level as OverworldLevel<br/>(client main thread)
+    participant Menu as TitleLevel<br/>(client main thread)
     participant Game as Game<br/>(client main thread)
+    participant Level as NetworkOverworldLevel<br/>(client main thread)
     participant Client as NetworkClient<br/>(client network thread)
     participant Session as Server / Session<br/>(IOCP loop)
     participant World as OverworldSimulation<br/>(20Hz authority)
 
+    Menu->>Game: ConnectToServer()
     Game->>Client: Start(127.0.0.1:7777)
     Client->>Client: C2S_Enter packet 생성
     Client->>Session: C2S_Enter(version)
@@ -105,10 +107,14 @@ sequenceDiagram
     Session-->>Client: S2C_Enter(version, playerId)
     Client->>Client: framing + Enter payload parsing
     Client->>Client: incoming queue에 EnterMessage 보관
-    Level->>Game: PumpNetwork()
-    Game->>Client: TryPopIncomingMessage()
-    Client-->>Game: EnterMessage
-    Game->>Game: PumpNetwork()가 local playerId 저장
+    loop TitleLevel::Tick · Connecting
+        Menu->>Game: PumpNetwork()
+        Game->>Client: TryPopIncomingMessage()
+        Client-->>Game: EnterMessage
+        Game->>Game: local playerId 저장
+    end
+    Menu->>Game: StartNewGame(GameMode::Multiplay)
+    Game->>Level: 생성 · ChangeLevel(State::NetworkOverworld)
 
     loop 입력 상태가 바뀌거나 공격 키를 누를 때
         Level->>Level: Actor Tick에서 MyPlayer 입력 확인
@@ -133,7 +139,7 @@ sequenceDiagram
     Client->>Client: 수신 byte framing + payload 검증
     Client->>Client: typed incoming message queue에 보관
 
-    loop client frame · OverworldLevel::Tick
+    loop client frame · NetworkOverworldLevel::Tick
         Level->>Game: PumpNetwork()
         Game->>Client: TryPopIncomingMessage()
         Client-->>Game: queued Snapshot·CombatEvent
@@ -145,7 +151,7 @@ sequenceDiagram
     end
 ```
 
-이 그림은 프로세스와 thread 사이의 경계를 중심으로 표현한다. 지속 상태인 `S2C_WorldSnapshot`은 `Game`이 최신 값을 보관하고, 단발 사건인 `S2C_CombatEvent`는 순서를 유지한 채 모두 보관한다. `OverworldLevel` 내부의 Actor별 적용 과정은 [Z1 아키텍처의 클라이언트 프레임 적용 순서](ARCHITECTURE.md#클라이언트-프레임-적용-순서)를 따른다.
+이 그림은 프로세스와 thread 사이의 경계를 중심으로 표현한다. `TitleLevel`은 `S2C_Enter` 수신을 확인한 뒤에만 `NetworkOverworldLevel` 진입을 요청한다. 지속 상태인 `S2C_WorldSnapshot`은 `Game`이 최신 값을 보관하고, 단발 사건인 `S2C_CombatEvent`는 순서를 유지한 채 모두 보관한다. `NetworkOverworldLevel` 내부의 Actor별 적용과 종료 과정은 [Z1 아키텍처의 클라이언트 프레임 적용 순서](ARCHITECTURE.md#클라이언트-프레임-적용-순서)를 따른다.
 
 ## 서버와 클라이언트 상태
 

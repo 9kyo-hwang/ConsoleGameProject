@@ -17,6 +17,90 @@ Z1Server는 다음의 작은 구조를 유지한다.
 
 `PacketFramer`가 TCP 수신 누적, packet 경계 복원과 잘못된 크기 거부를 담당하므로, Rookiss의 sliding `RecvBuffer`를 별도로 도입하지 않는다. 송신도 현재는 한 번에 하나의 완성 packet을 보내며 partial send를 명시적으로 처리한다.
 
+## 보류한 클라이언트 논블로킹 연결
+
+### 확인된 현재 동작
+
+2026-09-04 Local Play와 Multiplayer의 Title 진입 경로를 분리하는 작업 중, Z1Server를 실행하지 않은 상태에서 Multiplayer를 선택하면 화면과 입력이 약 2초간 멈추는 현상을 확인했다.
+
+현재 `NetworkClient::Start()`는 다음 순서로 실행된다.
+
+1. `Socket::CreateTcp()`로 기본 blocking socket을 만든다.
+2. main thread에서 `Socket::Connect()`를 호출한다.
+3. 연결이 성공한 뒤 `SetNoDelay(true)`와 `SetNonBlocking(true)`를 호출한다.
+4. `C2S_Enter`를 queue에 넣고 network thread를 시작한다.
+
+따라서 최초 `connect()`만 blocking으로 실행되며, 이 호출이 반환할 때까지 main thread의 Tick, 입력 처리와 렌더링도 함께 멈춘다. Title의 3초 타이머도 `NetworkClient::Start()`가 반환된 뒤 시작하므로 현재 제한 시간에는 blocking connect 시간이 포함되지 않는다.
+
+닫힌 localhost 포트는 일반적으로 빠르게 연결 거부를 반환할 수 있지만, 실제 실패 시간은 방화벽·보안 필터·TCP stack과 패킷 처리 방식에 따라 달라질 수 있다. 이번에 관찰한 약 2초를 Windows의 고정된 SYN 재전송 시간이나 특정 방화벽 정책으로 단정하지 않는다. 정확한 원인을 구분하려면 반환된 WinSock 오류와 packet trace가 필요하다.
+
+### WinSock 논블로킹 connect 계약
+
+`SetNonBlocking(true)`를 `Connect()`보다 먼저 호출하면 `connect()`도 논블로킹으로 동작한다.
+
+- `Connect()`가 즉시 성공하면 TCP 연결이 완료된 상태다.
+- `SOCKET_ERROR`와 `WSAEWOULDBLOCK`은 실패가 아니라 연결 시도가 진행 중이라는 뜻이다.
+- 진행 중인 `connect()`의 성공은 `select()`의 `writefds`, 실패는 `exceptfds`로 확인한다.
+- 완료 알림 뒤에는 `getsockopt(SOL_SOCKET, SO_ERROR)`로 socket에 기록된 최종 오류를 확인한다. 기존 `Socket::GetLastError()`는 직전에 실패한 API의 `WSAGetLastError()` 값을 보관하므로 이 조회를 대신하지 않는다.
+- 완료를 확인하려고 같은 socket에 `connect()`를 반복 호출하지 않는다.
+- 연결 진행 중의 `setsockopt()`는 지원되지 않으므로 `SetNoDelay(true)`는 연결 완료 뒤 호출한다.
+
+참고: [Microsoft connect](https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-connect), [Microsoft select](https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-select), [Microsoft getsockopt](https://learn.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-getsockopt)
+
+### 검토한 두 접근
+
+#### NetworkLoop에서 blocking Connect 호출
+
+`Start()`가 thread만 시작하고 `NetworkLoop()`의 앞부분에서 blocking `Connect()`를 실행하면 main thread 정지는 피할 수 있다. 하지만 network thread가 `connect()` 안에서 기다리는 동안 `_stopRequested`를 확인하지 못하고, `Stop()`의 `join()`도 연결 시도가 반환될 때까지 기다릴 수 있다. 따라서 TCP 연결과 Enter 응답을 합쳐 최대 3초로 제한하려는 요구를 보장하지 못한다.
+
+UI 정지만 제거하고 OS connect timeout을 그대로 허용하는 임시 구현으로는 가능하지만, 현재 구조의 최종안으로 채택하지 않는다.
+
+#### 기존 select loop에 논블로킹 연결 상태 추가
+
+명시적인 연결 제한 시간과 취소 가능한 종료가 필요해지면 이 방식을 우선한다.
+
+```text
+Start
+├─ socket 생성과 nonblocking 설정
+├─ Connect
+│  ├─ 즉시 성공       -> 연결 완료 처리
+│  ├─ WSAEWOULDBLOCK -> Connecting
+│  └─ 그 외 오류      -> Disconnected
+└─ network thread 시작
+
+NetworkLoop
+├─ Connecting -> select(writefds, exceptfds) -> SO_ERROR 확인
+└─ Connected  -> 기존 select(readfds, 필요할 때 writefds) 송수신
+```
+
+이 변경에는 단순한 호출 순서 이동 외에 다음 작업이 함께 필요하다.
+
+- 기존 atomic `_connected`를 `Disconnected`, `Connecting`, `Connected` 상태로 대체한다.
+- `Start()`의 성공은 TCP 연결 완료가 아니라 연결 시도의 정상 시작을 뜻하도록 계약을 바꾼다.
+- Title은 `Connecting`을 실패로 판단하지 않고, `Disconnected` 전이 또는 전체 제한 시간 만료를 기다린다.
+- `SetNoDelay(true)`와 `C2S_Enter` 생성·queue는 TCP 연결 완료 뒤 공통 완료 경로에서 실행한다.
+- 연결 중에는 정상 `recv`/`send`를 하지 않고 `writefds`와 `exceptfds`만 감시한다.
+- `Socket`에는 `SO_ERROR` 조회를 위한 작은 API를 추가한다. 비동기 오류 코드를 main thread에 상세히 표시하지 않는다면 별도의 atomic last-error 값은 필요 없다.
+- 현재 `NetworkClient::Stop()`은 thread join 뒤 socket, main→network 전송 queue, pending 전송 packet, network→main 수신 queue, framer, partial-send offset과 input sequence를 초기화한다. 논블로킹 연결을 도입하더라도 이 세션 정리 계약을 유지한다.
+
+### 현재 결정과 재검토 조건
+
+이번 모드 분리 작업에서는 변경 범위가 연결 상태, network loop, Enter 전송 시점과 종료 수명까지 커지므로 논블로킹 connect를 구현하지 않는다. 현재 blocking connect를 알려진 제한으로 유지하고 Local/Multiplayer 진입 분리를 먼저 완료한다.
+
+다음 조건 중 하나가 필요해지면 이 결정을 재검토한다.
+
+- 서버 미실행 또는 응답 없는 endpoint에서 Title의 입력·렌더링 정지가 실제 사용 문제로 남는다.
+- localhost 밖의 endpoint를 지원한다.
+- TCP 연결과 `S2C_Enter` 응답을 합친 명시적인 최대 대기 시간을 보장해야 한다.
+- 사용자가 연결 시도를 취소할 수 있어야 한다.
+
+구현을 재개할 때의 최소 검증은 다음과 같다.
+
+- 서버 미실행 상태에서도 Title의 Tick, 렌더링과 입력이 멈추지 않는다.
+- 서버 실행 상태에서 connect, `C2S_Enter`, `S2C_Enter` 뒤 Network Overworld로 진입한다.
+- 연결 실패와 Enter 무응답을 구분하지 않더라도 정해진 제한 시간 안에 socket과 thread를 정리하고 Title 메뉴로 돌아간다.
+- 실패 후 Multiplayer 재시도에서 이전 thread, packet, playerId와 Snapshot 상태가 남지 않는다.
+
 ## 보류한 Scatter-Gather 송신
 
 Rookiss의 `SendBuffer`와 다중 `WSABUF` 송신은 여러 완성 packet을 하나의 `WSASend`에 등록하는 구조다. `IocpEvent`가 `shared_ptr<SendBuffer>` 목록을 보유해 완료 전 packet 메모리 수명을 보장하고, 같은 packet을 여러 Session이 공유할 수도 있다.

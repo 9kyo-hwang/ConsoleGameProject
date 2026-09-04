@@ -43,9 +43,9 @@ Enemy 사망 시 이미 발사된 소유 Projectile을 즉시 제거할지는 �
 ### Player 사망과 재접속
 
 - 멀티플레이에서 한 Player의 사망은 다른 Player의 게임을 끝내지 않는다.
-- local Player의 dead Snapshot을 처음 확인하면 현재 네트워크 세션을 정리하고 `PlayerDied` 사유와 함께 Title로 바로 복귀한다.
+- local Player의 dead Snapshot을 처음 확인하면 클라이언트 연결을 닫고 Title로 바로 복귀한다. 서버는 peer close를 통해 해당 Session과 Player를 정리한다.
 - 별도 Multiplayer GameOver Level이나 Overworld 사망 대기 상태는 우선 만들지 않는다.
-- Title 메뉴 아래에 `사망했습니다.`와 같은 짧은 메시지를 약 3초간 표시한다. 연결 실패와 연결 종료도 같은 메시지 전달 구조를 사용한다.
+- Title 메뉴 아래에 `플레이어가 사망하였습니다.`와 같은 짧은 메시지를 약 3초간 표시한다. 연결 실패와 연결 종료도 같은 메시지 전달 구조를 사용한다.
 - 사망한 사용자가 Multiplayer에 다시 들어오면 새 `playerId`, 최대 HP와 시작 Room을 가진 새 Player로 입장한다.
 - Enemy의 현재 위치·사망·리스폰 상태는 서버 월드에 남으므로 해당 사용자의 재접속 때문에 초기화하지 않는다.
 
@@ -128,17 +128,16 @@ transport 종료와 protocol 오류를 closing 상태로 한 번만 전환하고
 - 같은 PC에서 실제 Z1 두 개를 실행하고 각 콘솔 창에 입력했을 때, 포커스된 창의 세션만 `C2S_Input`이 갱신되어 각 캐릭터가 독립적으로 이동한다.
 - Title 레벨 `VK_RETURN` 입력 및 인게임 조작이 정상 동작한다.
 
-### 4. Local/Multiplayer 모드 분리와 fallback 제거
+### 4. Local/Multiplayer 모드 분리와 fallback 제거 (완료)
 
 [멀티플레이 설계의 플레이 모드와 연결 종료 정책](MULTIPLAYER_DESIGN.md#플레이-모드와-연결-종료-정책)을 구현한다.
 
-- Title에 `Local Play`, `Multiplayer` 위·아래 메뉴를 표시하고 기본 선택은 Local Play로 둔다.
+- Title에 `LocalPlay`, `MultiPlay` 위·아래 메뉴를 표시하고 기본 선택은 `LocalPlay`로 둔다.
 - Local Play는 NetworkClient를 시작하지 않는다.
 - Multiplayer는 연결과 `S2C_Enter` 완료 뒤에만 Network Overworld로 진입한다.
-- 별도 Loading Level 없이 Title에 `Connecting...`을 표시한다.
+- 별도 Loading Level 없이 Title에 `Connecting to server...`를 표시한다.
 - 기존 서버 연결 종료 후 offline fallback과 네트워크 Actor를 로컬 Actor로 바꾸는 보정 코드를 제거한다.
 - 연결 실패·종료는 한 네트워크 정리 경로를 거쳐 Title로 돌아가고 약 3초간 원인별 메시지를 표시한다.
-- Multiplayer에서는 Cave·Dungeon 입구를 막고 짧은 미지원 안내를 표시한다.
 
 완료 조건:
 
@@ -146,15 +145,37 @@ transport 종료와 protocol 오류를 closing 상태로 한 번만 전환하고
 - 연결 실패·서버 종료 뒤 로컬 Player가 중복 생성되지 않는다.
 - Title에서 실패 메시지를 보는 동안에도 다시 메뉴를 조작할 수 있다.
 
-### 5. Player 사망 후 Title 복귀
+완료 검증:
+
+- Title에서 `LocalPlay`와 `MultiPlay`를 위/아래 키로 선택하고 Enter로 시작할 수 있다.
+- Local Play는 네트워크 초기화 없이 싱글플레이 `OverworldLevel`을 단독으로 시작한다.
+- Multiplayer는 전용 `NetworkOverworldLevel`로 분리되었으며, 기존 `OverworldLevel`의 네트워크 Actor 및 offline fallback 잔재 코드가 전면 제거됐다.
+- 서버 미실행 시 Multiplayer 선택 시 약 3초간 Title에 실패 안내 메시지가 표시되며 메뉴 조작이 유지된다.
+- 인게임 중 서버 종료 시 `Game::OnDisconnect`를 통해 Title로 복귀하고 안내 메시지가 표시된다.
+
+후속 보류: Multiplayer의 Cave·Dungeon 입구 진입 시 미지원 안내 표시는 이번 완료 범위에서 제외했다. 로컬 플레이와 달리 현재 서버에서는 Overworld 전체 Room(16×8) 접근이 가능하여 던전 입구가 여러 좌표에 분산되어 있으므로, 전체 입구 좌표 조사 및 안내 표시는 향후 시간 여유가 생겼을 때 다시 검토한다.
+
+### 5. Player 사망 후 Title 복귀 (완료)
 
 4단계의 공통 네트워크 정리와 Title 메시지 전달 경로를 재사용한다.
 
 - local Player의 첫 dead 전환만 처리한다.
 - 사망 효과음이 중복 재생되지 않고 입력은 지금처럼 차단된다.
-- `PlayerDied` 사유로 Session을 닫고 Title로 전환한다.
+- client socket을 닫고 Title로 전환한다. 서버는 peer close를 감지해 Session과 Player를 제거한다.
 - 다른 클라이언트에서는 해당 Player가 제거되고 플레이를 계속할 수 있다.
 - 다시 Multiplayer에 들어가면 시작 Room의 새 Player로 생성된다.
+
+완료 조건:
+
+- Multiplayer 중 HP 0 사망 시 네트워크 상태 정리 후 Title로 복귀한다.
+- Title에서 `플레이어가 사망하였습니다.` 메시지가 표시되며 재시작 메뉴를 조작할 수 있다.
+- 재접속 시 새 Player로 정상 참여할 수 있다.
+
+완료 검증:
+
+- `NetworkOverworldLevel::Tick`에서 local `MyPlayer`의 사망(`IsDead()`) 감지 시 `Game::OnDisconnect("플레이어가 사망하였습니다.")`를 호출한다.
+- `NetworkClient::Stop()`이 socket, 양방향 queue, pending 전송 packet, framer, partial-send offset과 input sequence를 초기화하고 Title 화면으로 복귀하여 3초간 사망 안내 메시지를 출력한다.
+- 서버에서는 플레이어가 제거되어 다른 클라이언트의 Snapshot에서 사라지며, Title에서 다시 Multiplayer를 선택하면 새 세션으로 정상 접속할 수 있다.
 
 ### 6. Enemy 7초 리스폰
 

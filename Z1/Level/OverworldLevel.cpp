@@ -18,13 +18,6 @@
 #include <Game/Game.h>
 #include <World/MapGeometry.h>
 
-#include <unordered_set>
-#include <Network/NetworkPlayer.h>
-#include <Network/MyPlayer.h>
-#include <Network/NetworkEnemy.h>
-#include <Network/NetworkProjectile.h>
-#include <Network/NetworkSwordEffect.h>
-
 using namespace Craft;
 using FilePath = std::filesystem::path;
 
@@ -51,6 +44,53 @@ namespace
     constexpr int Dungeon1EntranceLocalX = 7;
     constexpr int Dungeon1EntranceLocalY = 4;
 
+    // Map 기준 Room의 좌상단 셀 좌표
+    Vector2 GetRoomCellOrigin(RoomCoordinate room)
+    {
+        return Vector2
+        {
+            room.x * RoomTileWidth * TileCellSize.x,
+            room.y * RoomTileHeight * TileCellSize.y
+        };
+    }
+
+    /// <summary>
+    /// 현재 위치(전체 맵에 Cell 좌표 기준)가 어디 Room에 속하는지
+    /// </summary>
+    RoomCoordinate GetRoomCoordinate(Vector2 mapCellPosition)
+    {
+        assert(mapCellPosition.x >= 0 && mapCellPosition.y >= 0);
+
+        // Room의 셀 단위 가로/세로 길이
+        const int roomCellWidth = RoomTileWidth * TileCellSize.x;
+        const int roomCellHeight = RoomTileHeight * TileCellSize.y;
+
+        return RoomCoordinate(mapCellPosition.x / roomCellWidth, mapCellPosition.y / roomCellHeight);
+    }
+
+    RoomCoordinate GetRoomCoordinateAtLeadingEdge(Vector2 destination, const Pawn& pawn, Vector2 direction)
+    {
+        const auto box = pawn.GetComponent<BoxComponent>();
+        if (!box)
+        {
+            return GetRoomCoordinate(destination);
+        }
+
+        Vector2 probePosition = destination + box->GetOffset();
+        const Vector2 boxSize = box->GetSize();
+
+        if (direction.x > 0)
+        {
+            probePosition.x += boxSize.x - 1;
+        }
+        else if (direction.y > 0)
+        {
+            probePosition.y += boxSize.y - 1;
+        }
+
+        return GetRoomCoordinate(probePosition);
+    }
+
     bool IsAccessibleRoom(RoomCoordinate room)
     {
         return room == RoomCoordinate{ 7, 7 } ||
@@ -60,6 +100,13 @@ namespace
                room == RoomCoordinate{ 8, 4 } ||
                room == RoomCoordinate{ 8, 3 } ||
                room == Dungeon1EntranceRoom;
+    }
+
+    bool IsInsideRoom(const RoomCoordinate room, Vector2 boxPosition, Vector2 boxSize)
+    {
+        const Vector2 origin = GetRoomCellOrigin(room);
+        const Vector2 roomSize{ RoomTileWidth * TileCellSize.x, RoomTileHeight * TileCellSize.y };
+        return Box2D{ boxPosition, boxSize }.IsInside(Box2D{ origin, roomSize });
     }
 
     bool IsInContact(const Pawn& lhs, const Pawn& rhs)
@@ -103,93 +150,28 @@ void OverworldLevel::BeginPlay()
         return;
     }
 
-    Game& game = dynamic_cast<Game&>(Engine::Get());
-
     if (!_bgmStarted)
     {
         Engine::Get().PlayBGM("Z1/02. Overworld of Hyrule.wav");
         _bgmStarted = true;
     }
 
-    // 로컬 플레이어는 서버 연결이 안됐을 때만 하자.
-    if (!game.IsServerConnected())
+    Game& game = dynamic_cast<Game&>(Engine::Get());
+
+    if (!_player)
     {
-        EnsureOfflinePlayers(game);
+        _player = SpawnActor<Player>(GetRoomCellOrigin(_currentRoom) + Vector2(7, 2) * TileCellSize, Game::PlayerMaxHp);
+    }
+
+    if (!_playerStateLoaded)
+    {
+        game.LoadPlayerState(*_player);
+        _playerStateLoaded = true;
     }
 }
 
 void OverworldLevel::Tick(float deltaTime)
 {
-    Game& game = dynamic_cast<Game&>(Engine::Get());
-    game.PumpNetwork(); // OverworldLevel에서, 메인 스레드가 네트워크 큐를 소비하도록
-
-    if (Input::Get().GetKeyDown(VK_F3))
-    {
-        _showEnemyPathDebug = !_showEnemyPathDebug;
-    }
-
-    bool isOnline = game.IsServerConnected();
-    if (isOnline)
-    {
-        _wasOnline = true;
-        ApplyLatestNetworkSnapshot(game);   // 서버로부터 받은 정보를 Actor::Tick 보다 먼저 반영
-        for (Z1::Protocol::CombatEvent combatEvent : game.ConsumeCombatEvents())
-        {
-            ApplyCombatEvent(combatEvent);
-        }
-
-        Level::Tick(deltaTime); // MyPlayer 입력 전송 및 NetworkPlayer Actor 갱신
-
-        // 기존 로컬 플레이의 각종 처리는 실행하지 말자.
-        return;
-    }
-
-    if (_wasOnline)
-    {
-        // 사실 온라인용 로직을 아예 분리하는 게 낫지 않나 싶은...
-        std::optional<Vector2> fallbackPosition;
-        if (!_player)   // 연결 끊긴 후 1회
-        {
-            if (_myPlayer)
-            {
-                fallbackPosition = _myPlayer->GetWorldPosition();
-            }
-            else
-            {
-                // 혹시 모르니 마지막 snapshot에서 localPlayerId에 해당하는 state의 좌표 추출
-                const auto localPlayerId = *game.GetLocalPlayerId();
-                const auto& snapshot = game.GetLatestSnapshot();
-
-                const auto it = std::find_if(snapshot->players.begin(), snapshot->players.end(),
-                    [localPlayerId](const Z1::Protocol::SnapshotPlayerState& state)
-                    {
-                        return localPlayerId == state.playerId;
-                    });
-
-                if (it != snapshot->players.end())
-                {
-                    fallbackPosition = Vector2(it->x, it->y);
-                }
-            }
-
-            ClearNetworkActors();
-
-            // 혹시 비활성 상태인 경우 아예 날려버리자.
-            if (_player)
-            {
-                _player->Destroy();
-                _player.reset();
-            }
-
-            EnsureOfflinePlayers(game, fallbackPosition); // 기존 싱글 플레이 경로로, 필요하면 연결 실패/종료 뒤 재생성 + 상태 복원
-            _wasOnline = false;
-        }
-    }
-    else
-    {
-        EnsureOfflinePlayers(game);
-    }
-
     Level::Tick(deltaTime);
 
     if (!_player || !_player->IsActive()) return;
@@ -227,13 +209,6 @@ void OverworldLevel::Tick(float deltaTime)
             Vector2 direction = _player->GetFacingDirection();
             const bool canShootSwordBeam = _player->IsFullHp();
 
-            if (!canShootSwordBeam)
-            {
-                auto attack = SpawnActor<SwordAttack>(direction, _player, 1);
-                attack->AttachTo(_player, false);
-                _player->SetActiveAttack(attack);
-            }
-
             Engine::Get().PlayOneShot(
                 canShootSwordBeam
                 ? "Z1/LOZ_Sword_Combined.wav"
@@ -262,6 +237,12 @@ void OverworldLevel::Tick(float deltaTime)
                     _player
                 );
             }
+            else
+            {
+                auto attack = SpawnActor<SwordAttack>(direction, _player, 1);
+                attack->AttachTo(_player, false);
+                _player->SetActiveAttack(attack);
+            }
         }
     }
 
@@ -272,7 +253,6 @@ void OverworldLevel::Tick(float deltaTime)
 void OverworldLevel::Draw()
 {
     Renderer& renderer = Renderer::Get();
-    Game& game = dynamic_cast<Game&>(Engine::Get());
 
     const Vector2 roomCellOrigin = GetRoomCellOrigin(_currentRoom);
     renderer.SetView(roomCellOrigin, RoomScreenOffset);
@@ -284,20 +264,9 @@ void OverworldLevel::Draw()
 
     Level::Draw();
     
-    if (_showEnemyPathDebug)
-    {
-        DrawLatestEnemyPathDebug(game, renderer, roomCellOrigin);
-    }
-    
     renderer.Submit(Sprite::Create("[Overworld]"), Vector2(2, 1));
 
-    if (_myPlayer)
-    {
-        // 최대 체력은 추후 SnapshotPlayerState에 MaxHp 수치도 넣고, 다 바꾸도록...
-        const std::string hp = "[HP " + std::to_string(_myPlayer->GetHp()) + "/" + std::to_string(Game::PlayerMaxHp) + "]";
-        renderer.Submit(Sprite::Create(hp), Vector2(16, 1));
-    }
-    else if (_player)
+    if (_player)
     {
         const std::string hp = "[HP " + std::to_string(_player->GetHp()) + "/" + std::to_string(_player->GetMaxHp()) + "]";
         renderer.Submit(Sprite::Create(hp), Vector2(16, 1));
@@ -305,44 +274,11 @@ void OverworldLevel::Draw()
         const std::string sword = _player->HasSword() ? "[SWORD]" : "[NO SWORD]";
         renderer.Submit(Sprite::Create(sword), Vector2(30, 1));
     }
-
-    const Vector2 NetHUDPos(46, 1);
-    std::string netText;
-    
-    if (!game.IsServerConnected())
-    {
-        netText = "[OFFLINE]";
-    }
-    else
-    {
-        const auto localPlayerId = game.GetLocalPlayerId();
-        const auto& snapshot = game.GetLatestSnapshot();
-
-        if (!localPlayerId.has_value())
-        {
-            netText = "[Connecting...]";
-        }
-        else if (!snapshot.has_value())
-        {
-            // PlayerId는 받았는데 snapshot 받기 전
-            netText = "[ONLINE] Player " + std::to_string(*localPlayerId);
-        }
-        else
-        {
-            netText = "[ONLINE] Player " + std::to_string(*localPlayerId)
-                + " Tick " + std::to_string(snapshot->serverTick)
-                + " Num " + std::to_string(snapshot->players.size());
-        }
-    }
-
-    renderer.Submit(Sprite::Create(netText), NetHUDPos);
 }
 
 void OverworldLevel::EndPlay()
 {
     Level::EndPlay();
-
-    ClearNetworkActors();  // Level 나갈 때도 정리하자.
 
     if (_player)
     {
@@ -365,7 +301,7 @@ bool OverworldLevel::CanProjectileOccupy(Craft::Vector2 destination, const Proje
     }
 
     const Vector2 boxPos = destination + box->GetOffset();
-    if (!IsInsideCurrentRoom(boxPos, box->GetSize()))
+    if (!IsInsideRoom(_currentRoom, boxPos, box->GetSize()))
     {
         return false;
     }
@@ -397,258 +333,6 @@ std::shared_ptr<Enemy> OverworldLevel::SpawnEnemy(const EnemySpawnData& spawn)
     }
 }
 
-void OverworldLevel::ApplyLatestNetworkSnapshot(Game& game)
-{
-    using namespace Z1::Protocol;
-
-    auto localPlayerId = game.GetLocalPlayerId();
-    const auto& snapshot = game.GetLatestSnapshot();
-
-    if (!localPlayerId || !snapshot)
-    {
-        return;
-    }
-
-    // game의 snapshot은 단순히 마지막 값을 기록하는 용도라서 serverTick 기준 진짜 최신값인지 확인해야 함
-    if (_lastAppliedServerTick && *_lastAppliedServerTick == snapshot->serverTick)
-    {
-        return;
-    }
-
-    // 1. 서버로부터 받은 플레이어 정보 기반 생성 및 갱신
-    std::unordered_set<std::uint32_t> recvdPlayers;
-    for (const SnapshotPlayerState& state : snapshot->players)
-    {
-        // TEMP: MyPlayer가 없다면 기존 로컬 Player와 적 등을 모두 제거하고 Spawn
-        if (state.playerId == *localPlayerId)
-        {
-            if (!_myPlayer)
-            {
-                if (_player)
-                {
-                    _player->Destroy();
-                    _player.reset();
-                }
-
-                DestroyRoomEnemies();
-                DestroyRoomProjectiles();
-
-                _myPlayer = SpawnActor<MyPlayer>(Vector2(state.x, state.y), state.playerId);
-            }
-
-            _myPlayer->ApplySnapshot(state);
-            ApplyNetworkRoom(state);    // MyPlayer 한정으로 Room 변경
-        }
-        else  
-        {
-            // 원격 플레이어는 생성 or 갱신
-            recvdPlayers.emplace(state.playerId);
-
-            if (_networkPlayers.contains(state.playerId))
-            {
-                _networkPlayers[state.playerId]->ApplySnapshot(state);
-                continue;
-            }
-
-            auto remotePlayer = SpawnActor<NetworkPlayer>(Vector2(state.x, state.y), state.playerId);
-            remotePlayer->ApplySnapshot(state);
-            _networkPlayers.emplace(state.playerId, std::move(remotePlayer));
-        }
-    }
-
-    // 2. 새로 받은 플레이어가 기존 플레이어 명단에 없다면 제거
-    for (auto it = _networkPlayers.begin(); it != _networkPlayers.end();)
-    {
-        if (!recvdPlayers.contains(it->first))
-        {
-            it->second->Destroy();
-            it = _networkPlayers.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
-
-    // 3. 서버로부터 받은 적 정보 기반 생성 및 갱신
-    std::unordered_set<std::uint32_t> recvdEnemies;
-    for (const SnapshotEnemyState& state : snapshot->enemies)
-    {
-        // 원격 플레이어는 생성 or 갱신
-        recvdEnemies.emplace(state.id);
-
-        if (_networkEnemies.contains(state.id))
-        {
-            _networkEnemies[state.id]->ApplySnapshot(state);
-            continue;
-        }
-
-        auto remoteEnemy = SpawnActor<NetworkEnemy>(Vector2(state.x, state.y), state.id, state.kind);
-        remoteEnemy->ApplySnapshot(state);
-        _networkEnemies.emplace(state.id, std::move(remoteEnemy));
-    }
-
-    // 4. 새로 받은 적이 기존 적 명단에 없다면 제거
-    for (auto it = _networkEnemies.begin(); it != _networkEnemies.end();)
-    {
-        if (!recvdEnemies.contains(it->first))
-        {
-            it->second->Destroy();
-            it = _networkEnemies.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
-
-    // 5. 서버로부터 받은 투사체 정보 기반 생성 및 갱신
-    std::unordered_set<std::uint32_t> recvdProjectiles;
-    for (const SnapshotProjectileState& state : snapshot->projectiles)
-    {
-        // 원격 플레이어는 생성 or 갱신
-        recvdProjectiles.emplace(state.id);
-        if (_networkProjectiles.contains(state.id))
-        {
-            _networkProjectiles[state.id]->ApplySnapshot(state);
-            continue;
-        }
-
-        // 최초 생성 시 Sound도 재생하도록 변경
-        auto remoteProjectile = SpawnActor<NetworkProjectile>(Vector2(state.x, state.y), state.id, state.kind, state.direction);
-        remoteProjectile->ApplySnapshot(state);
-        _networkProjectiles.emplace(state.id, std::move(remoteProjectile));
-        
-        // Room 넘어갈 때, 다른 요인에 의해 이미 생성된 projectile도 여기에 진입할 수 있음
-        // 이 경우 최초 snapshot 또는 room 전환 snapshot으로 엄밀히 비교해야 함
-    }
-
-    // 6. 새로 받은 투사체가 기존 투사체 명단에 없다면 제거
-    for (auto it = _networkProjectiles.begin(); it != _networkProjectiles.end();)
-    {
-        if (!recvdProjectiles.contains(it->first))
-        {
-            it->second->Destroy();
-            it = _networkProjectiles.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
-
-    // 서버로부터 정상적으로 스냅샷 수신한 틱을 기록해 최신값 판별
-    _lastAppliedServerTick = snapshot->serverTick;
-}
-
-void OverworldLevel::EnsureOfflinePlayers(Game& game, std::optional<Craft::Vector2> spawnPosition)
-{
-    bool createdPlayer = false;
-    if (!_player)
-    {
-        const Vector2 defaultPosition = GetRoomCellOrigin(_currentRoom) + Vector2(7, 2) * TileCellSize;
-        const Vector2 position = spawnPosition.value_or(defaultPosition);
-        _player = SpawnActor<Player>(position, Game::PlayerMaxHp);
-        createdPlayer = true;
-    }
-
-    if (!_playerStateLoaded)
-    {
-        game.LoadPlayerState(*_player);
-        _playerStateLoaded = true;
-    }
-
-    if (createdPlayer)
-    {
-        SpawnRoomEnemies();
-    }
-}
-
-// 서버 연결 끊겼을 때 snapshot 날려버리는 역할
-void OverworldLevel::ClearNetworkActors()
-{
-    if (_myPlayer)
-    {
-        _myPlayer->Destroy();
-        _myPlayer.reset();
-    }
-
-    for (auto& [id, player] : _networkPlayers)
-    {
-        player->Destroy();
-    }
-
-    _networkPlayers.clear();
-
-    for (auto& [id, enemy] : _networkEnemies)
-    {
-        enemy->Destroy();
-    }
-
-    _networkEnemies.clear();
-
-    for (auto& [id, projectile] : _networkProjectiles)
-    {
-        projectile->Destroy();
-    }
-
-    _networkProjectiles.clear();
-
-    _lastAppliedServerTick.reset();
-}
-
-void OverworldLevel::ApplyCombatEvent(const Z1::Protocol::CombatEvent& event)
-{
-    using namespace Z1::Protocol;
-
-    if (event.type != CombatEventType::PlayerSwordAttack) return;
-
-    // 나 아니면 타 클라
-    std::shared_ptr<NetworkPlayer> source;
-    if (_myPlayer && _myPlayer->GetPlayerId() == event.actorId)
-    {
-        source = _myPlayer;
-    }
-    else
-    {
-        auto found = _networkPlayers.find(event.actorId);
-        if (found != _networkPlayers.end())
-        {
-            source = found->second;
-        }
-    }
-
-    if (!source) return;
-
-    // TODO
-    auto effect = SpawnActor<NetworkSwordEffect>(event.direction);
-    effect->AttachTo(source, false);
-    Engine::Get().PlayOneShot("Z1/LOZ_Sword_Slash.wav");
-}
-
-void OverworldLevel::DrawLatestEnemyPathDebug(Game& game, Renderer& renderer, const Vector2 roomCellOrigin)
-{
-    const auto sprite = Sprite::Create(TileCellSize, '+', Color::DarkViolet);
-    for (const auto& [id, debugPath] : game.GetLatestEnemyPathDebugs())
-    {
-        if (RoomCoordinate{ debugPath.roomX, debugPath.roomY } != _currentRoom)
-        {
-            continue;
-        }
-
-        for (std::uint8_t index : debugPath.tileIndices)
-        {
-            // (y: 3, x: 7) -> 3 * 16 + 16 = 55 | 55 / 16 = 3, 55 % 16 = 7, 
-            // y * width + x
-            const int localY = index / RoomTileWidth;
-            const int localX = index % RoomTileWidth;
-            const Vector2 worldPosition = roomCellOrigin + Vector2(localX, localY) * TileCellSize;
-
-            renderer.SubmitWorld(sprite, worldPosition, 5);
-        }
-    }
-}
-
 bool OverworldLevel::LoadMap()
 {
     const FilePath basePath = "../Content/Z1/Maps/Overworld";
@@ -674,8 +358,7 @@ bool OverworldLevel::TryChangeRoom(RoomCoordinate room)
         return false;
     }
 
-    DestroyRoomEnemies();   // 원래 Room 적 날리고
-    DestroyRoomProjectiles();
+    DestroyRoomActors();
 
     _currentRoom = room;
 
@@ -699,55 +382,6 @@ void OverworldLevel::BuildRoomSprite()
     // 논리 타일 위치: (16, 11) x (7, 7)
     const Vector2 roomOrigin(_currentRoom.x * RoomTileWidth, _currentRoom.y * RoomTileHeight);
     _roomSprite = _map.BuildRoomSprite(roomOrigin, Vector2(RoomTileWidth, RoomTileHeight));
-}
-
-/// <summary>
-/// 현재 위치(전체 맵에 Cell 좌표 기준)가 어디 Room에 속하는지
-/// </summary>
-/// <param name="mapCellPosition"></param>
-/// <returns></returns>
-RoomCoordinate OverworldLevel::GetRoomCoordinate(const Vector2& mapCellPosition) const
-{
-    assert(mapCellPosition.x >= 0 && mapCellPosition.y >= 0);
-
-    // Room의 셀 단위 가로/세로 길이
-    const int roomCellWidth =  RoomTileWidth * TileCellSize.x;
-    const int roomCellHeight = RoomTileHeight * TileCellSize.y;
-
-    return RoomCoordinate(mapCellPosition.x / roomCellWidth, mapCellPosition.y / roomCellHeight);
-}
-
-RoomCoordinate OverworldLevel::GetRoomCoordinateAtLeadingEdge(Vector2 destination, const Pawn& pawn, Vector2 direction) const
-{
-    const auto box = pawn.GetComponent<BoxComponent>();
-    if (!box)
-    {
-        return GetRoomCoordinate(destination);
-    }
-
-    Vector2 probePosition = destination + box->GetOffset();
-    const Vector2 boxSize = box->GetSize();
-
-    if (direction.x > 0)
-    {
-        probePosition.x += boxSize.x - 1;
-    }
-    else if (direction.y > 0)
-    {
-        probePosition.y += boxSize.y - 1;
-    }
-
-    return GetRoomCoordinate(probePosition);
-}
-
-// Map 기준 Room의 좌상단 셀 좌표
-Vector2 OverworldLevel::GetRoomCellOrigin(RoomCoordinate room) const
-{
-    return Vector2
-    {
-        room.x * RoomTileWidth * TileCellSize.x,
-        room.y * RoomTileHeight * TileCellSize.y
-    };
 }
 
 void OverworldLevel::SnapPlayerIntoRoom(RoomCoordinate room, Vector2 direction)
@@ -805,7 +439,7 @@ bool OverworldLevel::CanMoveTo(Vector2 destination, const Pawn& mover, bool allo
     const Vector2 moverPosition = destination + moverBox->GetOffset();
     if (mover.IsA<Enemy>())
     {
-        if (!IsInsideCurrentRoom(moverPosition, moverBox->GetSize()))
+        if (!IsInsideRoom(_currentRoom, moverPosition, moverBox->GetSize()))
         {
             return false;
         }
@@ -945,7 +579,7 @@ void OverworldLevel::SpawnRoomEnemies()
     }
 }
 
-void OverworldLevel::DestroyRoomEnemies()
+void OverworldLevel::DestroyRoomActors()
 {
     for (const auto& enemy : _roomEnemies)
     {
@@ -956,6 +590,16 @@ void OverworldLevel::DestroyRoomEnemies()
     }
 
     _roomEnemies.clear();
+
+    for (const auto& projectile : _roomProjectiles)
+    {
+        if (projectile)
+        {
+            projectile->Destroy();
+        }
+    }
+
+    _roomProjectiles.clear();
 }
 
 void OverworldLevel::UpdatePlayerMovement(float deltaTime, const Vector2& delta)
@@ -1044,28 +688,6 @@ void OverworldLevel::UpdateEnemyMovement(float deltaTime)
             enemy->MoveBy(delta);
         }
     }
-}
-
-void OverworldLevel::DestroyRoomProjectiles()
-{
-    for (const auto& projectile : _roomProjectiles)
-    {
-        if (projectile)
-        {
-            projectile->Destroy();
-        }
-    }
-
-    _roomProjectiles.clear();
-}
-
-bool OverworldLevel::IsInsideCurrentRoom(Craft::Vector2 boxPosition, Craft::Vector2 boxSize)
-{
-    const Vector2 origin = GetRoomCellOrigin(_currentRoom);
-    const Vector2 roomSize{ RoomTileWidth * TileCellSize.x, RoomTileHeight * TileCellSize.y };
-
-    return Box2D{ boxPosition, boxSize }.IsInside(Box2D{ origin, roomSize }
-    );
 }
 
 void OverworldLevel::TakeContactDamageToPlayer()
@@ -1169,9 +791,7 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
     case EntranceType::SwordCave:
     {
         Game& game = dynamic_cast<Game&>(Engine::Get());
-
         game.ChangeLevel(State::SwordCave);
-
         _player->ClearMoveRemainder();
 
         return true;
@@ -1185,9 +805,7 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
         }
 
         Game& game = dynamic_cast<Game&>(Engine::Get());
-
         game.ChangeLevel(State::Dungeon1);
-
         _player->ClearMoveRemainder();
 
         return true;
@@ -1196,14 +814,4 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
     }
 
     return false;
-}
-
-// 여기서는 우선 Room 렌더만 담당
-void OverworldLevel::ApplyNetworkRoom(const Z1::Protocol::SnapshotPlayerState& state)
-{
-    const RoomCoordinate nextRoom = GetRoomCoordinate(Vector2(state.x, state.y));
-    if (nextRoom == _currentRoom) return;
-
-    _currentRoom = nextRoom;
-    BuildRoomSprite();
 }

@@ -7,6 +7,7 @@
 #include <Level/DevelopmentLevel.h>
 #include <Level/CaveLevel.h>
 #include <Level/DungeonLevel.h>
+#include <Network/NetworkOverworldLevel.h>
 #include <Actor/Player.h>
 #include <Sockets/Endpoint.h>
 
@@ -18,27 +19,29 @@ Game::Game()
     _levels.resize((size_t)State::END);
 
     _levels[(int)State::Title] = (std::make_shared<TitleLevel>());
-    _levels[(int)State::Overworld] = (std::make_shared<OverworldLevel>());
-    _levels[(int)State::SwordCave] = (std::make_shared<CaveLevel>());
-    _levels[(int)State::Dungeon1] = (std::make_shared<DungeonLevel>());
     _levels[(int)State::Clear] = (std::make_shared<ClearLevel>());
     _levels[(int)State::GameOver] = (std::make_shared<GameOverLevel>());
-    _levels[(int)State::Development] = (std::make_shared<DevelopmentLevel>());
 
     SetSubLevel(_levels[(int)_state]);
 }
 
-void Game::StartNewGame()
+void Game::StartNewGame(GameMode mode)
 {
     ResetPlayerState();
 
-    ConnectToServer();  // 일단 Overworld 로 제한했으니, 게임 세션 시작할 때 서버 연결도 한 번 시도하자.
+    if (mode == GameMode::Localplay)
+    {
+        _levels[(int)State::Overworld] = std::make_shared<OverworldLevel>();
+        _levels[(int)State::SwordCave] = std::make_shared<CaveLevel>();
+        _levels[(int)State::Dungeon1] = std::make_shared<DungeonLevel>();
 
-    _levels[(int)State::Overworld] = std::make_shared<OverworldLevel>();
-    _levels[(int)State::SwordCave] = std::make_shared<CaveLevel>();
-    _levels[(int)State::Dungeon1] = std::make_shared<DungeonLevel>();
-
-    ChangeLevel(State::Overworld);
+        ChangeLevel(State::Overworld);
+    }
+    else if (mode == GameMode::Multiplay)
+    {
+        _levels[(int)State::NetworkOverworld] = std::make_shared<NetworkOverworldLevel>();
+        ChangeLevel(State::NetworkOverworld);
+    }
 }
 
 void Game::ResetPlayerState()
@@ -76,7 +79,6 @@ bool Game::ConnectToServer()
             << _network.GetLastError()
             << "\n";
 
-        // TODO: 연결 실패 시 싱글 플레이로 돌아가도록 하기?
         return false;
     }
 
@@ -113,18 +115,35 @@ void Game::PumpNetwork()
     }
 }
 
+void Game::Disconnect()
+{
+    // thread join && socket close
+    _network.Stop();
+
+    _localPlayerId = std::nullopt;
+    _latestSnapshot = std::nullopt;
+    _pendingCombatEvents.clear();
+    _latestEnemyPaths.clear();
+}
+
+// 인게임 도중 서버가 끊겼을 때
+void Game::OnDisconnect(const std::string& reason)
+{
+    Disconnect();
+    ChangeLevel(State::Title);
+
+    if (auto title = std::dynamic_pointer_cast<TitleLevel>(_levels[(int)State::Title]))
+    {
+        title->SetNoticeMessage(reason);
+    }
+}
+
 void Game::ChangeLevel(State state)
 {
     if (_state == state)
     {
         return;
     }
-
-    //if (state == State::Overworld)
-    //{
-    //    // 사망한 캐릭터를 새로 생성해야 함
-    //    _levels[(int)State::Overworld] = std::make_shared<OverworldLevel>();
-    //}
 
     _state = state;
     SetSubLevel(_levels[(int)state]);

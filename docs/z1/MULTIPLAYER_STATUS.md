@@ -8,6 +8,8 @@
 
 ## 현재 위치
 
+Title에서 `LocalPlay`와 `MultiPlay` 선택 메뉴가 분리되었으며, 기존 싱글플레이는 순수 `OverworldLevel`을 사용하고 멀티플레이는 전용 `NetworkOverworldLevel`로 분리되었다. 기존 인게임 offline fallback 코드는 완전히 제거되었으며, 연결 끊김 및 Player 사망 시 네트워크 상태를 정리하고 Title로 안내 메시지와 함께 복귀한다.
+
 TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Projectile 공격이 연결된 상태다. Z1의 실제 입력이 `C2S_Input`으로 서버에 도착하고, 서버가 20Hz Tick에서 BlockingMap 충돌을 통과한 Player 좌표와 수신 Player의 관심 Room에 속한 Enemy·Projectile을 `S2C_WorldSnapshot`으로 전송한다. 서버가 Moblin의 실제 A* 최종 경로를 `S2C_EnemyPathDebug`로 전송하고 클라이언트가 `F3` 토글로 표시한다. local playerId는 `MyPlayer`, 원격 playerId는 `NetworkPlayer`로 표시한다. `CraftEngine::Input`이 콘솔 입력 버퍼 기반으로 전환되어 동일 PC에서 여러 Z1 클라이언트를 실행해도 포커스된 콘솔 창의 입력만 독립적으로 처리된다. IOCP completion port HANDLE은 `CompletionPort`가 RAII로 소유한다.
 
 네트워크 모드의 Player·Enemy·Projectile 위치와 HP·사망은 서버 Snapshot이 원본이며, 클라이언트는 입력 의도만 보낸다. 서버 권위형 BlockingMap 충돌과 전역 Enemy 초기 스폰, Moblin의 Room 내부 A* 추적 이동·Spear 발사, Projectile의 Player 피격·사망, Player 일반 검의 Enemy 피격·사망까지 적용됐다. 클라이언트는 local Snapshot 좌표로 배경과 View의 Room 표현을 바꾸고 Snapshot에서 빠진 사망 Enemy 표현을 제거한다. 서버가 승인한 일반 검 공격은 `S2C_CombatEvent`로 같은 Room의 클라이언트에 전파하며, 각 클라이언트가 표현 전용 `NetworkSwordEffect`와 공격 효과음을 재생한다. 최대 HP SwordBeam은 아직 없다.
@@ -64,6 +66,8 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 
 - `Game`이 소유하는 select 기반 `NetworkClient`
 - network thread와 main thread 사이의 bounded incoming/outgoing queue
+- `NetworkClient::Stop()`이 thread join 뒤 socket, 양방향 queue, pending 전송 packet, framer, partial-send offset과 input sequence를 초기화
+- `NetworkClient::Start()`의 socket 연결·설정과 `C2S_Enter` 생성·queue 실패 경로에서 socket close
 - Enter/Snapshot/CombatEvent parsing과 방향·공격 입력 전송
 - HUD의 online 상태, local playerId, server tick과 player count 표시
 - main thread에서 local `MyPlayer`와 원격 `NetworkPlayer` 생성·갱신·제거
@@ -73,8 +77,8 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 온라인 중 기존 `Player`의 로컬 이동·공격·Enemy 처리와 충돌 판정을 실행하지 않음
 - local `MyPlayer`의 서버 Snapshot 좌표가 다른 Room에 들어가면 Room 배경과 View 갱신
 - Snapshot HP와 dead flag를 `MyPlayer`와 HUD에 반영하고 dead 상태에서는 입력 전송을 중지
-- `Game`이 순서가 중요한 CombatEvent를 별도 queue에 모두 보관하고 `OverworldLevel`이 main thread에서 소비
-- `Game`이 Enemy ID별 최신 `EnemyPathDebug`를 map에 보관하고, `OverworldLevel`이 현재 Room의 경로를 main thread에서 렌더링
+- `Game`이 순서가 중요한 CombatEvent를 별도 queue에 모두 보관하고 `NetworkOverworldLevel`이 main thread에서 소비
+- `Game`이 Enemy ID별 최신 `EnemyPathDebug`를 map에 보관하고, `NetworkOverworldLevel`이 현재 Room의 경로를 main thread에서 렌더링
 - `F3` 토글로 Enemy 경로 디버그 표시를 켜고 끄며, Enemy 사망·Room 이동 시 빈 경로와 Room 필터로 이전 표시를 제거
 - 일반 검 이벤트의 actorId로 `MyPlayer` 또는 `NetworkPlayer`를 찾고, facing별 로컬 오프셋에 표현 전용 `NetworkSwordEffect`를 부착
 - `NetworkSwordEffect`는 충돌·피해 판정 없이 검 Sprite를 0.5초 표시한 뒤 제거되며 각 수신 클라이언트가 검 공격 효과음을 한 번 재생
@@ -88,6 +92,18 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - `Engine::SavePreviousInputStates()` 및 `Input::SaveKeyStates()`를 제거하고 매 프레임 `ReadConsoleInputEvents()`로 상태를 갱신
 - `CraftEngine::Input`의 기존 공개 API(`GetKey`, `GetKeyDown`, `GetKeyUp`) 유지
 
+### 플레이 모드 분리와 NetworkOverworldLevel 및 종료·사망 복귀
+
+- TitleLevel에 `LocalPlay`, `MultiPlay` 위/아래 선택 메뉴 구현 (기본 선택은 `LocalPlay`)
+- Local Play 선택 시 `NetworkClient::Start()`를 호출하지 않고 순수 싱글플레이 `OverworldLevel` 실행
+- Multiplayer 선택 시 `Connecting` 상태를 거쳐 서버 연결 및 `S2C_Enter` 확인 후 전용 `NetworkOverworldLevel` 진입
+- `OverworldLevel`에서 네트워크 Actor, 패킷 소비, offline fallback 관련 잔재(`_wasOnline`, `EnsureOfflinePlayers`, `fallbackPosition` 등)를 전면 제거하여 싱글플레이 전용으로 정제
+- 멀티플레이 전담 `NetworkOverworldLevel`을 신설하여 Snapshot 갱신, 원격 Actor 관리, CombatEvent 적용, Enemy 경로 디버그 렌더링을 격리
+- `Game::OnDisconnect`를 통해 `NetworkClient` transport 상태와 `Game`의 수신 상태 정리를 일원화하고 사유 메시지와 표시 시간을 TitleLevel로 전달
+- `Timer::Set()`이 호출 시 `Reset()`을 함께 수행하도록 보완하여 Title 안내 메시지 표시 시간(약 3초) 정확히 보장
+- Multiplayer 도중 서버 연결 종료 감지 시 네트워크 정리 후 Title로 복귀하여 `서버와의 연결이 끊어졌습니다.` 안내 메시지 출력
+- Multiplayer 도중 local Player 사망(`_myPlayer->IsDead()`) 감지 시 `플레이어가 사망하였습니다.` 안내 메시지와 함께 Title로 안전하게 복귀
+
 ## 확인한 동작
 
 - Enter packet의 정상·header 분할·payload 분할 수신
@@ -99,7 +115,11 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 실제 Z1 두 개에서 상대 playerId의 `NetworkPlayer` 생성과 Snapshot 위치 반영
 - 실제 Z1 하나와 KeepAlive dummy client에서 local `MyPlayer`와 원격 `NetworkPlayer` 생성, local 입력 전송과 서버 좌표 반영 확인
 - 같은 PC에서 실제 Z1 클라이언트 두 개와 Z1Server를 실행했을 때, 현재 포커스된 콘솔 창에만 키보드 입력이 전달되어 각 세션의 `MyPlayer`가 독립적으로 조작되는 것 확인
-- Title 레벨에서 `VK_RETURN` 입력으로 정상 게임 시작 확인
+- Title에서 위/아래 키로 `LocalPlay`와 `MultiPlay` 순환 선택 및 Enter 시작 확인
+- Local Play와 Multiplayer가 서로 간섭 없이 독립적으로 정상 동작하는 것 확인
+- 서버 미실행 시 Multiplayer 선택 시 Title에서 약 3초간 "서버에 연결할 수 없습니다." 안내 메시지 출력 및 메뉴 재선택 가능 확인
+- Multiplayer 플레이 중 서버 종료 시 네트워크 자원 정리 후 Title로 복귀하여 `서버와의 연결이 끊어졌습니다.` 안내 메시지 출력 확인
+- Multiplayer 플레이 중 Player HP 0 사망 시 Title로 복귀하여 `플레이어가 사망하였습니다.` 안내 메시지 출력 및 서버 세션 종료 처리 확인
 - 실제 Z1에서 BlockingMap 벽에 Player Box가 닿으면 서버 좌표가 더 이상 갱신되지 않음
 - Z1Server와 Z1 `Debug|x64` 빌드 성공
 - Enemy가 있는 Overworld Room에서 서버 Snapshot 기반 `NetworkEnemy` Sprite 표시 확인
@@ -136,16 +156,14 @@ TCP payload와 Player 이동 vertical slice에 A* 기반 Moblin 이동과 적 Pr
 - 일반 검의 좌우 10×3·상하 6×5 범위는 싱글플레이 Sword Sprite 크기를 사용한다. 시각 표현과 실제 판정 범위의 체감이 맞지 않으면 이 상수만 조정한다.
 - Moblin Projectile은 현재 Spear 한 종류, 고정 피해량 1, lifetime 40 Tick이며 별도 공격 상태나 animation flag는 없다.
 - Projectile은 현재 이동 후보 위치에서 Player 충돌을 검사한다. 방패, 무적 시간, 넉백과 Player별 피격 cooldown은 아직 없다.
-- 현재 구현은 서버 연결 종료 후 싱글플레이 fallback을 시도하지만 정상 동작하지 않는다. 시작 Room이 아닌 곳에서 서버를 종료하면 HUD는 `[OFFLINE]`으로 바뀌어도 기존 네트워크 Player가 남고, 오프라인 `Player`가 하나 생성되어도 키보드 입력이 반영되지 않는 상황이 재현된다. 네트워크 Enemy 등 표현 Actor가 로컬 Actor와 함께 남아 보일 수도 있다.
-- fallback 위치를 `_myPlayer` 또는 마지막 Snapshot에서 보존해 `EnsureOfflinePlayers()`에 전달하는 변경, `_wasOnline` 전환 flag, 비활성 `_player`의 `Destroy()`/reset을 시도했지만 최신 재현에서는 해결되지 않았다. 이 fallback은 더 이상 목표 동작이 아니며 현재 코드도 완료된 기능으로 간주하지 않는다.
-- 향후 Title에서 기본 선택이 Local Play인 위/아래 메뉴로 Local Play와 Multiplayer를 분리한다. 별도 Loading Level 없이 Title에서 입장 완료를 기다리고, 연결 실패·종료는 Local Play 전환 대신 네트워크 상태를 정리한 뒤 약 3초간 안내와 함께 Title로 복귀한다. 자세한 확정 정책은 [멀티플레이 설계의 플레이 모드와 연결 종료 정책](MULTIPLAYER_DESIGN.md#플레이-모드와-연결-종료-정책)을 따른다.
-- Multiplayer MVP에서 Cave·Dungeon 입구는 진입을 막고 짧은 미지원 안내를 표시한다. Cave·Dungeon 네트워크 입장과 상태 동기화는 시간 여유가 생긴 뒤 별도 논의한다.
+- 현재 `NetworkClient::Start()`는 main thread에서 동기 `connect()`를 호출하므로, 서버 미실행 상태에서 Multiplayer 선택 시 blocking 호출이 반환될 때까지 Title 입력과 렌더링이 일시적으로 멈춘다. 현재 환경에서는 약 2초가 관찰됐지만 고정된 제한 시간은 아니다. 자세한 원인과 논블로킹 전환 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md#보류한-클라이언트-논블로킹-연결)에 기록한다.
+- Multiplayer에서 Cave·Dungeon 입구 진입 시 미지원 안내 메시지 처리는 현재 보류되었다. 로컬 플레이와 달리 현재 서버에서는 Overworld 전체 Room(16×8) 접근이 가능하여 던전 입구가 여러 좌표에 분산되어 있으므로, 전체 입구 좌표 조사 및 안내 처리는 향후 시간 여유가 생겼을 때 다시 시도할 항목으로 남긴다.
 - 런타임 중 닫힌 Session의 closing 전이, pending Recv/Send completion drain과 `_sessions` registry 제거가 적용됐다. `Server::Stop()`에서 모든 Session을 닫고 IOCP를 drain하는 전체 프로세스 종료 안정화는 별도 후속 작업이다.
 - `S2C_Disconnect`는 선언만 되어 있다.
 - 자동 재접속과 Session 복구는 지원하지 않는다.
 
 ## 다음 구현 단위
 
-재구성한 전체 순서와 단계별 완료 조건은 [멀티플레이 잔여 작업 로드맵](MULTIPLAYER_ROADMAP.md)을 따른다. A* 최종 경로 시각화, 런타임 중 닫힌 Session registry 제거와 동일 PC 멀티클라이언트 입력 분리는 완료됐으며, 바로 다음 작업은 Local/Multiplayer 모드 분리와 fallback 제거다.
+재구성한 전체 순서와 단계별 완료 조건은 [멀티플레이 잔여 작업 로드맵](MULTIPLAYER_ROADMAP.md)을 따른다. A* 최종 경로 시각화, 런타임 중 닫힌 Session registry 제거, 동일 PC 멀티클라이언트 입력 분리, Local/Multiplayer 모드 분리와 fallback 제거, Player 사망 후 Title 복귀까지 완료됐다. 바로 다음 작업은 Enemy 7초 리스폰이다.
 
-그 뒤 Player 사망 후 Title 복귀, Enemy 7초 리스폰, 서버 프로세스 종료 안정화 순으로 진행한다. SwordBeam·방패·무적·넉백과 Octorok·Tektite 고유 AI는 필수 범위가 끝난 뒤 시간이 남을 때만 재검토한다. Enemy·IOCP 확장 후보의 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다.
+그 뒤 서버 프로세스 종료 안정화 순으로 진행한다. SwordBeam·방패·무적·넉백과 Octorok·Tektite 고유 AI는 필수 범위가 끝난 뒤 시간이 남을 때만 재검토한다. Enemy·IOCP 확장 후보의 보류 근거는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md)에 기록한다.

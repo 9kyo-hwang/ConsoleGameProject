@@ -22,6 +22,14 @@ enum class State
     Clear,
     GameOver,
     Development,
+    NetworkOverworld,
+    END
+};
+
+enum class GameMode
+{
+    Localplay,
+    Multiplay,
     END
 };
 
@@ -33,7 +41,7 @@ public:
     Game();
     ~Game() override = default; // Game -> Engine 순으로 소멸, Game 소멸 시 NetworkClient 소멸되며 자연스레 Stop
 
-    void StartNewGame();
+    void StartNewGame(GameMode mode);
     void ChangeLevel(State state);
 
     void ResetPlayerState();
@@ -44,6 +52,8 @@ public: // Network
     inline bool IsServerConnected() const noexcept { return _network.IsConnected(); }
     bool ConnectToServer();
     void PumpNetwork();
+    void Disconnect();
+    void OnDisconnect(const std::string& reason);
 
     inline std::optional<std::uint32_t> GetLocalPlayerId() const { return _localPlayerId; }
     inline const std::optional<Z1::Protocol::WorldSnapshot>& GetLatestSnapshot() const { return _latestSnapshot; }

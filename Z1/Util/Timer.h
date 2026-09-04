@@ -9,9 +9,9 @@ struct Timer
     inline float ElapsedTime() const { return _elapsed; }
     inline bool TimeOver() const { return _elapsed >= _target; }
 
-    inline void Set(float time) { _target = time; }
+    inline void Set(float time) { _target = time; Reset(); } // 목표 시간 설정 + Reset도 같이.
     inline void Reset() { _elapsed = 0.f; }
-    inline void Complete() { _elapsed = 1.f; }
+    inline void Complete() { _elapsed = _target; }
 
 private:
     float _target;

@@ -65,7 +65,7 @@ Visual Studio의 프로젝트 디렉터리나 각 빌드 출력 디렉터리에�
 | WAV와 voice 수명 | `SoundSystem/SoundSystem/Sound.*` |
 | 소켓 자원과 주소 | `Sockets/Sockets/*` |
 | Z1 wire 계약 | `Z1Shared/*` |
-| Z1 클라이언트 transport와 Snapshot 표현 (`MyPlayer`, `NetworkPlayer`, `NetworkEnemy`) | `Z1/Network/*` |
+| Z1 클라이언트 transport, `NetworkOverworldLevel`과 네트워크 표현 Actor | `Z1/Network/*` |
 | Z1 IOCP, 서버 simulation과 서버 전용 Actor 상태 | `Z1Server/{Actor/, CompletionPort.*, Session.*, Server.*, OverworldSimulation.*}` |
 | 게임 규칙과 구체 Actor | 각 콘텐츠의 `Level/`, `Actor/` |
 

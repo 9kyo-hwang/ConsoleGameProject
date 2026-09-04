@@ -8,13 +8,6 @@ using namespace Net;
 
 namespace
 {
-    /*
-    * typedef struct fd_set {
-    *   u_int fd_count;  // how many are SET?
-    *   SOCKET  fd_array[64];  // an array of SOCKETs 
-    * } fd_set;
-    */
-
     struct FileDescriptors : fd_set
     {
         FileDescriptors() { Reset(); }
@@ -84,12 +77,7 @@ bool NetworkClient::Start(const Net::Endpoint& endpoint)
 
     // C2S_Enter packet 생성: 서버 접속 성공 시(S2C_Enter) id가 발급됨
     std::vector<Byte> packet;
-    if (!BuildPacket_C2SEnter(packet))
-    {
-        return false;
-    }
-
-    if (!QueuePacket(std::move(packet)))
+    if (!BuildPacket_C2SEnter(packet) || !QueuePacket(std::move(packet)))
     {
         _socket.Close();
         return false;
@@ -106,12 +94,29 @@ void NetworkClient::Stop()
 {
     _stopRequested.store(true); // 이미 stop 됐어도, thread가 살아있다면 join해야 해서 return하지 말자.
 
-    //_socket.Close();  // Start, Stop은 메인 스레드가 실행해서 여기서 닫으면 안됨!
-
     if (_thread.joinable())
     {
         _thread.join();
     }
+
+    _socket.Close();  // 네트워크 수신 스레드를 join했기 때문에 실행해도 문제 없음
+    _connected.store(false);
+
+    {
+        std::lock_guard lock(_sendMutex);
+        _sendQueue.clear();
+    }
+
+    _pendingSendPackets.clear();
+    _sendOffset = 0;
+
+    {
+        std::lock_guard lock(_recvMutex);
+        _recvMessageQueue.clear();
+    }
+
+    _framer = PacketFramer();
+    _inputSequence = 1;
 }
 
 // MainThread, NetworkThread 둘 다 읽어야 해서 Atomic

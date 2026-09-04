@@ -33,6 +33,7 @@
     <ClCompile Include="Network\NetworkEnemy.cpp" />
     <ClCompile Include="Network\NetworkProjectile.cpp" />
     <ClCompile Include="Network\NetworkSwordEffect.cpp" />
+    <ClCompile Include="Network\NetworkOverworldLevel.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -70,5 +71,6 @@
     <ClInclude Include="Network\NetworkEnemy.h" />
     <ClInclude Include="Network\NetworkProjectile.h" />
     <ClInclude Include="Network\NetworkSwordEffect.h" />
+    <ClInclude Include="Network\NetworkOverworldLevel.h" />
   </ItemGroup>
 </Project>
