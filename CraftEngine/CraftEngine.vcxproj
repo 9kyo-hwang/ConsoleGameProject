@@ -19,13 +19,13 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -44,29 +44,44 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(SolutionDir)Binaries\$(Platform)\$(Configuration)\</OutDir>
+    <OutDir>$(SolutionDir)Binaries\$(Platform)\$(Configuration)\$(ProjectName)\</OutDir>
     <IntDir>$(SolutionDir)Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(SolutionDir)Binaries\$(Platform)\$(Configuration)\</OutDir>
+    <OutDir>$(SolutionDir)Binaries\$(Platform)\$(Configuration)\$(ProjectName)\</OutDir>
     <IntDir>$(SolutionDir)Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);ENGINE_BUILD_DLL</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(ProjectDir);..\Includes\SoundSystem;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\Libraries\SoundSystem\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>SoundSystem.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
+    <PreBuildEvent>
+      <Command>robocopy "$(ProjectDir)." "$(SolutionDir)Includes\CraftEngine" *.h /E /XF pch.h
+if errorlevel 8 exit /B 1
+exit /B 0</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy $(OutDir)CraftEngine.dll ..\Libraries\CraftEngine\$(Configuration)\ /e /y /i
+xcopy $(OutDir)CraftEngine.lib ..\Libraries\CraftEngine\$(Configuration)\ /e /y /i
+xcopy ..\Config\Setting.txt $(OutDir)..\Config\ /e /y /i</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -74,21 +89,77 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions);ENGINE_BUILD_DLL</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(ProjectDir);..\Includes\SoundSystem;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\Libraries\SoundSystem\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>SoundSystem.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
+    <PreBuildEvent>
+      <Command>robocopy "$(ProjectDir)." "$(SolutionDir)Includes\CraftEngine" *.h /E /XF pch.h
+if errorlevel 8 exit /B 1
+exit /B 0</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy $(OutDir)CraftEngine.dll ..\Libraries\CraftEngine\$(Configuration)\ /e /y /i
+xcopy $(OutDir)CraftEngine.lib ..\Libraries\CraftEngine\$(Configuration)\ /e /y /i
+xcopy ..\Config\Setting.txt $(OutDir)..\Config\ /e /y /i</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CraftEngine.cpp" />
+    <ClCompile Include="Component\BoxComponent.cpp" />
+    <ClCompile Include="Component\ActorComponent.cpp" />
+    <ClCompile Include="Actor\Actor.cpp" />
+    <ClCompile Include="Core\Input.cpp" />
+    <ClCompile Include="Engine\Engine.cpp" />
+    <ClCompile Include="Level\Level.cpp" />
+    <ClCompile Include="Math\Box2D.cpp" />
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Math\Vector2.cpp" />
+    <ClCompile Include="Physics\CollisionSystem.cpp" />
+    <ClCompile Include="Render\Renderer.cpp" />
+    <ClCompile Include="Render\ScreenBuffer.cpp" />
+    <ClCompile Include="Component\TransformComponent.cpp" />
+    <ClCompile Include="Component\SpriteRendererComponent.cpp" />
+    <ClCompile Include="Render\Sprite.cpp" />
+    <ClCompile Include="Tilemaps\Tilemap.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Component\BoxComponent.h" />
+    <ClInclude Include="Component\ActorComponent.h" />
+    <ClInclude Include="Actor\Actor.h" />
+    <ClInclude Include="Core\CClass.h" />
+    <ClInclude Include="Core\CObject.h" />
+    <ClInclude Include="Core\Core.h" />
+    <ClInclude Include="Core\Input.h" />
+    <ClInclude Include="Engine\Engine.h" />
+    <ClInclude Include="Level\Level.h" />
+    <ClInclude Include="Math\Box2D.h" />
+    <ClInclude Include="Math\Color.h" />
+    <ClInclude Include="Math\MathUtility.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="Math\Vector2.h" />
+    <ClInclude Include="Physics\CollisionSystem.h" />
+    <ClInclude Include="Render\Renderer.h" />
+    <ClInclude Include="Render\ScreenBuffer.h" />
+    <ClInclude Include="Component\TransformComponent.h" />
+    <ClInclude Include="Component\SpriteRendererComponent.h" />
+    <ClInclude Include="Render\Sprite.h" />
+    <ClInclude Include="Tilemaps\Tilemap.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

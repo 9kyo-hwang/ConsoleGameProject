@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4daba84c-3c8e-4d97-927b-cc126d772c57}</ProjectGuid>
+    <RootNamespace>Z1</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)Binaries\$(Platform)\$(Configuration)\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)Binaries\$(Platform)\$(Configuration)\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(SolutionDir);..\Includes\CraftEngine;..\Includes\Sockets;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\Libraries\CraftEngine\$(Configuration)\;..\Libraries\Sockets\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>CraftEngine.lib;Sockets.lib;Ws2_32.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Manifest>
+      <EnableSegmentHeap>true</EnableSegmentHeap>
+    </Manifest>
+    <PreBuildEvent>
+      <Command>xcopy ..\Content\* $(OutDir)..\Content\ /e /y /i</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir) /e /y /i
+xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir) /e /y /i
+xcopy ..\Libraries\Sockets\$(Configuration)\Sockets.dll $(OutDir) /e /y /i</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(SolutionDir);..\Includes\CraftEngine;..\Includes\Sockets;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\Libraries\CraftEngine\$(Configuration)\;..\Libraries\Sockets\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>CraftEngine.lib;Sockets.lib;Ws2_32.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Manifest>
+      <EnableSegmentHeap>true</EnableSegmentHeap>
+    </Manifest>
+    <PreBuildEvent>
+      <Command>xcopy ..\Content\* $(OutDir)..\Content\ /e /y /i</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy ..\Libraries\CraftEngine\$(Configuration)\CraftEngine.dll $(OutDir) /e /y /i
+xcopy ..\Libraries\SoundSystem\$(Configuration)\SoundSystem.dll $(OutDir) /e /y /i
+xcopy ..\Libraries\Sockets\$(Configuration)\Sockets.dll $(OutDir) /e /y /i</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Actor\Enemy.cpp" />
+    <ClCompile Include="Actor\SwordSprite.cpp" />
+    <ClCompile Include="Network\NetworkOverworldLevel.cpp" />
+    <ClCompile Include="Network\NetworkSwordEffect.cpp" />
+    <ClCompile Include="Network\NetworkProjectile.cpp" />
+    <ClCompile Include="Network\NetworkEnemy.cpp" />
+    <ClCompile Include="Network\MyPlayer.cpp" />
+    <ClCompile Include="Network\NetworkPlayer.cpp" />
+    <ClCompile Include="Network\NetworkClient.cpp" />
+    <ClCompile Include="World\CaveMap.cpp" />
+    <ClCompile Include="Component\CellStepComponent.cpp" />
+    <ClCompile Include="Actor\Aquamentus.cpp" />
+    <ClCompile Include="Actor\CombatEffect.cpp" />
+    <ClCompile Include="Level\CaveLevel.cpp" />
+    <ClCompile Include="Level\GameOverLevel.cpp" />
+    <ClCompile Include="Level\EnemySpawner.cpp" />
+    <ClCompile Include="Level\DevelopmentLevel.cpp" />
+    <ClCompile Include="Level\ClearLevel.cpp" />
+    <ClCompile Include="Game\Game.cpp" />
+    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="Actor\Player.cpp" />
+    <ClCompile Include="Level\OverworldLevel.cpp" />
+    <ClCompile Include="Actor\SwordAttack.cpp" />
+    <ClCompile Include="Actor\Pawn.cpp" />
+    <ClCompile Include="Actor\Projectile.cpp" />
+    <ClCompile Include="Actor\Octorok.cpp" />
+    <ClCompile Include="Actor\Moblin.cpp" />
+    <ClCompile Include="Actor\Tektite.cpp" />
+    <ClCompile Include="World\OverworldMap.cpp" />
+    <ClCompile Include="Level\DungeonLevel.cpp" />
+    <ClCompile Include="World\DungeonMap.cpp" />
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Level\TitleLevel.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Actor\Enemy.h" />
+    <ClInclude Include="Actor\SwordSprite.h" />
+    <ClInclude Include="Network\NetworkOverworldLevel.h" />
+    <ClInclude Include="Network\NetworkSwordEffect.h" />
+    <ClInclude Include="Network\NetworkProjectile.h" />
+    <ClInclude Include="Network\NetworkEnemy.h" />
+    <ClInclude Include="Network\MyPlayer.h" />
+    <ClInclude Include="Network\NetworkPlayer.h" />
+    <ClInclude Include="Network\NetworkClient.h" />
+    <ClInclude Include="World\CaveMap.h" />
+    <ClInclude Include="Component\CellStepComponent.h" />
+    <ClInclude Include="Actor\Aquamentus.h" />
+    <ClInclude Include="Actor\CombatEffect.h" />
+    <ClInclude Include="Actor\EnemyTypes.h" />
+    <ClInclude Include="Level\CaveLevel.h" />
+    <ClInclude Include="Level\GameOverLevel.h" />
+    <ClInclude Include="Level\EnemySpawner.h" />
+    <ClInclude Include="Level\DevelopmentLevel.h" />
+    <ClInclude Include="Level\ClearLevel.h" />
+    <ClInclude Include="Game\Game.h" />
+    <ClInclude Include="Actor\Player.h" />
+    <ClInclude Include="Level\OverworldLevel.h" />
+    <ClInclude Include="Actor\SwordAttack.h" />
+    <ClInclude Include="Actor\Pawn.h" />
+    <ClInclude Include="Level\Room.h" />
+    <ClInclude Include="Actor\Projectile.h" />
+    <ClInclude Include="Actor\Octorok.h" />
+    <ClInclude Include="Actor\Moblin.h" />
+    <ClInclude Include="Actor\Tektite.h" />
+    <ClInclude Include="Util\Timer.h" />
+    <ClInclude Include="World\MapGeometry.h" />
+    <ClInclude Include="World\OverworldMap.h" />
+    <ClInclude Include="Level\DungeonLevel.h" />
+    <ClInclude Include="World\DungeonMap.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="Level\TitleLevel.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

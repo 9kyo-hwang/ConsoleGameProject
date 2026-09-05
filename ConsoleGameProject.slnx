@@ -2,5 +2,28 @@
   <Configurations>
     <Platform Name="x64" />
   </Configurations>
-  <Project Path="CraftEngine/CraftEngine.vcxproj" />
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
+  <Folder Name="/Z1Shared/">
+    <File Path="Z1Shared/PacketCodec.h" />
+    <File Path="Z1Shared/PacketFramer.h" />
+    <File Path="Z1Shared/Protocol.h" />
+    <File Path="Z1Shared/Serialization.h" />
+  </Folder>
+  <Project Path="CraftEngine/CraftEngine.vcxproj" Id="9eafa265-5871-4026-82c3-5c9f46e089d0" />
+  <Project Path="ShootingGame/ShootingGame.vcxproj" Id="4cd2787e-9f5e-4d39-93b3-df37a2ea0036">
+    <BuildDependency Project="CraftEngine/CraftEngine.vcxproj" />
+  </Project>
+  <Project Path="Sockets/Sockets.vcxproj" Id="194e0eeb-fef8-4a6b-845e-024f6866bce6" />
+  <Project Path="SokobanGame/SokobanGame.vcxproj" Id="b3f0a50e-1435-43be-b165-f35124003f13">
+    <BuildDependency Project="CraftEngine/CraftEngine.vcxproj" />
+  </Project>
+  <Project Path="SoundSystem/SoundSystem.vcxproj" Id="9e431464-5f5c-4f99-a83d-7c9490bdf913" />
+  <Project Path="Z1/Z1.vcxproj" Id="4daba84c-3c8e-4d97-927b-cc126d772c57">
+    <BuildDependency Project="CraftEngine/CraftEngine.vcxproj" />
+  </Project>
+  <Project Path="Z1Server/Z1Server.vcxproj" Id="b971f046-03d6-42c6-a731-6a7dd5533b36">
+    <BuildDependency Project="Sockets/Sockets.vcxproj" />
+  </Project>
 </Solution>

@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="Actor\Player.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="Level\GameLevel.cpp" />
+    <ClCompile Include="Util\Timer.cpp" />
+    <ClCompile Include="Actor\PlayerBullet.cpp" />
+    <ClCompile Include="Actor\Enemy.cpp" />
+    <ClCompile Include="Actor\EnemySpawner.cpp" />
+    <ClCompile Include="Actor\EnemyBullet.cpp" />
+    <ClCompile Include="Actor\DestroyEffect.cpp" />
+    <ClCompile Include="Actor\GameManager.cpp" />
+    <ClCompile Include="Actor\PlayerGun.cpp" />
+    <ClCompile Include="Actor\PlayerEngineEffect.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Actor\Player.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="Level\GameLevel.h" />
+    <ClInclude Include="Util\Timer.h" />
+    <ClInclude Include="Actor\PlayerBullet.h" />
+    <ClInclude Include="Actor\Enemy.h" />
+    <ClInclude Include="Actor\EnemySpawner.h" />
+    <ClInclude Include="Actor\EnemyBullet.h" />
+    <ClInclude Include="Actor\DestroyEffect.h" />
+    <ClInclude Include="Actor\GameManager.h" />
+    <ClInclude Include="Actor\PlayerGun.h" />
+    <ClInclude Include="Actor\PlayerEngineEffect.h" />
+  </ItemGroup>
+</Project>

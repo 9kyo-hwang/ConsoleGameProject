@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="Game\Game.cpp" />
+    <ClCompile Include="Level\TitleLevel.cpp" />
+    <ClCompile Include="Level\ClearLevel.cpp" />
+    <ClCompile Include="Level\DevelopmentLevel.cpp" />
+    <ClCompile Include="Actor\Player.cpp" />
+    <ClCompile Include="Level\OverworldLevel.cpp" />
+    <ClCompile Include="Actor\SwordAttack.cpp" />
+    <ClCompile Include="World\OverworldMap.cpp" />
+    <ClCompile Include="Level\DungeonLevel.cpp" />
+    <ClCompile Include="World\DungeonMap.cpp" />
+    <ClCompile Include="Actor\Pawn.cpp" />
+    <ClCompile Include="Actor\Enemy.cpp" />
+    <ClCompile Include="Actor\SwordSprite.cpp" />
+    <ClCompile Include="Component\CellStepComponent.cpp" />
+    <ClCompile Include="Actor\Aquamentus.cpp" />
+    <ClCompile Include="Actor\CombatEffect.cpp" />
+    <ClCompile Include="Level\EnemySpawner.cpp" />
+    <ClCompile Include="Actor\Projectile.cpp" />
+    <ClCompile Include="Actor\Octorok.cpp" />
+    <ClCompile Include="Actor\Moblin.cpp" />
+    <ClCompile Include="Actor\Tektite.cpp" />
+    <ClCompile Include="Level\GameOverLevel.cpp" />
+    <ClCompile Include="Level\CaveLevel.cpp" />
+    <ClCompile Include="World\CaveMap.cpp" />
+    <ClCompile Include="Network\NetworkClient.cpp" />
+    <ClCompile Include="Network\NetworkPlayer.cpp" />
+    <ClCompile Include="Network\MyPlayer.cpp" />
+    <ClCompile Include="Network\NetworkEnemy.cpp" />
+    <ClCompile Include="Network\NetworkProjectile.cpp" />
+    <ClCompile Include="Network\NetworkSwordEffect.cpp" />
+    <ClCompile Include="Network\NetworkOverworldLevel.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="Game\Game.h" />
+    <ClInclude Include="Level\TitleLevel.h" />
+    <ClInclude Include="Level\ClearLevel.h" />
+    <ClInclude Include="Level\DevelopmentLevel.h" />
+    <ClInclude Include="Actor\Player.h" />
+    <ClInclude Include="Level\OverworldLevel.h" />
+    <ClInclude Include="Actor\SwordAttack.h" />
+    <ClInclude Include="World\OverworldMap.h" />
+    <ClInclude Include="Level\DungeonLevel.h" />
+    <ClInclude Include="World\DungeonMap.h" />
+    <ClInclude Include="Actor\Pawn.h" />
+    <ClInclude Include="Actor\Enemy.h" />
+    <ClInclude Include="Actor\SwordSprite.h" />
+    <ClInclude Include="Component\CellStepComponent.h" />
+    <ClInclude Include="Actor\Aquamentus.h" />
+    <ClInclude Include="Actor\CombatEffect.h" />
+    <ClInclude Include="Level\EnemySpawner.h" />
+    <ClInclude Include="Level\Room.h" />
+    <ClInclude Include="Actor\Projectile.h" />
+    <ClInclude Include="Util\Timer.h" />
+    <ClInclude Include="Actor\EnemyTypes.h" />
+    <ClInclude Include="Actor\Octorok.h" />
+    <ClInclude Include="Actor\Moblin.h" />
+    <ClInclude Include="Actor\Tektite.h" />
+    <ClInclude Include="Level\GameOverLevel.h" />
+    <ClInclude Include="Level\CaveLevel.h" />
+    <ClInclude Include="World\MapGeometry.h" />
+    <ClInclude Include="World\CaveMap.h" />
+    <ClInclude Include="Network\NetworkClient.h" />
+    <ClInclude Include="Network\NetworkPlayer.h" />
+    <ClInclude Include="Network\MyPlayer.h" />
+    <ClInclude Include="Network\NetworkEnemy.h" />
+    <ClInclude Include="Network\NetworkProjectile.h" />
+    <ClInclude Include="Network\NetworkSwordEffect.h" />
+    <ClInclude Include="Network\NetworkOverworldLevel.h" />
+  </ItemGroup>
+</Project>

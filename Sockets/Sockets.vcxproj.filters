@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="Sockets\Export.h" />
+    <ClInclude Include="Sockets\Socket.h" />
+    <ClInclude Include="Sockets\Runtime.h" />
+    <ClInclude Include="Sockets\Endpoint.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Sockets\Socket.cpp" />
+    <ClCompile Include="Sockets\Runtime.cpp" />
+    <ClCompile Include="Sockets\Endpoint.cpp" />
+  </ItemGroup>
+</Project>
