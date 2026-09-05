@@ -6,21 +6,19 @@
 
 ## 현재 프로젝트
 
-Z1은 Zelda형 고정 화면 콘텐츠를 CraftEngine 위에 구현한 프로젝트다. 타이틀에서 새 게임을 시작해 오버월드의 검 동굴을 거쳐 Dungeon 1의 보스를 처치하고 클리어하는 싱글플레이 흐름이 완성되어 있다.
+Z1은 Zelda형 고정 화면 콘텐츠를 CraftEngine 위에 구현한 프로젝트다. Title에서 `LocalPlay`를 선택하면 오버월드의 검 동굴을 거쳐 Dungeon 1의 보스를 처치하고 클리어하는 싱글플레이 흐름을 실행한다.
 
-별도로 localhost 기반 서버 권위형 멀티플레이를 단계적으로 구현하고 있다. 현재는 Z1 클라이언트 연결, 입력 전송, 서버의 Player 이동, Snapshot 수신과 원격 `NetworkPlayer` 표현까지 연결되어 있으며 싱글플레이 전투를 서버 simulation으로 옮기는 작업은 완료되지 않았다.
+`MultiPlay`는 localhost의 Z1Server에 연결해 별도 `NetworkOverworldLevel`에서 실행된다. 클라이언트는 이동·공격 의도만 보내고, 서버가 20Hz simulation에서 Player 이동과 지형 충돌, Enemy의 A* 추적, Projectile, HP·사망과 일반 검 판정을 처리한다. 서버 Snapshot과 CombatEvent를 받은 각 클라이언트는 `MyPlayer`, 원격 `NetworkPlayer`, Enemy, Projectile과 검 효과를 main thread에서 표현한다. 연결 종료나 local Player 사망 시 네트워크 상태를 정리하고 Title로 복귀한다.
+
+같은 PC의 여러 클라이언트는 CraftEngine의 콘솔 입력 이벤트를 각 창에서 소비하므로 포커스된 콘솔의 Player만 독립적으로 조작된다. 현재 멀티플레이 범위는 Overworld에 한정되며 Cave와 Dungeon은 Local Play에서만 지원한다.
 
 ## 문서 역할
 
 | 문서 | 역할 | 갱신 시점 |
 | --- | --- | --- |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | 현재 싱글플레이 구조와 Z1 내부 책임 | Level, Actor, 맵 또는 상태 흐름 변경 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 현재 싱글·멀티플레이 구조와 Z1 내부 책임 | Level, Actor, 맵 또는 상태 흐름 변경 |
+| [NETWORK_ARCHITECTURE.md](NETWORK_ARCHITECTURE.md) | 현재 네트워크 책임, wire format, 동시성과 서버 권위 경계 | protocol, Session, thread 또는 권위 규칙 변경 |
 | [TESTING.md](TESTING.md) | Z1 빌드·실행과 수동/스크립트 검증 | 관찰 가능한 동작이나 검증 방법 변경 |
 | [MAP_DATA.md](MAP_DATA.md) | 외부 맵 자료의 출처와 적용 결정 | 맵 원본·포맷·타일 해석 변경 |
-| [MULTIPLAYER_DESIGN.md](MULTIPLAYER_DESIGN.md) | 멀티플레이의 확정 경계와 목표 계약 | 책임, wire format, 동시성 또는 신뢰 경계 변경 |
-| [MULTIPLAYER_STATUS.md](MULTIPLAYER_STATUS.md) | 구현 완료 범위, 알려진 제약과 다음 작업 | 네트워크 구현 단위 완료 |
-| [MULTIPLAYER_ROADMAP.md](MULTIPLAYER_ROADMAP.md) | 잔여 MVP 범위, 우선순위와 단계별 완료 조건 | 작업 순서·범위 또는 확정 정책 변경 |
-| [NETWORK_LIBRARY_FOLLOWUPS.md](NETWORK_LIBRARY_FOLLOWUPS.md) | 보류한 클라이언트 연결과 IOCP·Session·송신 구조의 판단 근거 및 재검토 조건 | 해당 후보를 도입하거나 보류 결정을 바꿀 때 |
-| [CONSOLE_INPUT_DESIGN.md](CONSOLE_INPUT_DESIGN.md) | 다중 로컬 클라이언트 입력 문제와 후보 | 입력 방식 결정 또는 구현 |
 
-완료된 초기 구현 계획과 단계별 작업 일지는 현재 구조 문서에 중복 기록하지 않는다. 아직 구현되지 않은 항목은 설계 문서의 목표 계약과 상태 문서의 다음 작업으로만 구분해 관리한다.
+설계·구현 과정의 작업 기록과 초안은 로컬에서 관리하며 저장소의 현재 계약으로 사용하지 않는다. 아직 구현되지 않은 작업은 [GitHub Issues](https://github.com/9kyo-hwang/ConsoleGameProject/issues)에서 관리하고, 구현이 완료되어 현재 구조가 바뀌면 위 기준 문서를 갱신한다.

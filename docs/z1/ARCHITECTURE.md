@@ -2,7 +2,7 @@
 
 ## 문서 범위
 
-이 문서는 Z1의 Local Play와 Multiplayer 콘텐츠에 현재 적용된 실행 구조와 데이터 책임을 설명한다. 공용 엔진 계약은 [솔루션 아키텍처](../ARCHITECTURE.md), 네트워크 목표 구조는 [멀티플레이 설계](MULTIPLAYER_DESIGN.md), 구현 진척은 [멀티플레이 현황](MULTIPLAYER_STATUS.md)에서 관리한다.
+이 문서는 Z1의 Local Play와 Multiplayer 콘텐츠에 현재 적용된 Level, Actor와 실행 흐름을 설명한다. 공용 엔진 계약은 [솔루션 아키텍처](../ARCHITECTURE.md), 네트워크의 wire format·동시성·권위 경계는 [Z1 네트워크 아키텍처](NETWORK_ARCHITECTURE.md), 실행 검증은 [Z1 검증](TESTING.md)을 따른다.
 
 ## 게임 상태와 Level
 
@@ -72,7 +72,7 @@ Overworld의 시작 Room에는 적이 없다. 다른 접근 가능 Room은 Room 
 
 `Game`은 `NetworkClient`를 소유하고 localhost Loopback(`127.0.0.1:7777`) 연결을 시도한다. network thread는 TCP 송수신과 패킷 파싱만 수행하고, 받은 메시지는 queue를 통해 main thread에 넘긴다. `NetworkOverworldLevel`이 queue를 소비해 Snapshot을 적용한다.
 
-전용 network thread는 현재 패킷 처리량을 만족시키기 위한 필수 최적화가 아니라, 연결 이후의 socket I/O와 framing을 CraftEngine 프레임 속도에서 격리하고 Actor·Level 변경은 main thread에서만 수행하려고 선택한 경계다. 단일 서버와 가벼운 패킷을 다루는 현재 MVP에서는 Level `Tick()`의 main-thread nonblocking polling도 가능한 대안이었으며, 현재 구조는 처리량보다 책임 격리를 우선한 결과다. 최초 blocking `connect()`는 thread 시작 전 main thread에서 실행되므로 이 격리의 범위에 포함되지 않는다. 선택 배경과 대안 비교는 [네트워크 라이브러리 확장 검토 메모](NETWORK_LIBRARY_FOLLOWUPS.md#클라이언트-전용-network-thread-선택-배경과-평가)를 따른다.
+전용 network thread는 연결 이후의 socket I/O와 framing을 CraftEngine 프레임 속도에서 격리하고 Actor·Level 변경은 main thread에서만 수행하기 위한 경계다. 현재 구조는 처리량보다 transport와 gameplay의 책임 분리를 우선한다. 최초 blocking `connect()`는 thread 시작 전 main thread에서 실행되므로 이 격리 범위에 포함되지 않는다. 세부 계약은 [Z1 네트워크 아키텍처](NETWORK_ARCHITECTURE.md)를 따른다.
 
 ```mermaid
 flowchart LR
@@ -287,6 +287,6 @@ sequenceDiagram
 
 `Game`은 수신 상태를 보관할 뿐 Network Actor를 직접 변경하지 않는다. ID별 생성·갱신·제거는 `UpdateSnapshot`, 단발 효과 표현은 `ApplyCombatEvent`, A* 경로 디버그 표현은 `DrawLatestEnemyPathDebug`가 담당하며 모두 main thread에서 실행된다. 이때 새로 `SpawnActor`한 Actor는 엔진의 지연 추가 규칙에 따라 다음 프레임부터 Tick에 참여하고, `Destroy`한 Actor는 즉시 비활성화된 뒤 프레임 끝에 목록에서 제거된다.
 
-원격 playerId는 `NetworkPlayer` Actor로, 로컬 playerId는 `MyPlayer` Actor로 생성·갱신·제거하며, 위치·HP·사망 판정은 서버 권위형 Snapshot을 따른다. 정확한 완료 범위와 다음 작업은 [멀티플레이 현황](MULTIPLAYER_STATUS.md)을 따른다.
+원격 playerId는 `NetworkPlayer` Actor로, 로컬 playerId는 `MyPlayer` Actor로 생성·갱신·제거하며, 위치·HP·사망 판정은 서버 권위형 Snapshot을 따른다. 지원 범위와 현재 제약은 [Z1 네트워크 아키텍처](NETWORK_ARCHITECTURE.md)를 따른다.
 
 `NetworkClient::Stop()`은 stop을 요청하고 network thread를 join한 뒤 socket을 닫는다. 그 다음 main→network 전송 queue, network thread의 pending 전송 packet과 partial-send offset, network→main 수신 message queue, `PacketFramer` 누적 byte와 input sequence를 초기화한다. `Game::Disconnect()`는 이어서 local playerId, 최신 Snapshot, CombatEvent와 EnemyPathDebug처럼 main thread가 보관한 상태를 초기화한다. 따라서 다음 Multiplayer 입장은 이전 transport와 게임 수신 상태를 승계하지 않는다.
