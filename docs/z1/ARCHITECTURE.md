@@ -2,11 +2,11 @@
 
 ## 문서 범위
 
-이 문서는 Z1의 Local Play와 Multiplayer 콘텐츠에 현재 적용된 Level, Actor와 실행 흐름을 설명한다. 공용 엔진 계약은 [솔루션 아키텍처](../ARCHITECTURE.md), 네트워크의 wire format·동시성·권위 경계는 [Z1 네트워크 아키텍처](NETWORK_ARCHITECTURE.md), 실행 검증은 [Z1 검증](TESTING.md)을 따른다.
+Z1 프로젝트의 로컬/멀티 플레이 콘텐츠에 현재 적용된 Level, Actor와 실행 흐름을 설명합니다.
 
 ## 게임 상태와 Level
 
-`Z1::Game`은 다음 상태에 대응하는 Level을 보유한다.
+`Z1::Game`은 다음 상태에 대응하는 Level을 소유합니다.
 
 ```text
 Title
@@ -17,22 +17,20 @@ Title
   │                 └─ 보스·트라이포스 → Clear → Title
   └─ Multiplayer → NetworkOverworld
                     └─ 연결 종료 / 사망 → Title
-
-Development                  enum과 프로젝트 파일만 유지하며 현재 생성·진입 경로 없음
 ```
 
-새 게임을 시작하면 모드에 따라 Level을 생성한다. Local Play는 Overworld, SwordCave, Dungeon1 Level을 만들고 Player 상태를 최대 HP 20, 검 미소지로 초기화한다. 이 세 Local Play Level 사이를 전환할 때 `Game`이 HP와 검 보유 상태를 보관하고 새 Level의 Player에 복원한다. Multiplayer는 서버 연결과 `S2C_Enter` 수신을 마친 뒤 전용 `NetworkOverworldLevel`로 진입하며, `MyPlayer`를 포함한 게임 상태에 서버 Snapshot을 적용한다.
+새 게임을 시작하면 모드에 따라 Level을 생성합니다. Local Play는 Overworld, SwordCave, Dungeon1 Level을 만들고 Player 상태를 최대 HP 20, 검 미소지로 초기화합니다. 이 세 Local Play Level 사이를 전환할 때 `Game`이 HP와 검 보유 상태를 보관하고 새 Level의 Player에 복원합니다. Multiplayer는 서버 연결과 `S2C_Enter` 수신을 마친 뒤 전용 `NetworkOverworldLevel`로 진입하며, `MyPlayer`를 포함한 게임 상태에 서버 Snapshot을 적용합니다.
 
 ## 좌표와 Room
 
-- Player와 Enemy Transform은 전체 맵 기준 월드 콘솔 셀 좌표를 사용한다.
-- 오버월드는 256×88 논리 타일이며 한 Room은 16×11 타일이다.
-- 논리 타일 하나는 현재 10×5 콘솔 셀 Sprite로 표현한다.
-- Room은 별도 소유 객체가 아니라 전체 맵에서 현재 화면에 표시할 논리 구간이다.
-- Level은 Room의 월드 원점을 Renderer View에 설정하고 Map 타입에 배경 Sprite 합성을 요청한다.
-- Room 경계를 넘을 때 Player Box 전체가 새 Room 안에 들어오도록 위치를 보정한다.
+- Player와 Enemy Transform은 전체 맵 기준, 콘솔 셀 좌표를 사용합니다.
+- Overworld는 256×88 논리 타일로 구성되며, Room 하나 당 16×11 타일로 구성됩니다.
+- 논리 타일 하나는 현재 10×5 크기만큼 콘솔 픽셀 좌표로 표현합니다.
+- Room은 전체 맵에서 현재 화면에 표시할 논리적인 영역입니다.
+- Level은 Room의 월드 원점을 Renderer View에 설정하고, Map 타입에 배경 Sprite 합성을 요청합니다.
+- Room 경계를 넘을 때 Player Box 전체가 새 Room 안에 들어오도록 위치를 보정합니다.
 
-맵 원본과 타일 해석은 [맵 데이터](MAP_DATA.md)를 따른다.
+맵 원본 데이터와 타일 해석은 [맵 데이터](MAP_DATA.md) 문서에 기반합니다.
 
 ## Map과 Level의 책임
 
@@ -46,33 +44,30 @@ Development                  enum과 프로젝트 파일만 유지하며 현재 
 | `CaveLevel` | 검 획득, Player 상태와 오버월드 복귀 |
 | `DungeonLevel` | Room 전환, 일반 적과 Aquamentus, 보상·클리어·출구 처리 |
 
-정적 지형은 타일마다 Actor를 만들지 않고 하나의 Room 배경 Sprite와 Tilemap의 blocked 데이터로 처리한다. 동적 행동이나 수명이 필요한 Player, Enemy, Projectile, 공격과 효과만 Actor로 생성한다.
+정적 지형은 Actor로 만들지 않고 하나의 Room 배경 Sprite와 Tilemap의 이동 가능 유무 데이터로 처리합니다. Player, Enemy, Projectile, 공격 영역과 이펙트는 Actor로 생성합니다.
 
 ## Actor와 전투
 
-`Pawn`은 Player와 Enemy가 공유하는 HP, facing, 정수 Transform에 반영하기 전의 이동 누산, 피해·사망·넉백과 피격 무적 상태를 담당한다.
-
-- Player는 방향키로 이동하고 마지막 facing을 유지한다.
-- 검 보유 상태에서 `A`를 누르면 Player에 붙는 `SwordAttack`을 만들고, 최대 HP에서는 검기를 발사한다.
-- Octorok은 방향을 바꾸며 돌을 발사한다.
-- Moblin은 Player를 추적하고 창을 발사한다.
-- Tektite는 대기와 대각선 도약을 반복하며 지형 blocked 판정은 무시하지만 Player 접촉 피해는 적용한다.
-- Aquamentus는 수평 이동과 세 갈래 화염구 공격을 사용한다.
-- 적 투사체는 Player의 facing과 방패 방향이 맞으면 차단된다.
-
-충돌 콜백은 피해 후보를 알리고, 실제 이동 가능 여부와 Room·지형 정책은 Level이 판정한다. 공격 하나가 같은 대상에 중복 피해를 주지 않도록 공격자와 피해 원인을 함께 전달한다.
+`Pawn`은 Player와 Enemy가 공유하는 HP, facing, 이동 처리, 피해·사망·넉백과 피격 무적 상태를 담당합니다.
+- Player는 방향키로 이동하고 바라보는 방향(마지막으로 입력한 방향키의 방향)을 유지합니다.
+- 검 보유 상태에서 `A`를 누르면 Player에 붙는 `SwordAttack`을 만들고, 최대 HP에서는 `SwordBeam`을 발사합니다.
+- Octorok은 방향을 바꾸며 투사체(돌)를 발사합니다.
+- Moblin은 Player와 가까워지도록 이동하며 투사체(창)를 발사합니다.
+- Tektite는 대각선 도약을 반복하며 이동합니다. 지형의 이동 가능 판정을 무시하며, Player에게 접촉 피해를 입힙니다.
+- Aquamentus는 수평 이동과 세 갈래 화염구 공격을 사용합니다.
+- 적들의 투사체는 Player가 바라보는 방향과 방패 방향이 맞으면 차단됩니다.
 
 ## 수명과 Room 전환
 
-Overworld의 시작 Room에는 적이 없다. 다른 접근 가능 Room은 Room 좌표와 월드 시드로 결정적인 스폰 계획을 만들며, Room을 나가면 이전 Enemy와 Projectile을 파괴하고 새 Room의 Actor를 생성한다.
+처음 플레이어가 스폰되는 Overworld의 시작의 방에는 적이 없습니다. 넘어갈 수 있는 다른 Room들은 해당 Room 좌표와 시드값을 통해 적들의 생성 위치를 결정하며, Room을 나가면 생성된 Enemy와 Projectile을 파괴하고 새 Room의 Actor를 생성합니다.
 
-동굴과 던전은 별도 Level이다. 입구 전환은 Player Box가 지정 영역에 닿았을 때 수행한다. Dungeon 1은 검을 가진 상태에서만 진입할 수 있고, 보스 처치 뒤 하트는 HP를 전부 회복하며 트라이포스는 팬파레 후 Clear Level로 전환한다.
+동굴과 던전은 별도 Level로 구성됩니다. Player의 Box 콜라이더가 지정된 영역에 닿았을 때 해당 레벨로 전환됩니다. Dungeon 1은 검을 가진 상태에서만 진입할 수 있습니다. 보스 처치 뒤 하트 아이템이 표시되며 접촉 시 HP를 전부 회복합니다. 트라이포스 획득 시 BGM이 재생되며 Clear Level로 전환됩니다.
 
 ## 네트워크 연결 지점
 
-`Game`은 `NetworkClient`를 소유하고 localhost Loopback(`127.0.0.1:7777`) 연결을 시도한다. network thread는 TCP 송수신과 패킷 파싱만 수행하고, 받은 메시지는 queue를 통해 main thread에 넘긴다. `NetworkOverworldLevel`이 queue를 소비해 Snapshot을 적용한다.
+`Game`은 `NetworkClient`를 소유하고 TitleLevel에서 Multiplayer 모드를 선택하면 localhost Loopback(`127.0.0.1:7777`) 연결을 시도합니다. network thread는 TCP 송수신과 패킷 파싱을 수행하고, 받은 메시지는 queue를 통해 게임 로직이 실행되는 main thread에 넘깁니다. `NetworkOverworldLevel`이 queue에서 메시지를 꺼내 서버의 최신 Snapshot을 적용합니다.
 
-전용 network thread는 연결 이후의 socket I/O와 framing을 CraftEngine 프레임 속도에서 격리하고 Actor·Level 변경은 main thread에서만 수행하기 위한 경계다. 현재 구조는 처리량보다 transport와 gameplay의 책임 분리를 우선한다. 최초 blocking `connect()`는 thread 시작 전 main thread에서 실행되므로 이 격리 범위에 포함되지 않는다. 세부 계약은 [Z1 네트워크 아키텍처](NETWORK_ARCHITECTURE.md)를 따른다.
+네트워크 처리 전담 스레드는 서버 연결 이후 소켓 입출력과 패킷 조립을 담당합니다. 컨텐츠 단 로직은 메인 스레드가 담당합니다. 세부적인 내용은 [Z1 네트워크 아키텍처](NETWORK_ARCHITECTURE.md) 문서를 확인해주세요.
 
 ```mermaid
 flowchart LR
@@ -115,18 +110,16 @@ flowchart LR
     ClientNetwork <-->|TCP| Session
 ```
 
-그림은 실행 중인 thread와 데이터 흐름만 나타낸다. `NetworkClient`와 `Session`은 각자 컴파일된 `Z1Shared`의 packet codec과 framer를 내부에서 사용하며, `Z1Shared` 자체는 실행 주체나 중계 계층이 아니다.
-
 ## Z1Server IOCP Session 송수신 흐름
 
-현재 서버는 별도 `std::thread` 두 개를 만든다. `AcceptLoop`는 blocking `Accept()`로 새 socket을 받아 `_acceptedSockets`에만 넣는다. `IOLoop`는 `_sessions`와 `OverworldSimulation`을 단독으로 소유하며, 새 Session 등록, fixed-step simulation, IOCP completion 소비와 packet dispatch를 모두 수행한다. IOCP 자체가 packet을 처리하는 별도 worker가 아니라, overlapped I/O의 완료 통지를 completion port에 넣고 `IOLoop`가 `GetQueuedCompletionStatus`로 꺼내 처리한다.
+현재 서버는 2개의 `std::thread`를 사용합니다. `AcceptLoop`는 blocking `Accept()`로 새 socket을 받아 `_acceptedSockets`에 밀어넣는 처리를 수행합니다. `IOLoop`는 `_sessions`와 `OverworldSimulation`을 단독으로 소유하고, 새 Session 등록/시뮬레이션/IOCP completion 소비/packet dispatch를 수행한다. overlapped I/O의 완료 통지가 completion port에 들어가고, `IOLoop`가 `GetQueuedCompletionStatus`로 꺼내 처리하는 구조를 갖습니다.
 
-`IOLoop`의 한 반복은 다음 순서를 따른다.
+`IOLoop`는 매 반복마다 아래 로직을 수행합니다.
 
-1. `RemoveClosedSessions()`가 이전 반복에서 closing으로 표시됐고 pending I/O가 모두 끝난 Session만 registry에서 제거한다.
-2. `ProcessAcceptedSockets()`가 accept queue를 swap하고, 각 socket을 `Session`으로 만들어 completion port에 associate한 뒤 `PostRecv()`를 호출한다.
-3. 다음 20Hz Tick 시각에 도달했을 때만 `Tick()`을 호출한다. 지연된 경우 최대 5회 catch-up하며, 매 반복에 반드시 Tick하는 것은 아니다.
-4. 다음 Tick까지 남은 시간을 timeout으로 `GetQueuedCompletionStatus`를 호출해 completion 하나를 소비한다. recv/send `OVERLAPPED`를 먼저 식별해 해당 pending을 해제한 뒤, recv completion은 framing·packet dispatch·다음 `PostRecv()`로, send completion은 `HandleSend()`로 이어진다. 실패·취소 completion도 새 I/O를 등록하지 않고 종료 경로로 들어간다.
+1. Close한 세션들 중 Pending된 I/O가 없는 세션들을 `RemoveClosedSessions()`를 통해 세션 목록에서 제거합니다.
+2. 연결된 클라이언트 소켓 수신 큐를 지역 변수로 Swap해 목록을 꺼낸 뒤, 각 socket을 `Session`으로 만들어 completion port가 관찰하도록 한 뒤 `WSARecv()`를 시도합니다.
+3. 만약 시뮬레이션 Tick을 할 때가 되었다면(현재는 초당 20번) `Tick()`을 호출해 시뮬레이션 월드 상태를 갱신하고 그 정보를 담아 모든 세션에게 Broadcast합니다.
+4. 다음 Tick까지 남은 시간을 timeout으로 `GetQueuedCompletionStatus`를 호출해 완료 통지 하나를 꺼내옵니다. 송수신 `OVERLAPPED`를 식별해 해당 pending을 해제한 뒤, 수신 완료 통지는 수신받은 패킷을 꺼내 클라이언트가 보낸 패킷 타입 별로 핸들링 한 뒤 다시 `WSARecv()`를, 전송 완료 통지는 전송 큐에서 전송한 패킷 바이트만큼 pop하고 필요한 경우 다시 `WSASend()`를 시도합니다. 실패나 취소 완료 통지가 왔을 경우 새 I/O를 등록하지 않고 종료 루틴을 실행합니다.
 
 ```mermaid
 sequenceDiagram
@@ -191,21 +184,15 @@ sequenceDiagram
     end
 ```
 
-`Session::Send()`는 `C2S_Enter` 처리, `BroadcastCombatEvents()`, `BroadcastWorldSnapshot()`에서 호출된다. 모든 호출은 현재 `IOLoop` 안에서 일어난다. `Send()`는 항상 packet을 queue에 넣고, `_sendPending`이 false일 때만 `PostSend()`로 front packet의 overlapped `WSASend`를 시작한다.
-
-send completion을 받은 뒤 `HandleSend()`는 전송 바이트 수를 반영한다. IOLoop이 먼저 completion을 acknowledge해 `_sendPending`을 해제하고, 부분 전송이면 같은 front packet의 남은 바이트를 다시 등록하고, 전체 전송이면 front를 pop한 뒤 대기 packet이 있을 때 다음 `WSASend`를 같은 호출 흐름에서 시작한다. 따라서 다음 송신 등록은 별도 Tick이나 새 `Send()` 호출을 기다리지 않지만, 실제 전송 완료는 다시 비동기로 IOCP completion을 통해 알려진다.
-
 ### Session 종료와 registry 수명
 
-`Session::IsClosing()`은 socket의 유효성(`IsValid()`)과 별개의 수명 상태다. peer disconnect, protocol 오류와 I/O 실패가 발생하면 `CloseSession()`이 closing을 한 번만 표시하고 `OverworldSimulation::RemovePlayer()`와 `socket.Close()`를 한 번씩 실행한다. socket close 뒤에도 취소된 overlapped I/O completion이 도착할 수 있으므로 Session은 즉시 파괴하지 않는다.
+클라이언트 연결이 끊어졌거나 입출력을 실패하면 `CloseSession()`을 통해 Closing 플래그를 세팅하고 시뮬레이션 월드에서 해당 세션의 PlayerId를 제거하며 소켓을 닫습니다. 단 소켓을 닫았더라도 취소된 overlapped I/O 완료 통지가 아직 남아있을 수 있기 때문에 Session을 즉시 제거하지 않습니다.
 
-`PostRecv()`와 `PostSend()`가 성공 또는 `WSA_IO_PENDING`을 반환하면 각각 pending을 세팅한다. IOLoop은 completion의 `OVERLAPPED` 주소를 Recv/Send와 비교해 성공·실패·취소 여부와 관계없이 pending을 해제한다. `closing && !_recvPending && !_sendPending`인 Session만 다음 IOLoop 반복 시작의 `RemoveClosedSessions()`에서 `_sessions`에서 제거한다. closing Session은 이후 Broadcast와 새 I/O 등록에서 제외한다.
-
-이 설명은 현재의 단일 `IOLoop` 소유권을 전제로 한다. 런타임 중 Session closing·outstanding I/O completion drain·registry 제거는 구현됐지만, `Server::Stop()`에서 모든 Session을 닫고 IOCP를 drain하는 전체 프로세스 종료 안정화는 별도 후속 작업이다.
+`PostRecv()`와 `PostSend()`가 성공 또는 `WSA_IO_PENDING`을 반환하면 pending 상태로 세팅합니다. IOLoop은 완료 통지의 `OVERLAPPED` 주소를 Recv/Send와 비교해 결과에 상관없이 Pending 상태 플래그를 해제합니다. 만약 Closing 플래그 상태의 세션이 송수신 pending 상태가 아니라면 다음 IOLoop 루프에서 `RemoveClosedSessions()`를 통해 `_sessions`에서 제거됩니다. closing Session은 이후 Broadcast와 새 I/O 등록에서 제외됩니다.
 
 ## 클라이언트 프레임 적용 순서
 
-다음 그림은 `NetworkOverworldLevel`이 `Game`에 보관된 최신 네트워크 상태를 클라이언트 표현 Actor에 적용하고, 연결 종료나 local Player 사망 시 Title로 복귀하는 과정을 확대해서 보여준다. `Remote Actors`는 `NetworkPlayer`, `NetworkEnemy`, `NetworkProjectile`을 묶어 표현한다.
+`Game`이 들고 있는 최신 네트워크 상태를 `NetworkOverworldLevel`이 소유하는 클라이언트 표현 Actor에 어떻게 적용하는지, 연결 종료나 local Player 사망 시 Title로 어떻게 복귀하는 지를 보여줍니다. `NetworkPlayer`, `NetworkEnemy`, `NetworkProjectile`을 `Remote Actors`로 묶어 표현합니다.
 
 ```mermaid
 sequenceDiagram
@@ -285,8 +272,6 @@ sequenceDiagram
     end
 ```
 
-`Game`은 수신 상태를 보관할 뿐 Network Actor를 직접 변경하지 않는다. ID별 생성·갱신·제거는 `UpdateSnapshot`, 단발 효과 표현은 `ApplyCombatEvent`, A* 경로 디버그 표현은 `DrawLatestEnemyPathDebug`가 담당하며 모두 main thread에서 실행된다. 이때 새로 `SpawnActor`한 Actor는 엔진의 지연 추가 규칙에 따라 다음 프레임부터 Tick에 참여하고, `Destroy`한 Actor는 즉시 비활성화된 뒤 프레임 끝에 목록에서 제거된다.
+ID별 생성·갱신·제거는 `UpdateSnapshot`, 단발 효과 표현은 `ApplyCombatEvent`, A* 경로 디버그 표현은 `DrawLatestEnemyPathDebug`가 담당하며 모두 메인 스레드에서 실행됩니다. 이때 새로 `SpawnActor`한 Actor는 엔진의 지연 추가 규칙에 따라 다음 프레임부터 Tick에 참여하고, `Destroy`한 Actor는 즉시 비활성화된 뒤 프레임 끝에 목록에서 제거됩니다.
 
-원격 playerId는 `NetworkPlayer` Actor로, 로컬 playerId는 `MyPlayer` Actor로 생성·갱신·제거하며, 위치·HP·사망 판정은 서버 권위형 Snapshot을 따른다. 지원 범위와 현재 제약은 [Z1 네트워크 아키텍처](NETWORK_ARCHITECTURE.md)를 따른다.
-
-`NetworkClient::Stop()`은 stop을 요청하고 network thread를 join한 뒤 socket을 닫는다. 그 다음 main→network 전송 queue, network thread의 pending 전송 packet과 partial-send offset, network→main 수신 message queue, `PacketFramer` 누적 byte와 input sequence를 초기화한다. `Game::Disconnect()`는 이어서 local playerId, 최신 Snapshot, CombatEvent와 EnemyPathDebug처럼 main thread가 보관한 상태를 초기화한다. 따라서 다음 Multiplayer 입장은 이전 transport와 게임 수신 상태를 승계하지 않는다.
+원격 playerId는 `NetworkPlayer` Actor로, 로컬 playerId는 `MyPlayer` Actor로 생성·갱신·제거하며, 위치·HP·사망 판정은 서버에서 시뮬레이션한 결과 Snapshot을 따르게 되어있습니다. [Z1 네트워크 아키텍처](NETWORK_ARCHITECTURE.md)에서 추가로 확인하실 수 있습니다.

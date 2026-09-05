@@ -2,7 +2,7 @@
 
 ## 문서 범위
 
-이 문서는 CraftEngine 저장소 전체의 현재 구조와 프로젝트 사이의 계약을 설명한다. 특정 게임의 Room, 전투, 맵 포맷이나 수동 동선은 프로젝트별 문서에서 다룬다. Z1 세부 구조는 [Z1 아키텍처](z1/ARCHITECTURE.md)를 참고한다.
+CraftEngine 솔루션을 구성하는 프로젝트 구조를 나타냅니다.
 
 ## 전체 구성
 
@@ -55,48 +55,41 @@ flowchart LR
     Content -->|BlockingMap| Server
 ```
 
-화살표는 왼쪽의 기능이나 데이터가 오른쪽 소비자에게 제공된다는 뜻이다.
-`Z1Server`에는 `CraftEngine`으로 향하는 연결이 없다. 서버는 렌더링과 Actor 없이 `Content`의 통행 데이터만 읽고 권위형 월드를 계산한다.
-
 | 구성 요소 | 산출물 | 책임 |
 | --- | --- | --- |
-| `SoundSystem` | DLL/import library | COM·XAudio2 초기화, WAV 캐시, 원샷과 반복 BGM voice 수명 |
-| `CraftEngine` | DLL/import library | 루프, Level/Actor/Component, 입력, 렌더링, 충돌, 타일맵, 수학, RTTI와 사운드 파사드 |
-| `Sockets` | DLL/import library | WinSock 런타임, 주소 변환, 이동 전용 소켓과 기본 소켓 연산 |
-| `ShootingGame` | EXE | 실시간 슈팅 규칙과 Actor/Level |
-| `SokobanGame` | EXE | 스테이지 로드, 이동·박스·승리 판정과 메뉴 전환 |
-| `Z1` | EXE | Zelda형 콘텐츠, 싱글플레이 규칙과 네트워크 클라이언트 표현 |
-| `Z1Server` | EXE | IOCP Session, 고정 Tick과 Z1 권위형 상태 |
-| `Z1Shared` | header-only | Z1 packet header, protocol enum, 직렬화와 framing 계약 |
-
-`CraftEngine`은 네트워크에 의존하지 않고 `Sockets`는 게임 규칙에 의존하지 않는다. Z1의 wire 계약은 범용 엔진 API가 아니라 Z1과 Z1Server 사이의 제품별 계약으로 유지한다.
+| `SoundSystem` | DLL/import library | COM·XAudio2 초기화, WAV 캐시, 1회성/반복 사운드 재생 객체 수명 관리 |
+| `CraftEngine` | DLL/import library | 게임 루프, Level/Actor/Component, 입력, 렌더링, 충돌, 타일맵, 수학, RTTI와 사운드 파사드 |
+| `Sockets` | DLL/import library | WinSock 런타임, 주소, 이동 전용 소켓과 기본 소켓 API |
+| `ShootingGame` | EXE | 실시간 슈팅 게임 컨텐츠 |
+| `SokobanGame` | EXE | 스테이지 기반 소코반 퍼즐 컨텐츠 |
+| `Z1` | EXE | NES Legend of Zelda 스타일 컨텐츠 |
+| `Z1Server` | EXE | IOCP 기반 서버, 클라이언트를 대변하는 Session, Z1 컨텐츠의 일부를 서버에서 시뮬레이션 |
+| `Z1Shared` | 헤더 파일 모음 | Z1 서버-클라이언트 간 사용되는 패킷 종류와 헤더, 직렬화 등 |
 
 ## 소스와 빌드 산출물
 
 - 소스와 원본 데이터: `CraftEngine/`, `SoundSystem/`, `Sockets/`, `ShootingGame/`, `SokobanGame/`, `Z1/`, `Z1Server/`, `Z1Shared/`, `Content/`, `Config/`
 - 생성·복사 산출물: `Includes/`, `Libraries/`, `Binaries/`, `Intermediate/`
-- DLL 프로젝트는 공개 헤더, import library와 DLL을 중간 staging 경로에 복사한다.
-- 콘텐츠 프로젝트는 필요한 DLL과 `Content`를 실행 경로 주변에 복사한다.
-- CraftEngine 빌드는 `Config/Setting.txt`를 출력 루트의 `Config`로 복사한다.
-
-`Includes`와 `Libraries`는 저장소 내부의 빌드 경계를 연결하기 위한 staging 영역이지 편집 대상 소스가 아니다.
+- DLL 프로젝트는 공개 헤더, import library와 DLL을 중간 staging 경로에 복사합니다.
+- 콘텐츠 프로젝트는 필요한 DLL과 `Content`를 실행 경로 주변에 복사합니다.
+- CraftEngine 빌드는 `Config/Setting.txt`를 출력 루트의 `Config`로 복사합니다.
 
 ## 엔진 시작과 프레임 흐름
 
-`Engine` 생성자는 설정을 읽고 난수, `Input`, `Renderer`, `CollisionSystem`, `Sound`를 초기화한다. 한 번의 갱신 프레임은 다음 순서로 진행된다.
+`Engine` 생성자는 설정 파일을 읽고 난수, `Input`, `Renderer`, `CollisionSystem`, `Sound`를 초기화합니다. 이후 매 프레임 아래 로직을 처리합니다.
 
-1. 목표 프레임 간격까지 대기하고 `deltaTime`을 계산한다.
-2. 콘솔 입력 버퍼의 키·포커스 이벤트를 소비해 256개 가상 키의 `pressed`, `held`, `released` 상태를 갱신한다.
-3. 현재 Level의 `OnInitialized`를 최초 한 번 호출한다.
-4. 아직 시작하지 않은 활성 Actor의 `BeginPlay`를 호출한다.
-5. Level과 활성 Actor/Component의 `Tick`을 호출한다.
-6. 활성 Actor 쌍의 충돌을 수집하고 콜백을 보낸다.
-7. Actor/Component가 렌더 명령을 제출하고 Renderer가 콘솔 화면을 갱신한다.
-8. 예약된 Level이 있으면 현재 Level을 교체한다.
-9. Component 추가, Actor 제거, Actor 추가 요청을 차례로 반영한다.
-10. 현재 Actor의 월드 위치를 다음 프레임의 이전 상태로 저장한다.
+1. 목표 프레임 간격(초당 120 프레임)마다 `deltaTime`을 계산합니다.
+2. ConsoleInputBuffer의 키 입력 및 창 포커스 이벤트를 소비해 256개 가상 키의 `pressed`, `held`, `released` 상태를 갱신합니다.
+3. 현재 Level의 `OnInitialized`를 1회에 한해 호출합니다.
+4. 아직 시작하지 않은, Active 상태 Actor들의 `BeginPlay`를 호출합니다.
+5. Level과 Active Actor/Component들의 `Tick`을 호출합니다.
+6. Active Actor들을 대상으로 충돌을 검사한 뒤, 충돌이 발생한 액터의 OnCollision()을 호출합니다.
+7. Actor/Component들이 제출한 렌더 요청과 Level들이 제출한 렌더 요청을 Renderer가 콘솔 화면에 반영합니다.
+8. 다른 Level로의 전환을 위해 예약된 Level이 있으면, 현재 Level과 교체합니다.
+9. Component 추가, Actor 제거, Actor 추가 요청을 차례로 반영합니다.
+10. 현재 프레임의 Actor 월드 위치를 기록합니다. 이 값은 충돌 판정에서 사용됩니다.
 
-`SpawnActor`는 Actor를 즉시 반환하지만 프레임 순회에는 요청 반영 뒤부터 참여한다. 같은 프레임에 Tick이나 Draw될 것이라고 가정하지 않는다.
+참고로 `SpawnActor`는 Actor를 즉시 반환하지만 각종 연산은 다음 프레임부터 반영됩니다.
 
 ## 객체 모델과 소유권
 
@@ -111,58 +104,34 @@ flowchart TD
     Transform -. weak_ptr parent/children .-> Transform
 ```
 
-- Level은 활성 Actor와 추가 대기 Actor를 강하게 소유한다.
-- Actor는 Level을 약하게 참조하고 Transform 하나와 나머지 Component를 강하게 소유한다.
-- Component는 소유 Actor를 약하게 참조한다.
-- Transform의 부모·자식 링크는 모두 약한 참조라서 Scene Graph 자체가 객체 수명을 연장하지 않는다.
-- `CObject` 계열은 `TYPE_DECLARATIONS`가 만든 `CClass` 메타데이터로 `IsA`, `Cast`, `TSubclassOf`를 제공한다.
-
-`Destroy`는 즉시 Actor를 비활성화하고 자식에도 파괴를 전파한다. Level 목록 제거는 프레임 끝에 수행되며 실제 메모리 해제 시점은 남은 `shared_ptr`에 따라 결정된다.
-
 ## Component와 Scene Graph
 
-모든 Actor는 생성 시 Transform 하나를 자동으로 가진다. 나머지 Component는 `AddComponent`로 요청한다.
+모든 Actor는 생성 시 Transform 하나를 소유합니다. 나머지 Component는 `AddComponent`를 통해 추가합니다.
 
 | Component | 책임 |
 | --- | --- |
-| `TransformComponent` | 로컬/이전 월드 좌표, 부모·자식 링크, 월드 좌표 계산과 attach/detach |
-| `SpriteRendererComponent` | immutable Sprite와 sorting order를 보관하고 월드 좌표로 렌더 명령 제출 |
+| `TransformComponent` | 로컬/이전 월드 좌표, 부모·자식 관계, 월드 좌표 계산과 attach/detach |
+| `SpriteRendererComponent` | Sprite와 sorting order를 보관하고 월드 좌표로 렌더 명령 제출 |
 | `BoxComponent` | `size`와 `offset`을 가진 월드 공간 2D AABB |
-
-`Actor::GetPosition`과 `SetPosition`은 로컬 좌표 API다. `AttachTo(parent, true)`는 월드 위치를, `AttachTo(parent, false)`는 로컬 오프셋을 보존한다. 순환 계층은 거부하며 detach는 기본적으로 월드 위치를 보존한다.
 
 ## 엔진 하위 시스템
 
 ### 입력
 
-`Input`은 `STD_INPUT_HANDLE`의 Win32 콘솔 입력 버퍼에서 `KEY_EVENT_RECORD`와 `FOCUS_EVENT`를 논블로킹으로 소비하고 `GetKey`, `GetKeyDown`, `GetKeyUp`을 제공한다. 키 상태는 `pressed`, `held`, `released`로 나누어 auto-repeat에서 눌림 edge가 반복되지 않게 하고, 한 프레임 안의 빠른 press/release도 모두 보존한다. 콘솔이 포커스를 잃으면 held 상태를 release로 전환하므로 같은 PC에서 여러 게임 프로세스를 실행해도 포커스된 콘솔의 입력만 처리한다.
+`STD_INPUT_HANDLE`을 통해 Win32 콘솔 입력 버퍼로부터 `KEY_EVENT_RECORD`와 `FOCUS_EVENT`를 가져옵니다. 해당 정보를 기반으로 `GetKey`, `GetKeyDown`, `GetKeyUp` API를 제공합니다. 키 상태는 `pressed`(이번 프레임에 키가 눌렸는지), `held`(키가 눌린 상태인지), `released`(이번 프레임에 키가 떼졌는지)로 표현됩니다.
 
 ### 렌더링
 
-Actor의 Draw는 Component까지 전달되고 SpriteRenderer가 immutable Sprite, 월드 위치와 sorting order를 제출한다. Renderer는 `CHAR_INFO`와 sorting order 버퍼를 합성해 `WriteConsoleOutputA`로 한 프레임을 출력한다. `Submit`은 화면 좌표, `SubmitWorld`는 View 변환이 적용되는 월드 좌표에 사용한다.
+SpriteRenderer가 Sprite, 월드 좌표 정보와 sorting order를 제출합니다. Renderer는 이 정보를 `CHAR_INFO`와 sorting order 버퍼로 합성해 `WriteConsoleOutputA`로 한 프레임을 출력합니다. `Submit`은 화면 좌표, `SubmitWorld`는 View 변환이 적용되는 월드 좌표에 사용합니다.
 
 ### 충돌
 
-CollisionSystem은 BoxComponent가 있는 활성 Actor 조합을 전수 검사한다. 각 Box의 크기·offset과 이전/현재 월드 위치를 사용한 swept AABB가 겹치면, 충돌 쌍을 모두 모은 뒤 콜백을 전달한다. 한 변이 0 이하인 Box는 충돌하지 않는다.
+CollisionSystem은 BoxComponent가 있는 Actor들을 모두 검사합니다. 각 Box 콜라이더 크기와 오프셋을 기반으로, 이전/현재 월드 위치를 통해 해당 프레임을 '휩쓴' 영역 AABB를 구해, 겹친 충돌 쌍들의 OnCollision() 콜백을 호출합니다.
 
 ### 타일맵
 
-`Tilemap`은 논리 타일 배열과 타일별 immutable Sprite·blocked 상태를 보관한다. 셀/월드 좌표 변환, 월드 Box의 점유 가능성 검사와 지정 구간 Sprite 합성을 제공한다. 파일 포맷과 TileId 해석은 콘텐츠 책임이다.
+`Tilemap`은 Sprite와 이동 가능 유무로 표현되는 **논리 타일** 배열과 전체 타일맵 크기, 타일 하나 당 픽셀 크기를 소유합니다. 픽셀과 월드 좌표 간 변환, 특정 영역을 표현하는 Box의 타일 배치 가능성, 지정한 구간(좌상단 좌표부터 가로/세로 길이만큼)을 Sprite로 만들어주는 API를 제공합니다.
 
 ### 사운드
 
-SoundSystem은 WAV를 경로별로 캐시하고 원샷 source voice와 하나의 반복 BGM voice를 관리한다. CraftEngine은 파일명 기반 `PlayOneShot`, `PlayBGM`, `StopBGM` 파사드를 제공한다.
-
-## 콘텐츠 요약
-
-- `ShootingGame`: Player, 총구·엔진 이펙트 Scene Graph, EnemySpawner와 GameManager를 조합한 실시간 슈팅 게임이다.
-- `SokobanGame`: `Content/Stages`의 문자 맵을 Actor로 변환하고 Level이 이동·박스 밀기·승리 판정을 담당한다.
-- `Z1`: 고정 Room 방식의 오버월드, 동굴, 던전과 전투를 제공하며 네트워크 클라이언트 실험을 포함한다. 자세한 내용은 [Z1 아키텍처](z1/ARCHITECTURE.md)를 따른다.
-
-## 현재 경계와 확장 시점
-
-- 게임 루프는 fixed-step accumulator가 아니라 목표 프레임 간격까지 대기하는 방식이다. 결정적 고정 물리가 필요할 때 별도 루프 모델을 검토한다.
-- 충돌은 broad phase 없이 전수 검사한다. 측정된 병목이 생길 때 공간 분할을 도입한다.
-- Transform은 정수 이동만 표현하며 회전·크기·행렬 계층은 없다.
-- Level 전환 방식이 콘텐츠별로 다르다. 공통 요구가 확인되기 전에는 큰 전환 프레임워크를 만들지 않는다.
-- 네트워크 복제는 아직 Z1 전용이다. 다른 콘텐츠가 같은 계약을 실제로 요구할 때만 공용 엔진 승격을 검토한다.
+SoundSystem은 WAV 파일을 읽어 파싱 후 경로 단위로 캐싱해두고, 1회 재생 API와 반복 재생 API를 제공합니다. CraftEngine은 해당 시스템을 소유해 동명 API를 래핑한 채로 제공해 컨텐츠 단에서 사운드 시스템을 이용할 수 있도록 합니다.
