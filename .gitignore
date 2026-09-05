@@ -430,3 +430,11 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Local Z1 design and work notes
+/docs/z1/MULTIPLAYER_DESIGN.md
+/docs/z1/MULTIPLAYER_STATUS.md
+/docs/z1/MULTIPLAYER_ROADMAP.md
+/docs/z1/NETWORK_LIBRARY_FOLLOWUPS.md
+/docs/z1/CONSOLE_INPUT_DESIGN.md
+/docs/z1/txt/

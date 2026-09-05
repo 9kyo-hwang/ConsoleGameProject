@@ -86,7 +86,7 @@ flowchart LR
 `Engine` 생성자는 설정을 읽고 난수, `Input`, `Renderer`, `CollisionSystem`, `Sound`를 초기화한다. 한 번의 갱신 프레임은 다음 순서로 진행된다.
 
 1. 목표 프레임 간격까지 대기하고 `deltaTime`을 계산한다.
-2. 256개 가상 키의 현재 상태를 갱신한다.
+2. 콘솔 입력 버퍼의 키·포커스 이벤트를 소비해 256개 가상 키의 `pressed`, `held`, `released` 상태를 갱신한다.
 3. 현재 Level의 `OnInitialized`를 최초 한 번 호출한다.
 4. 아직 시작하지 않은 활성 Actor의 `BeginPlay`를 호출한다.
 5. Level과 활성 Actor/Component의 `Tick`을 호출한다.
@@ -94,7 +94,7 @@ flowchart LR
 7. Actor/Component가 렌더 명령을 제출하고 Renderer가 콘솔 화면을 갱신한다.
 8. 예약된 Level이 있으면 현재 Level을 교체한다.
 9. Component 추가, Actor 제거, Actor 추가 요청을 차례로 반영한다.
-10. 현재 월드 위치와 키 상태를 다음 프레임의 이전 상태로 저장한다.
+10. 현재 Actor의 월드 위치를 다음 프레임의 이전 상태로 저장한다.
 
 `SpawnActor`는 Actor를 즉시 반환하지만 프레임 순회에는 요청 반영 뒤부터 참여한다. 같은 프레임에 Tick이나 Draw될 것이라고 가정하지 않는다.
 
@@ -135,7 +135,7 @@ flowchart TD
 
 ### 입력
 
-`Input`은 Win32 `GetAsyncKeyState`로 가상 키의 현재/이전 상태를 관리하고 `GetKey`, `GetKeyDown`, `GetKeyUp`을 제공한다. 이 방식은 같은 desktop의 여러 프로세스가 같은 물리 키 상태를 함께 볼 수 있다. Z1 다중 클라이언트에서 드러난 문제와 후보는 [Z1 콘솔 입력 설계](z1/CONSOLE_INPUT_DESIGN.md)에 기록한다.
+`Input`은 `STD_INPUT_HANDLE`의 Win32 콘솔 입력 버퍼에서 `KEY_EVENT_RECORD`와 `FOCUS_EVENT`를 논블로킹으로 소비하고 `GetKey`, `GetKeyDown`, `GetKeyUp`을 제공한다. 키 상태는 `pressed`, `held`, `released`로 나누어 auto-repeat에서 눌림 edge가 반복되지 않게 하고, 한 프레임 안의 빠른 press/release도 모두 보존한다. 콘솔이 포커스를 잃으면 held 상태를 release로 전환하므로 같은 PC에서 여러 게임 프로세스를 실행해도 포커스된 콘솔의 입력만 처리한다.
 
 ### 렌더링
 
