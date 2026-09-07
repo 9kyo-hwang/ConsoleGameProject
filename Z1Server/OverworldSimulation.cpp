@@ -479,6 +479,11 @@ void OverworldSimulation::Tick()
     // 3. 적 목록에서 activeRoom에 속한 것들 활성화
     for (auto& [id, enemy] : _enemies)
     {
+        if (enemy.IsDead())
+        {
+            TryRespawnEnemy(enemy);
+        }
+
         // 적이 죽었거나, 현재 활성 Room이 아니라면 경로 표시 안하도록 기록을 Clear
         const ServerRoomCoordinate homeRoom = enemy.GetHomeRoom();
         if (enemy.IsDead() || !activeRooms[homeRoom.y * OverworldRoomColumns + homeRoom.x])
@@ -668,6 +673,12 @@ bool OverworldSimulation::TickProjectile(Projectile& projectile)
 {
     if (projectile.IsExpired()) return false;
 
+    const auto owner = _enemies.find(projectile.GetOwnerId());
+    if (owner == _enemies.end() || owner->second.IsDead())
+    {
+        return false;
+    }
+
     const Vector2Int delta = GetMoveDelta(projectile.GetDirection());
     const Vector2Int candidate = projectile.GetPosition() + delta;
 
@@ -812,7 +823,33 @@ bool OverworldSimulation::TryHitEnemy(ServerPlayerState& player)
 
     if (!target) return false;
 
-    target->TakeDamage(1);
+    target->TakeDamage(1, _tick);
+    return true;
+}
+
+bool OverworldSimulation::TryRespawnEnemy(Enemy& enemy)
+{
+    if (!enemy.CanRespawn(_tick))
+    {
+        return false;
+    }
+
+    // 사실 SpawnPosition CanPlaceEnemy()는 필요 없음. 이미 생성 당시 검사 통과한 좌표이기 때문에.
+    const Vector2Int spawnPosition = enemy.GetSpawnPosition();
+    for (const auto& [id, player] : _players)
+    {
+        if (player.dead) continue;
+
+        const bool overlaps =
+            spawnPosition.x < player.x + PlayerBoxWidth &&
+            spawnPosition.y < player.y + PlayerBoxHeight &&
+            player.x < spawnPosition.x + Enemy::BoxWidth &&
+            player.y < spawnPosition.y + Enemy::BoxHeight;
+
+        if (overlaps) return false;
+    }
+
+    enemy.Respawn();
     return true;
 }
 
