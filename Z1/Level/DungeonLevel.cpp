@@ -29,8 +29,6 @@ using FilePath = std::filesystem::path;
 
 namespace
 {
-    const Vector2 RoomScreenOffset(0, 3);
-
     constexpr int ItemSortingOrder = 5;
 
     // 현재 이미지가 Tile 사이즈에 딱 맞지는 않음. 벽에 붙은 상태로 그리면 넘어가버릴 수도..
@@ -300,6 +298,8 @@ void DungeonLevel::Draw()
         const std::string sword = _player->HasSword() ? "[SWORD]" : "[NO SWORD]";
         renderer.Submit(Sprite::Create(sword), Vector2(30, 1));
     }
+
+    DrawMinimap(renderer);
 }
 
 bool DungeonLevel::LoadMap()
@@ -355,7 +355,14 @@ bool DungeonLevel::LoadMap()
         }
     }
 
-    return hasBoss && hasHeart && hasTriforce;
+    if (!(hasBoss && hasHeart && hasTriforce))
+    {
+        return false;
+    }
+
+    _currentRoom = RoomCoordinate(0, 0);
+    _visited[_currentRoom.y][_currentRoom.x] = true;
+    return true;
 }
 
 bool DungeonLevel::TryChangeRoom(RoomCoordinate room)
@@ -370,10 +377,10 @@ bool DungeonLevel::TryChangeRoom(RoomCoordinate room)
         return false;
     }
 
-    DestroyRoomEnemies();
-    DestroyRoomProjectiles();
+    DestroyRoomActors();
 
     _currentRoom = room;
+    _visited[room.y][room.x] = true;
 
     BuildRoomSprite();
     SpawnRoomEnemies();
@@ -460,7 +467,7 @@ void DungeonLevel::SpawnBoss()
     _roomEnemies.emplace_back(_boss);
 }
 
-void DungeonLevel::DestroyRoomEnemies()
+void DungeonLevel::DestroyRoomActors()
 {
     for (const auto& enemy : _roomEnemies)
     {
@@ -476,10 +483,7 @@ void DungeonLevel::DestroyRoomEnemies()
     {
         _boss.reset();
     }
-}
 
-void DungeonLevel::DestroyRoomProjectiles()
-{
     for (const auto& projectile : _roomProjectiles)
     {
         if (projectile)
@@ -945,6 +949,32 @@ bool DungeonLevel::IsPlayerOverlappingTile(const Vector2& tile) const
     return Box2D{ playerPosition, playerBox->GetSize() }.Overlaps(
         Box2D{ itemPosition, TileCellSize }
     );
+}
+
+void DungeonLevel::DrawMinimap(Craft::Renderer& renderer)
+{
+    const Vector2 HorizontalOffset(100, 1);
+    for (int y = 0; y < _visited.size(); ++y)
+    {
+        for (int x = 0; x < _visited[0].size(); ++x)
+        {
+            char glyph = '.';
+            Color color = Color::DarkGray;
+
+            if (RoomCoordinate(x, y) == _currentRoom)
+            {
+                glyph = 'P';
+                color = Color::Green;
+            }
+            else if (_visited[y][x])
+            {
+                glyph = '#';
+                color = Color::DarkBlue;
+            };
+
+            renderer.Submit(Sprite::Create(Vector2::One, glyph, color), HorizontalOffset + Vector2(x, y));
+        }
+    }
 }
 
 void DungeonLevel::TryCollectItems()

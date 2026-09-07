@@ -34,8 +34,6 @@ using FilePath = std::filesystem::path;
 
 namespace
 {
-    const Vector2 RoomScreenOffset(0, 3);
-
     constexpr TileId EntryMarkerTileId = 0x12;
     constexpr int StartSwordCaveLocalX = 4; // 스타팅 룸에서 동굴 입구 논리 좌표
     constexpr int StartSwordCaveLocalY = 1;
@@ -274,6 +272,8 @@ void OverworldLevel::Draw()
         const std::string sword = _player->HasSword() ? "[SWORD]" : "[NO SWORD]";
         renderer.Submit(Sprite::Create(sword), Vector2(30, 1));
     }
+
+    DrawMinimap(renderer);
 }
 
 void OverworldLevel::EndPlay()
@@ -345,6 +345,7 @@ bool OverworldLevel::LoadMap()
     }
 
     _currentRoom = StartRoom;
+    _visited[StartRoom.y][StartRoom.x] = true;
     BuildRoomSprite();
 
     _loaded = true;
@@ -361,6 +362,7 @@ bool OverworldLevel::TryChangeRoom(RoomCoordinate room)
     DestroyRoomActors();
 
     _currentRoom = room;
+    _visited[room.y][room.x] = true;
 
     BuildRoomSprite();
     SpawnRoomEnemies();     // 새로운 Room 적 생성하고
@@ -814,4 +816,30 @@ bool OverworldLevel::TryEnterEntrance(Vector2 destination)
     }
 
     return false;
+}
+
+void OverworldLevel::DrawMinimap(Renderer& renderer)
+{
+    const Vector2 HorizontalOffset(100, 1);
+    for (int y = 0; y < _visited.size(); ++y)
+    {
+        for (int x = 0; x < _visited[0].size(); ++x)
+        {
+            char glyph = '.';
+            Color color = Color::DarkGray;
+
+            if (RoomCoordinate(x, y) == _currentRoom)
+            {
+                glyph = 'P';
+                color = Color::Green;
+            }
+            else if (_visited[y][x])
+            {
+                glyph = '#';
+                color = Color::DarkBlue;
+            };
+
+            renderer.Submit(Sprite::Create(Vector2::One, glyph, color), HorizontalOffset + Vector2(x, y));
+        }
+    }
 }
