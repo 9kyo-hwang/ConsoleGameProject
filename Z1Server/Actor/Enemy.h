@@ -15,16 +15,19 @@ public:
     Z1::Protocol::SnapshotEnemyState BuildSnapshot() const;
 
     void MoveTo(Vector2Int position, Z1::Protocol::MoveDirection facing);
-    std::int32_t TakeDamage(std::int32_t damage);
+    std::int32_t TakeDamage(std::int32_t damage, std::uint32_t serverTick);
 
     inline std::uint32_t GetId() const noexcept { return _id; }
     Z1::Protocol::EnemyKind GetKind() const noexcept { return _kind; }
     ServerRoomCoordinate GetHomeRoom() const noexcept { return _home; }
+    Vector2Int GetSpawnPosition() const noexcept { return _spawnPosition; }
     Vector2Int GetPosition() const noexcept { return _position; }
     bool IsDead() const noexcept { return _dead; }
 
 public:
     Vector2Int GetProjectileSpawnPosition();    // 현재는 몹의 중앙에서 Spawn, 추후 가장자리로 옮기는 로직 추가
+    bool CanRespawn(std::uint32_t serverTick) const noexcept { return _deadTick + RespawnCooldownTicks <= serverTick; }
+    void Respawn();
 
     /*
     * Moblin
@@ -51,4 +54,7 @@ private:
 
     inline static constexpr std::uint32_t AttackCooldownTicks = 44;   // 44 / 20 = 2.2초 간격
     std::uint32_t _attackCooldownTicks = 0;
+
+    inline static constexpr std::uint32_t RespawnCooldownTicks = 140;   // 140 / 20 = 7초
+    std::uint32_t _deadTick = 0;
 };

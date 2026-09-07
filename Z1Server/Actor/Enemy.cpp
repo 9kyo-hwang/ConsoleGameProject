@@ -29,7 +29,7 @@ void Enemy::MoveTo(Vector2Int position, MoveDirection facing)
     _facing = facing;
 }
 
-std::int32_t Enemy::TakeDamage(std::int32_t damage)
+std::int32_t Enemy::TakeDamage(std::int32_t damage, std::uint32_t serverTick)
 {
     if (damage <= 0 || IsDead()) return 0;
 
@@ -39,6 +39,7 @@ std::int32_t Enemy::TakeDamage(std::int32_t damage)
     if (_hp == 0)
     {
         _dead = true;
+        _deadTick = serverTick;
     }
 
     return actualDamage;
@@ -51,4 +52,14 @@ Vector2Int Enemy::GetProjectileSpawnPosition()
         _position.x + (BoxWidth - 1) / 2,
         _position.y + (BoxHeight - 1) /2,
     };
+}
+
+void Enemy::Respawn()
+{
+    _dead = false;
+    _deadTick = 0;
+    _hp = 1;
+    _position = _spawnPosition;
+    _facing = MoveDirection::Up;
+    ResetAttackCooldown();
 }

@@ -87,6 +87,7 @@ private:
     bool TickProjectile(Projectile& projectile);
     bool TryHitPlayer(const Projectile& projectile, Vector2Int candidate);
     bool TryHitEnemy(ServerPlayerState& player);    // 플레이어 근접 검 공격
+    bool TryRespawnEnemy(Enemy& enemy);
 
     void RecordEnemyChasePath(const Enemy& enemy, const std::vector<TileCoordinate>& path);
 
