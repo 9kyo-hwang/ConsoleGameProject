@@ -19,8 +19,6 @@ using namespace Z1::Protocol;
 
 namespace
 {
-    const Vector2 RoomScreenOffset(0, 3);
-
     // Map 기준 Room의 좌상단 셀 좌표
     Vector2 GetRoomCellOrigin(RoomCoordinate room)
     {

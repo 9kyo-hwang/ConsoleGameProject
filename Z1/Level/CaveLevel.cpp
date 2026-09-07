@@ -115,7 +115,7 @@ void CaveLevel::Tick(float deltaTime)
 void CaveLevel::Draw()
 {
     Renderer& renderer = Renderer::Get();
-    renderer.SetView(Vector2::Zero, Vector2(0, 3));
+    renderer.SetView(Vector2::Zero, RoomScreenOffset);
 
     if (_roomSprite)
     {

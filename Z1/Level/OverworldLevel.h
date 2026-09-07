@@ -57,11 +57,12 @@ private:
 
     void UpdatePlayerMovement(float deltaTime, const Craft::Vector2& delta);
     void UpdateEnemyMovement(float deltaTime);
-
     void TakeContactDamageToPlayer();
 
     std::optional<EntranceType> ResolveEntrance(Craft::Vector2 destination, const Pawn& mover);
     bool TryEnterEntrance(Craft::Vector2 destination);
+
+    void DrawMinimap(Craft::Renderer& renderer);
 
 private:
     inline static constexpr RoomCoordinate StartRoom{ 7, 7 };
@@ -82,4 +83,6 @@ private:
     std::vector<std::shared_ptr<Enemy>> _roomEnemies;   // 현재 룸에 생성된 적 별도 보관
     std::vector<std::shared_ptr<Projectile>> _roomProjectiles;
     uint32_t _worldSeed = 12345u;
+
+    std::array<std::array<bool, OverworldMap::RoomColumns>, OverworldMap::RoomRows> _visited{};
 };

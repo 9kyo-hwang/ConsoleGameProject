@@ -8,6 +8,7 @@
 namespace Craft
 {
     class Sprite;
+    class Renderer;
 }
 
 class Pawn;
@@ -45,16 +46,13 @@ private:
     std::shared_ptr<Enemy> SpawnEnemy(Craft::Vector2 position);
     void SpawnBoss();
 
-    void DestroyRoomEnemies();
-    void DestroyRoomProjectiles();
+    void DestroyRoomActors();
 
     void UpdatePlayerMovement(float deltaTime, const Craft::Vector2& delta);
-
-    bool TryExitDungeon(const Craft::Vector2& destination, const Craft::Vector2& moveDelta);
-
     void UpdateEnemyMovement(float deltaTime);
     bool UpdatePawnKnockback(Pawn& pawn, float deltaTime);
 
+    bool TryExitDungeon(const Craft::Vector2& destination, const Craft::Vector2& moveDelta);
     bool CanMoveTo(const Craft::Vector2& destination, const Pawn& mover);
     bool IsInsideCurrentRoom(Craft::Vector2 boxPosition, Craft::Vector2 boxSize) const;
 
@@ -69,6 +67,8 @@ private:
     void TryCollectItems();
 
     bool IsPlayerOverlappingTile(const Craft::Vector2& tile) const;
+
+    void DrawMinimap(Craft::Renderer& renderer);
 
 private:
     static constexpr int BossRoomIndex = 3;
@@ -106,8 +106,9 @@ private:
     bool _heartCollected = false;
     bool _triforceCollected = false;
 
-    // EnemySpawner 어딨지?
     std::vector<std::shared_ptr<Enemy>> _roomEnemies;
     std::vector<std::shared_ptr<Projectile>> _roomProjectiles;
     uint32_t _worldSeed = 12345u;
+
+    std::array<std::array<bool, DungeonMap::RoomColumns>, DungeonMap::RoomRows> _visited{};
 };
