@@ -47,7 +47,7 @@ namespace
     }
 }
 
-std::vector<TileCoordinate> RoomPathfinder::FindPath(const RoomNavigationGrid& grid, TileCoordinate start, TileCoordinate goal) const
+std::vector<TileCoordinate> RoomPathfinder::FindPath(const RoomNavigationGrid& grid, TileCoordinate start, TileCoordinate goal) 
 {
     if (!grid.IsWalkable(start) || !grid.IsWalkable(goal))
     {

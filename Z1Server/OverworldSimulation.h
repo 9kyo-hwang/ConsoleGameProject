@@ -75,7 +75,6 @@ private:
 
 private:
     RoomNavigationGrid BuildNavigationGrid(ServerRoomCoordinate room) const;
-    RoomPathfinder _pathfinder;
 
 private:
     // id - state

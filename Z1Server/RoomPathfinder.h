@@ -38,7 +38,7 @@ private:
 class RoomPathfinder
 {
 public:
-    std::vector<TileCoordinate> FindPath(const RoomNavigationGrid& grid, TileCoordinate start, TileCoordinate goal) const;
+    static std::vector<TileCoordinate> FindPath(const RoomNavigationGrid& grid, TileCoordinate start, TileCoordinate goal);
 
 private:
     static std::int32_t ToIndex(TileCoordinate tile) noexcept;

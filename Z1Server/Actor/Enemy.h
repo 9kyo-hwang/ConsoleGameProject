@@ -2,6 +2,7 @@
 #include <Actor/Actor.h>
 #include <Types.h>
 #include <Z1Shared/Protocol.h>
+#include <optional>
 
 // 기존 ServerEnemyState와 TickEnemy()의 책임을 응집시킨 클래스
 // id, 종류, 속한 room, 위치 정보, 바라보는 방향, 체력, 사망 유무 소유
@@ -14,7 +15,10 @@ public:
 
     Enemy(Z1::Protocol::ActorKind kind, ServerRoomCoordinate home, Vector2Int spawnPosition);
 
-    void MoveTo(Vector2Int position, Z1::Protocol::MoveDirection facing);
+    void SetPosition(std::int32_t x, std::int32_t y) override;
+    void SetNextWaypoint(std::int32_t x, std::int32_t y) noexcept { _nextWaypoint = Vector2Int{ x, y }; }
+    void ClearNextWaypoint() noexcept { _nextWaypoint.reset(); }
+
     std::int32_t TakeDamage(std::int32_t damage, std::uint32_t serverTick);
 
     Z1::Protocol::ActorKind GetKind() const noexcept { return info.kind; }
@@ -30,6 +34,8 @@ public:
     /*
     * Moblin
     */
+    inline bool IsMoving() const noexcept { return _nextWaypoint.has_value(); }
+
     void TickAttackCooldown() noexcept { if (_attackCooldownTicks > 0) --_attackCooldownTicks; }
     bool IsAttackReady() const noexcept { return _attackCooldownTicks == 0; }
     void ResetAttackCooldown(std::uint32_t ticks = AttackCooldownTicks) noexcept { _attackCooldownTicks = ticks; }
@@ -47,4 +53,6 @@ private:
 
     inline static constexpr std::uint32_t RespawnCooldownTicks = 140;   // 140 / 20 = 7초
     std::uint32_t _deadTick = 0;
+
+    std::optional<Vector2Int> _nextWaypoint;    // Pathfinder 결과로 반환되는 다음 좌표
 };
