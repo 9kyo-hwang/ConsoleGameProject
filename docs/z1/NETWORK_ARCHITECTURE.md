@@ -100,7 +100,7 @@ NetworkSwordEffect  승인된 일반 검 CombatEvent의 일시적 표현
 ```
 
 - 크기 정보는 header를 포함한 패킷 전체 크기이며 최대 4096byte 크기를 갖습니다.
-- `PacketFramer` 클래스를 통해 TCP 통신으로 주고받은 byte를 누적하고, 완성된 packet을 handler에 전달한다.
+- `PacketFramer` 클래스를 통해 TCP 통신으로 주고받은 byte를 누적하고, 완성된 packet을 handler에 전달합니다.
 - header와 payload의 분할 수신 및 여러 packet의 연속 수신을 처리합니다.
 - 잘못된 정보(크기, 타입, ID, 페이로드 길이 등)는 연결 오류로 처리합니다.
 
@@ -109,11 +109,11 @@ NetworkSwordEffect  승인된 일반 검 CombatEvent의 일시적 표현
 | C→S | `C2S_Enter` | protocol version 제시와 입장 요청 |
 | S→C | `S2C_Enter` | protocol version과 local playerId 할당 |
 | C→S | `C2S_Input` | sequence, 이동 방향과 공격 유무 플래그 |
-| S→C | `S2C_WorldSnapshot` | server tick과 관심 Room의 Player·Enemy·Projectile 배열 |
+| S→C | `S2C_WorldSnapshot` | server tick과 관심 Room의 Actor 배열 |
 | S→C | `S2C_CombatEvent` | 서버가 승인한 단발 전투 사건 |
 | S→C | `S2C_EnemyPathDebug` | Moblin의 최신 A* 경로와 Room 내부 tile index 배열 |
 
-WorldSnapshot은 Player 18-byte, Enemy 19-byte, Projectile 14-byte 상태 배열을 가집니다. 죽거나 제거된 Enemy와 Projectile은 다음 Snapshot 배열에서 빠지게 되고, 클라이언트는 해당 정보를 보고 빠진 액터를 제거한다.
+WorldSnapshot은 15-byte 크기인 공통 ActorInfo 배열을 가집니다. 죽거나 제거된 Enemy와 Projectile은 다음 Snapshot 배열에서 빠지게 되고, 클라이언트는 해당 정보를 보고 빠진 액터를 제거합니다.
 
 CombatEvent payload는 아래와 같이 6 byte로 표현합니다.
 
@@ -147,7 +147,7 @@ Enemy는 서버 시작 시 시드값과 Room 좌표를 기반으로 생성된 �
 
 Moblin은 같은 Room에 있는 인접 Player를 A*로 추적하고 공격을 시도합니다. 투사체는 이동 불가 타일이거나, Room 경계를 벗어나거나, 지속 시간(2초)을 경과하거나, Player와 충돌하면 제거됩니다. 플레이어의 검 공격은 이동 중이 아닐 때, 바라보는 방향 기준으로 AABB를 수행해 겹친 적 하나에게 피해를 적용합니다.
 
-관심 Room은 시뮬레이션 결과를 복제할 범위를 지칭합니다. 서버 좌표를 기준으로 계산해, 각 Session의 Snapshot에 해당 관심 Room의 Player·Enemy·Projectile 정보를 담습니다. 참고로 타일의 통행 가능 정보는 `Content/Z1/Maps/Overworld/BlockingMap.txt` 데이터를 가지고 수행합니다.
+관심 Room은 시뮬레이션 결과를 복제할 범위를 지칭합니다. 서버 좌표를 기준으로 계산해, 각 Session의 Snapshot에 해당 관심 Room의 액터(Player·Enemy·Projectile) 정보를 담습니다. 참고로 타일의 통행 가능 정보는 `Content/Z1/Maps/Overworld/BlockingMap.txt` 데이터를 가지고 수행합니다.
 
 ## 신뢰 경계
 

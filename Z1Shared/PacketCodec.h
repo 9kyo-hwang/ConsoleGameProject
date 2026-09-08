@@ -233,7 +233,11 @@ namespace Z1::Protocol
             return false;
         }
 
-        // TODO: 기존 Player 1명 이상 + 적/투사체 0명 크기 검증
+        const std::size_t requiredActorsBytes = (std::size_t)actorCount * ActorInfoSize;
+        if (reader.Remaining() < requiredActorsBytes)
+        {
+            return false;
+        }
 
         parsed.actors.reserve(actorCount);
         for (std::uint32_t i = 0; i < actorCount; ++i)
