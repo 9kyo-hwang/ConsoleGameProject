@@ -120,7 +120,7 @@ namespace Z1::Protocol
     struct CombatEvent
     {
         // 클라는 이벤트를 받아 소비하면 끝이라 id는 불필요
-        CombatEventType type;
+        CombatEventType type = CombatEventType::Invalid;
         std::uint32_t actorId = 0;  // 넉백이 포함되려면 targetId도 필요해짐
         MoveDirection direction = MoveDirection::None;  // 검이나 넉백 방향 등
     };
@@ -131,12 +131,12 @@ namespace Z1::Protocol
     {
         std::uint32_t tick = 0;
         std::uint32_t id = 0;
-        std::int32_t roomX;
-        std::int32_t roomY;
+        std::int32_t roomX = 0;
+        std::int32_t roomY = 0;
 
         // Room 하나 당 16 x 11 크기로 최대 176 -> 1바이트
         // 비어있으면 경로 렌더 X
-        std::vector<std::uint8_t> tileIndices;  
+        std::vector<std::uint8_t> tileIndices{};
     };
 #pragma endregion
 }

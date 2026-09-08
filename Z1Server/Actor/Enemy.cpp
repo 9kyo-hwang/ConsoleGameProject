@@ -11,10 +11,14 @@ Enemy::Enemy(Z1::Protocol::ActorKind kind, ServerRoomCoordinate home, Vector2Int
     SetPosition(spawnPosition.x, spawnPosition.y);
 }
 
-void Enemy::MoveTo(Vector2Int position, MoveDirection facing)
+void Enemy::SetPosition(std::int32_t x, std::int32_t y)
 {
-    SetDirection(facing);
-    SetPosition(position.x, position.y);
+    Actor::SetPosition(x, y);
+    
+    if (_nextWaypoint == Vector2Int{ x, y })
+    {
+        ClearNextWaypoint();
+    }
 }
 
 std::int32_t Enemy::TakeDamage(std::int32_t damage, std::uint32_t serverTick)
@@ -43,6 +47,8 @@ Vector2Int Enemy::GetProjectileSpawnPosition()
 
 void Enemy::Respawn()
 {
+    _nextWaypoint.reset();
+
     _deadTick = 0;
     info.hp = 1;
     SetPosition(_spawnPosition.x, _spawnPosition.y);

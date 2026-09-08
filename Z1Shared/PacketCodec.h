@@ -161,7 +161,7 @@ namespace Z1::Protocol
 
         PacketWriter payload(payloadSize);
         payload.WriteU32(snapshot.serverTick);
-        payload.WriteU32(snapshot.actors.size());
+        payload.WriteU32((std::uint32_t)snapshot.actors.size());
 
         for (const ActorInfo& actor : snapshot.actors)
         {
@@ -310,8 +310,8 @@ namespace Z1::Protocol
 
     inline bool BuildPacket_S2CCombatEvent(const CombatEvent& event, std::vector<Byte>& packet)
     {
-        const std::size_t type = (std::uint8_t)event.type;
-        const std::size_t direction = (std::uint8_t)event.direction;
+        const std::uint8_t type = (std::uint8_t)event.type;
+        const std::uint8_t direction = (std::uint8_t)event.direction;
 
         if (!IsValidCombatEventType(type) || event.actorId == 0 || !IsValidCardinalDirection(direction))
         {

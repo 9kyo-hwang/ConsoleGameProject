@@ -249,7 +249,7 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
     }
 
     Player& player = found->second;
-    if (player.lastInputSequence.has_value() && input.sequence <= *player.lastInputSequence)
+    if (player.HasInputted() && input.sequence <= player.LastInputSequence())
     {
         // TCP는 순서를 보장해서, 더 오래된 입력 시퀀스가 들어오는 케이스는 보통 없음
         // 중복되거나 오래된 입력은 무시
@@ -257,14 +257,7 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
         return true;
     }
 
-    player.lastInputSequence = input.sequence;
-    player.latestInput = input;
-    if ((input.actionFlags & InputActionAttack) != 0)
-    {
-        player.attackRequested = true;
-    }
-
-    player.latestInput.actionFlags = 0;  // 1회만 적용되도록
+    player.UpdateInput(input);  // 여기서 actionFlag = 0으로 세팅: 1회만 적용되도록
 
     std::cout << "[C2S_Input] player=" << playerId
         << ", sequence=" << input.sequence
@@ -380,14 +373,13 @@ void OverworldSimulation::Tick()
     // 1. 플레이어 위치 갱신하고
     for (auto& [id, player] : _players)
     {
-        const bool attackRequested = std::exchange(player.attackRequested, false);
-
         if (player.IsDead())
         {
             continue;
         }
 
-        const MoveDirection direction = player.latestInput.moveDirection;
+        const bool attackRequested = player.PerformAttackRequest();
+        const MoveDirection direction = player.GetInputDirection();
         if (direction != MoveDirection::None)
         {
             // 입력이 있으면 막히더라도 방향은 바뀜
@@ -556,7 +548,7 @@ void OverworldSimulation::TickEnemy(Enemy& enemy)
 {
     enemy.TickAttackCooldown(); // 공격 쿨타임 계산은 원래 tick대로 계산
 
-    const bool movable = (enemy.GetKind() == ActorKind::Enemy_Moblin) && (_tick + enemy.GetId()) % 4 == 0;  // 4틱 경과?
+    const bool movable = (enemy.GetKind() == ActorKind::Enemy_Moblin) && (_tick + enemy.GetId()) % 4 == 0;
     const bool attackable = (enemy.GetKind() == ActorKind::Enemy_Moblin) && enemy.IsAttackReady();
 
     // 가장 가까운 플레이어 위치 찾기
@@ -579,19 +571,41 @@ void OverworldSimulation::TickEnemy(Enemy& enemy)
 
     if (!movable) return;
 
+    if (enemy.IsMoving())   // 이전에 계산된 waypoint가 있다면
+    {
+        const Vector2Int current = enemy.GetPosition();
+        Vector2Int delta = GetMoveDelta(enemy.GetDirection());
+        const Vector2Int candidate = Vector2Int(current.x + delta.x, current.y + delta.y);
+
+        // 만약 다음 픽셀 칸으로 이동 안되면 Clear
+        if (enemy.GetHomeRoom() != GetRoomAt(candidate.x, candidate.y) ||
+            !CanPlaceEnemy(candidate.x, candidate.y))
+        {
+            enemy.ClearNextWaypoint();
+            return;
+        }
+
+        enemy.SetPosition(candidate.x, candidate.y);    // nextWaypoint에 도달하면 안에서 reset됨
+        return;
+    }
+
     ServerRoomCoordinate homeRoom = enemy.GetHomeRoom();
     Vector2Int current = enemy.GetPosition();
     
     const TileCoordinate start = ToLocalTile(homeRoom, current);
     const TileCoordinate goal = ToLocalTile(homeRoom, Vector2Int(closestPlayer->GetPosition().x, closestPlayer->GetPosition().y));
 
-    auto path = _pathfinder.FindPath(BuildNavigationGrid(homeRoom), start, goal);
+    auto path = RoomPathfinder::FindPath(BuildNavigationGrid(homeRoom), start, goal);
     RecordEnemyChasePath(enemy, path);
     if (path.empty()) return;   // 바로 다음 칸이 goal이면 empty인 상황
 
     Vector2Int next = ToWorldCellPosition(homeRoom, path[0]);
-    MoveDirection direction = MoveDirection::None;
+    
+    // TODO: 단순 (x, y) 검사 뿐만 아니라 box 기준으로 검사하도록 수정
+    if (enemy.GetHomeRoom() != GetRoomAt(next.x, next.y)) return;
+    if (!CanPlaceEnemy(next.x, next.y)) return;
 
+    MoveDirection direction = MoveDirection::None;
     if (current.x < next.x) direction = MoveDirection::Right;
     else if (next.x < current.x) direction = MoveDirection::Left;
     else if (next.y < current.y) direction = MoveDirection::Up;
@@ -600,11 +614,9 @@ void OverworldSimulation::TickEnemy(Enemy& enemy)
     Vector2Int delta = GetMoveDelta(direction);
     const Vector2Int candidate = Vector2Int(enemy.GetPosition().x + delta.x, enemy.GetPosition().y + delta.y);
 
-    // TODO: 단순 (x, y) 검사 뿐만 아니라 box 기준으로 검사하도록 수정
-    if (enemy.GetHomeRoom() != GetRoomAt(candidate.x, candidate.y)) return;
-    if (!CanPlaceEnemy(candidate.x, candidate.y)) return;
-
-    enemy.MoveTo(candidate, direction);
+    enemy.SetNextWaypoint(next.x, next.y);
+    enemy.SetDirection(direction);
+    enemy.SetPosition(candidate.x, candidate.y);
 }
 
 bool OverworldSimulation::FindClosestPlayer(ServerRoomCoordinate homeRoom, Vector2Int position, const Player*& closestPlayer)

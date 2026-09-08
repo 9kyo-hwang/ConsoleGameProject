@@ -7,6 +7,7 @@ class Actor
 {
 public:
     explicit Actor(Z1::Protocol::ActorKind kind);
+    virtual ~Actor() = default;
 
     Actor(const Actor&) = delete;
     Actor& operator=(const Actor&) = delete;
@@ -20,7 +21,7 @@ public:
     void SetDirection(Z1::Protocol::MoveDirection direction) { info.direction = direction; }
 
     Vector2Int GetPosition() const noexcept { return { info.x, info.y }; }
-    void SetPosition(std::int32_t x, std::int32_t y) { info.x = x; info.y = y; }
+    virtual void SetPosition(std::int32_t x, std::int32_t y) { info.x = x; info.y = y; }
 
 protected:
     Z1::Protocol::ActorInfo info;

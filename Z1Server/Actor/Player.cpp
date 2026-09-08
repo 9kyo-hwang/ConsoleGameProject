@@ -17,9 +17,22 @@ std::int32_t Player::TakeDamage(std::int32_t amount)
     
     if (IsDead())
     {
-        latestInput.moveDirection = Z1::Protocol::MoveDirection::None;
+        _latestInput.moveDirection = Z1::Protocol::MoveDirection::None;
         info.flags |= Z1::Protocol::PlayerStateDead;
     }
 
     return actualDamage;
+}
+
+void Player::UpdateInput(const Z1::Protocol::InputCommand& input) noexcept
+{
+    _lastInputSequence = input.sequence;
+    _latestInput = input;
+
+    if ((input.actionFlags & Z1::Protocol::InputActionAttack) != 0)
+    {
+        _attackRequested = true;
+    }
+
+    _latestInput.actionFlags = 0;
 }
