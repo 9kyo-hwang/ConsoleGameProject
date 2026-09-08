@@ -52,7 +52,7 @@ Z1Server를 먼저 실행한 뒤 PowerShell dummy client로 TCP framing과 기�
 .\tools\test-z1-enter.ps1 -RunServerFramingSuite
 ```
 
-이 suite는 protocol v4의 정상 Enter/Snapshot, header와 payload 분할, 연속 packet, Input 이동·정지, Enemy·Projectile 배열 파싱, 일반 검 입력에 대한 CombatEvent의 크기·type·actorId·방향, 잘못된 packet size와 protocol version 거부를 확인한다. 기본 endpoint는 `127.0.0.1:7777`이다. Snapshot을 읽는 경로는 `S2C_EnemyPathDebug`도 함께 파싱하므로 두 packet이 섞여도 framing 검사가 중단되지 않는다.
+이 suite는 protocol v5의 정상 Enter/Snapshot, header와 payload 분할, 연속 packet, Input 이동·정지, actor 배열 파싱, 일반 검 입력에 대한 CombatEvent의 크기·type·actorId·방향, 잘못된 packet size와 protocol version 거부를 확인한다. 기본 endpoint는 `127.0.0.1:7777`이다. Snapshot을 읽는 경로는 `S2C_EnemyPathDebug`도 함께 파싱하므로 두 packet이 섞여도 framing 검사가 중단되지 않는다.
 
 실제 경로 packet을 반드시 확인하려면 Moblin이 있는 Room으로 이동할 수 있는 입력 방향과 유지 시간을 지정해 `-ExpectEnemyPathDebug`를 추가한다. 이 옵션은 최대 200개의 서버 packet을 읽으면서 `tick`, Enemy ID, Room 좌표, node count, tile index 범위와 payload 길이를 검증한다. 시작 Room `(7,7)`에는 Enemy가 없으므로 해당 Room에 머문 상태에서는 이 옵션을 사용하지 않는다.
 
