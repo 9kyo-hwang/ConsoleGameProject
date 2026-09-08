@@ -17,7 +17,6 @@ namespace Z1::Protocol
     };
 
     inline constexpr std::uint16_t ProtocolVersion = 4;
-    inline constexpr std::size_t PacketHeaderSize = sizeof(std::uint16_t) + sizeof(std::uint16_t);
     inline constexpr std::uint16_t MaxPacketSize = 4096;
 
     struct PacketHeader
@@ -25,6 +24,8 @@ namespace Z1::Protocol
         std::uint16_t size = 0; // header를 포함한 전체 패킷 크기
         std::uint16_t type = 0; // raw type. PacketType 유효성 검사는 서버/클라 핸들러 또는 codec 함수에서.
     };
+
+    inline constexpr std::size_t PacketHeaderSize = sizeof(PacketHeader);
 
     // 헤더 구조: [size(uint16): 헤더 포함 전체 크기][type(uint16): 패킷 종류][payload..]
 
@@ -70,56 +71,39 @@ namespace Z1::Protocol
     inline constexpr std::uint8_t EnemyStateAttacking = 1 << 0;
     inline constexpr std::uint8_t ValidEnemyState = EnemyStateAttacking;
 
-    struct SnapshotPlayerState
+    enum class ActorKind : std::uint8_t
     {
-        std::uint32_t playerId = 0;
-        std::int32_t x = 0;
-        std::int32_t y = 0;
-        MoveDirection facing = MoveDirection::Up;
-        std::int32_t hp = 0;
-        std::uint8_t flags = 0;
+        None,
+
+        Player,
+
+        Enemy_Octorok,
+        Enemy_Moblin,
+        Enemy_Tektite,
+
+        Projectile_Spear,
     };
 
-    enum class EnemyKind : std::uint8_t
-    {
-        Octorok = 0,
-        Moblin = 1,
-        Tektite = 2
-    };
-
-    struct SnapshotEnemyState
+#pragma pack(push, 1)
+    struct ActorInfo
     {
         std::uint32_t id = 0;
-        EnemyKind kind = EnemyKind::Octorok;
-        std::int32_t x = 0;
-        std::int32_t y = 0;
-        MoveDirection facing = MoveDirection::Up;
         std::int32_t hp = 0;
-        std::uint8_t flags = 0;
-    };
-
-    enum class ProjectileKind : std::uint8_t
-    {
-        Spear = 0   // Moblin의 투사체 무기
-    };
-
-    // owner enemy id, 데미지, 수명 등은 x
-    struct SnapshotProjectileState
-    {
-        std::uint32_t id = 0;
-        ProjectileKind kind = ProjectileKind::Spear;
-        std::int32_t x = 0;
-        std::int32_t y = 0;
+        std::uint16_t x = 0;
+        std::uint16_t y = 0;
+        ActorKind kind = ActorKind::None;
         MoveDirection direction = MoveDirection::Up;
+        std::uint8_t flags = 0;
     };
+#pragma pack(pop)
+
+    inline constexpr std::size_t ActorInfoSize = sizeof(ActorInfo);
 
     // homeRoom, 최초 스폰 위치, AI 타이머는 서버 내부 상태.
     struct WorldSnapshot
     {
         std::uint32_t serverTick = 0;   // 확인용
-        std::vector<SnapshotPlayerState> players;
-        std::vector<SnapshotEnemyState> enemies;
-        std::vector<SnapshotProjectileState> projectiles;
+        std::vector<ActorInfo> actors;
     };
 #pragma endregion
 

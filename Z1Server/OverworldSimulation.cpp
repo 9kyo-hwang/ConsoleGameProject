@@ -4,20 +4,19 @@
 #include <fstream>
 #include <array>
 #include <random>
-#include <Actor/Enemy.h>
 #include <utility>
 
 using namespace Z1::Protocol;
 
 namespace
 {
-    constexpr std::int32_t PlayerMoveCellsPerTick = 1;
+    constexpr std::uint16_t PlayerMoveCellsPerTick = 1;
     
     // 클라쪽 크기를 일단 가져왔는데...
-    constexpr std::int32_t PlayerBoxWidth = 8;
-    constexpr std::int32_t PlayerBoxHeight = 5;
-    constexpr std::int32_t EnemiesPerRoom = 6;
-    constexpr std::int32_t MaxSpawnAttempts = 30;
+    constexpr std::uint16_t PlayerBoxWidth = 8;
+    constexpr std::uint16_t PlayerBoxHeight = 5;
+    constexpr std::uint16_t EnemiesPerRoom = 6;
+    constexpr std::uint16_t MaxSpawnAttempts = 30;
 
     std::uint32_t MakeRoomSeed(ServerRoomCoordinate room, std::uint32_t seed)
     {
@@ -25,47 +24,30 @@ namespace
     }
     
     // 타일 하나를 구성하는 셀
-    constexpr std::int32_t TileCellWidth = 10;
-    constexpr std::int32_t TileCellHeight = 5;
+    constexpr std::uint16_t TileCellWidth = 10;
+    constexpr std::uint16_t TileCellHeight = 5;
     
     // Room 하나를 구성하는 논리적 칸 개수
-    constexpr std::int32_t RoomWidth = 16;
-    constexpr std::int32_t RoomHeight = 11;
+    constexpr std::uint16_t RoomWidth = 16;
+    constexpr std::uint16_t RoomHeight = 11;
 
     // Room 하나를 구성하는 셀
-    constexpr std::int32_t RoomCellWidth = RoomWidth * TileCellWidth;
-    constexpr std::int32_t RoomCellHeight = RoomHeight * TileCellHeight;
+    constexpr std::uint16_t RoomCellWidth = RoomWidth * TileCellWidth;
+    constexpr std::uint16_t RoomCellHeight = RoomHeight * TileCellHeight;
     
     // Map을 구성하는 Room 개수
-    constexpr std::int32_t OverworldRoomColumns = 16;
-    constexpr std::int32_t OverworldRoomRows = 8;
+    constexpr std::uint16_t OverworldRoomColumns = 16;
+    constexpr std::uint16_t OverworldRoomRows = 8;
 
     // Map을 구성하는 논리적 칸 개수
-    constexpr std::int32_t MapWidth = OverworldRoomColumns * RoomWidth;
-    constexpr std::int32_t MapHeight = OverworldRoomRows * RoomHeight;
+    constexpr std::uint16_t MapWidth = OverworldRoomColumns * RoomWidth;
+    constexpr std::uint16_t MapHeight = OverworldRoomRows * RoomHeight;
 
     // Map을 구성하는 셀 칸 개수
-    constexpr std::int32_t MapCellWidth = MapWidth * TileCellWidth;
-    constexpr std::int32_t MapCellHeight = MapHeight * TileCellHeight;
+    constexpr std::uint16_t MapCellWidth = MapWidth * TileCellWidth;
+    constexpr std::uint16_t MapCellHeight = MapHeight * TileCellHeight;
 
     const ServerRoomCoordinate StartRoom{ 7, 7 };
-
-    SnapshotPlayerState ToSnapshot(const OverworldSimulation::ServerPlayerState& state)
-    {
-        SnapshotPlayerState snapshot;
-        snapshot.playerId = state.playerId;
-        snapshot.x = state.x;
-        snapshot.y = state.y;
-        snapshot.hp = state.hp;
-        snapshot.facing = state.facing;
-
-        if (state.dead)
-        {
-            snapshot.flags |= PlayerStateDead;
-        }
-
-        return snapshot;
-    }
 
     TileCoordinate ToLocalTile(ServerRoomCoordinate room, Vector2Int position)
     {
@@ -102,6 +84,27 @@ namespace
 
         return MoveDirection::None;
     }
+}
+
+/*
+* Tile: (10, 5) / Room: (16, 11)
+* StartRoom: (7, 7) / LocalSpawn: (7, 2)
+* 따라서 전체 Map 좌표 기준으로 (16, 11) x (10, 5) x (7, 7) + (7, 2) * (10, 5) = (1190, 395)
+*/
+std::optional<std::uint32_t> OverworldSimulation::SpawnPlayer()
+{
+    Player player;  // 1190, 395 기본 세팅
+
+    std::uint32_t id = player.GetId();
+    const auto [it, inserted] = _players.emplace(id, std::move(player));
+
+    return inserted ? std::optional(id) : std::nullopt;
+}
+
+void OverworldSimulation::DespawnPlayer(std::uint32_t playerId)
+{
+    // 삭제할 id가 없으면 0 반환
+    _players.erase(playerId);
 }
 
 bool OverworldSimulation::LoadBlockingMap(const FilePath& path, std::string& errorMessage)
@@ -173,8 +176,6 @@ bool OverworldSimulation::SpawnEnemies(std::uint32_t seed)
     if (!_hasBlockingMap) return false;
 
     _enemies.clear();
-    _enemyId = 1;
-
     for (std::int32_t roomY = 0; roomY < OverworldRoomRows; ++roomY)
     {
         for (std::int32_t roomX = 0; roomX < OverworldRoomColumns; ++roomX)
@@ -191,7 +192,7 @@ bool OverworldSimulation::SpawnEnemies(std::uint32_t seed)
             RNG rng(MakeRoomSeed(room, seed));
             DistInt localTileX(1, RoomWidth - 2);
             DistInt localTileY(1, RoomHeight - 2);
-            DistInt enemyKind(0, 2);
+            DistInt enemyKind((std::int32_t)ActorKind::Enemy_Octorok, (std::int32_t)ActorKind::Enemy_Tektite);
 
             std::int32_t spawned = 0;
             for (std::int32_t attempt = 0; attempt < MaxSpawnAttempts && spawned < EnemiesPerRoom; ++attempt)
@@ -203,12 +204,11 @@ bool OverworldSimulation::SpawnEnemies(std::uint32_t seed)
                     continue;
                 }
 
-                EnemyKind kind = (EnemyKind)enemyKind(rng);
-                int32_t id = _enemyId++;
-                Vector2Int position(x, y);
+                ActorKind kind = (ActorKind)enemyKind(rng);
+                Vector2Int spawnPosition(x, y);
 
-                Enemy enemy(id, kind, room, position);
-                _enemies.emplace(id, std::move(enemy));
+                Enemy enemy(kind, room, spawnPosition);
+                _enemies.emplace(enemy.GetId(), std::move(enemy));
                 ++spawned;
             }
         }
@@ -217,9 +217,9 @@ bool OverworldSimulation::SpawnEnemies(std::uint32_t seed)
     return true;
 }
 
-bool OverworldSimulation::SpawnProjectile(Enemy& enemy, const ServerPlayerState& target)
+bool OverworldSimulation::SpawnProjectile(Enemy& enemy, const Player& target)
 {
-    const Vector2Int targetPos = Vector2Int(target.x, target.y);
+    const Vector2Int targetPos = Vector2Int(target.GetPosition().x, target.GetPosition().y);
     const MoveDirection direction = GetDirectionToward(enemy.GetPosition(), targetPos);
     if (direction == MoveDirection::None) return false;
 
@@ -227,34 +227,9 @@ bool OverworldSimulation::SpawnProjectile(Enemy& enemy, const ServerPlayerState&
     if (GetRoomAt(spawnPos.x, spawnPos.y) != enemy.GetHomeRoom()) return false;
     if (!CanPlaceProjectile(spawnPos.x, spawnPos.y)) return false;
 
-    std::uint32_t id = _projectileId;
-    ++_projectileId;
+    Projectile projectile(ActorKind::Projectile_Spear, enemy.GetId(), enemy.GetHomeRoom(), spawnPos, direction, 1, 40);
 
-    Projectile projectile(id, ProjectileKind::Spear, enemy.GetId(), enemy.GetHomeRoom(), spawnPos, direction, 1, 40);
-
-    return _projectiles.emplace(id, std::move(projectile)).second;
-}
-
-/*
-* Tile: (10, 5) / Room: (16, 11)
-* StartRoom: (7, 7) / LocalSpawn: (7, 2)
-* 따라서 전체 Map 좌표 기준으로 (16, 11) x (10, 5) x (7, 7) + (7, 2) * (10, 5) = (1190, 395)
-*/
-bool OverworldSimulation::AddPlayer(std::uint32_t playerId)
-{
-    // 일단 플레이어끼리는 충돌 안시킬 것
-    ServerPlayerState player;
-    player.playerId = playerId;
-    player.x = 1190;
-    player.y = 395;
-
-    return _players.emplace(playerId, std::move(player)).second;
-}
-
-void OverworldSimulation::RemovePlayer(std::uint32_t playerId)
-{
-    // 삭제할 id가 없으면 0 반환
-    _players.erase(playerId);
+    return _projectiles.emplace(projectile.GetId(), std::move(projectile)).second;
 }
 
 /// <summary>
@@ -273,7 +248,7 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
         return false;
     }
 
-    ServerPlayerState& player = found->second;
+    Player& player = found->second;
     if (player.lastInputSequence.has_value() && input.sequence <= *player.lastInputSequence)
     {
         // TCP는 순서를 보장해서, 더 오래된 입력 시퀀스가 들어오는 케이스는 보통 없음
@@ -295,7 +270,7 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
         << ", sequence=" << input.sequence
         << ", direction=" << (int)input.moveDirection
         << ", actions=" << (int)input.actionFlags
-        << ", position=" << player.x << ", " << player.y << ")\n";
+        << ", position=" << player.GetPosition().x << ", " << player.GetPosition().y << ")\n";
     return true;
 }
 
@@ -312,18 +287,16 @@ WorldSnapshot OverworldSimulation::BuildSnapshot(std::uint32_t id)
     }
 
     const auto& myPlayer = found->second;
-    const auto room = GetRoomAt(myPlayer.x, myPlayer.y);
+    const auto room = GetRoomAt(myPlayer.GetPosition().x, myPlayer.GetPosition().y);
     if (!room) return snapshot;
 
-    auto& players = snapshot.players;
-    auto& enemies = snapshot.enemies;
-    auto& projectiles = snapshot.projectiles;
+    auto& actors = snapshot.actors;
 
     for (const auto& [id, player] : _players)
     {
-        if (GetRoomAt(player.x, player.y) == room)
+        if (GetRoomAt(player.GetPosition().x, player.GetPosition().y) == room)
         {
-            players.push_back(ToSnapshot(player));
+            actors.push_back(player.GetInfo());
         }
     }
 
@@ -331,7 +304,7 @@ WorldSnapshot OverworldSimulation::BuildSnapshot(std::uint32_t id)
     {
         if (!enemy.IsDead() && enemy.GetHomeRoom() == *room)
         {
-            enemies.push_back(enemy.BuildSnapshot());
+            actors.push_back(enemy.GetInfo());
         }
     }
 
@@ -339,24 +312,12 @@ WorldSnapshot OverworldSimulation::BuildSnapshot(std::uint32_t id)
     {
         if (!projectile.IsExpired() && projectile.GetHomeRoom() == *room)
         {
-            projectiles.push_back(projectile.BuildSnapshot());
+            actors.push_back(projectile.GetInfo());
         }
     }
 
-    std::sort(players.begin(), players.end(), 
-        [](const SnapshotPlayerState& lhs, const SnapshotPlayerState& rhs)
-        {
-            return lhs.playerId < rhs.playerId;
-        });
-
-    std::sort(enemies.begin(), enemies.end(), 
-        [](const SnapshotEnemyState& lhs, const SnapshotEnemyState& rhs)
-        {
-            return lhs.id < rhs.id;
-        });
-
-    std::sort(projectiles.begin(), projectiles.end(), 
-        [](const SnapshotProjectileState& lhs, const SnapshotProjectileState& rhs)
+    std::sort(actors.begin(), actors.end(),
+        [](const ActorInfo& lhs, const ActorInfo& rhs)
         {
             return lhs.id < rhs.id;
         });
@@ -373,7 +334,7 @@ std::vector<EnemyPathDebug> OverworldSimulation::BuildEnemyPathDebug(std::uint32
     }
 
     const auto& player = found->second;
-    const auto room = GetRoomAt(player.x, player.y);
+    const auto room = GetRoomAt(player.GetPosition().x, player.GetPosition().y);
     if (!room) return {};
 
     std::vector<EnemyPathDebug> dbgPaths;
@@ -408,8 +369,8 @@ bool OverworldSimulation::IsPlayerInRoom(std::uint32_t playerId, ServerRoomCoord
     auto found = _players.find(playerId);
     if (found == _players.end()) return false;
 
-    const ServerPlayerState& player = found->second;
-    return GetRoomAt(player.x, player.y) == room;
+    const Player& player = found->second;
+    return GetRoomAt(player.GetPosition().x, player.GetPosition().y) == room;
 }
 
 void OverworldSimulation::Tick()
@@ -421,7 +382,7 @@ void OverworldSimulation::Tick()
     {
         const bool attackRequested = std::exchange(player.attackRequested, false);
 
-        if (player.dead)
+        if (player.IsDead())
         {
             continue;
         }
@@ -430,30 +391,29 @@ void OverworldSimulation::Tick()
         if (direction != MoveDirection::None)
         {
             // 입력이 있으면 막히더라도 방향은 바뀜
-            player.facing = direction;
+            player.SetDirection(direction);
 
             const Vector2Int delta = GetMoveDelta(direction);
             for (std::int32_t step = 0; step < PlayerMoveCellsPerTick; ++step)
             {
-                const std::int32_t candidateX = player.x + delta.x;
-                const std::int32_t candidateY = player.y + delta.y;
+                const std::int32_t candidateX = player.GetPosition().x + delta.x;
+                const std::int32_t candidateY = player.GetPosition().y + delta.y;
 
                 if (CanPlacePlayer(candidateX, candidateY))
                 {
-                    player.x = candidateX;
-                    player.y = candidateY;
+                    player.SetPosition(candidateX, candidateY);
                 }
             }
         }
         else if (attackRequested)   // 이동 중이 아니면서 공격 요청이 들어왔다면
         {
             // 공격 성공 유무와 관계없이, 이벤트는 무조건 발동
-            auto room = GetRoomAt(player.x, player.y);
+            auto room = GetRoomAt(player.GetPosition().x, player.GetPosition().y);
             if (!room) continue;
 
             PendingCombatEvent event
             {
-                .event = CombatEvent{CombatEventType::PlayerSwordAttack, player.playerId, player.facing},
+                .event = CombatEvent{CombatEventType::PlayerSwordAttack, player.GetId(), player.GetDirection()},
                 .room = *room
             };
 
@@ -467,9 +427,9 @@ void OverworldSimulation::Tick()
     std::array<bool, OverworldRoomColumns * OverworldRoomRows> activeRooms{};
     for (const auto& [id, player] : _players)
     {
-        if (player.dead) continue;
+        if (player.IsDead()) continue;
 
-        if (const auto room = GetRoomAt(player.x, player.y))
+        if (const auto room = GetRoomAt(player.GetPosition().x, player.GetPosition().y))
         {
             ServerRoomCoordinate r = *room;
             activeRooms[r.y * OverworldRoomColumns + r.x] = true;
@@ -596,11 +556,11 @@ void OverworldSimulation::TickEnemy(Enemy& enemy)
 {
     enemy.TickAttackCooldown(); // 공격 쿨타임 계산은 원래 tick대로 계산
 
-    const bool movable = (enemy.GetKind() == EnemyKind::Moblin) && (_tick + enemy.GetId()) % 4 == 0;  // 4틱 경과?
-    const bool attackable = (enemy.GetKind() == EnemyKind::Moblin) && enemy.IsAttackReady();
+    const bool movable = (enemy.GetKind() == ActorKind::Enemy_Moblin) && (_tick + enemy.GetId()) % 4 == 0;  // 4틱 경과?
+    const bool attackable = (enemy.GetKind() == ActorKind::Enemy_Moblin) && enemy.IsAttackReady();
 
     // 가장 가까운 플레이어 위치 찾기
-    ServerPlayerState closestPlayer;
+    const Player* closestPlayer = nullptr;
     if (!FindClosestPlayer(enemy.GetHomeRoom(), enemy.GetPosition(), closestPlayer))
     {
         // 빈 경로
@@ -613,7 +573,7 @@ void OverworldSimulation::TickEnemy(Enemy& enemy)
 
     if (attackable)
     {
-        SpawnProjectile(enemy, closestPlayer);
+        SpawnProjectile(enemy, *closestPlayer);
         enemy.ResetAttackCooldown();
     }
 
@@ -623,7 +583,7 @@ void OverworldSimulation::TickEnemy(Enemy& enemy)
     Vector2Int current = enemy.GetPosition();
     
     const TileCoordinate start = ToLocalTile(homeRoom, current);
-    const TileCoordinate goal = ToLocalTile(homeRoom, Vector2Int(closestPlayer.x, closestPlayer.y));
+    const TileCoordinate goal = ToLocalTile(homeRoom, Vector2Int(closestPlayer->GetPosition().x, closestPlayer->GetPosition().y));
 
     auto path = _pathfinder.FindPath(BuildNavigationGrid(homeRoom), start, goal);
     RecordEnemyChasePath(enemy, path);
@@ -647,21 +607,21 @@ void OverworldSimulation::TickEnemy(Enemy& enemy)
     enemy.MoveTo(candidate, direction);
 }
 
-bool OverworldSimulation::FindClosestPlayer(ServerRoomCoordinate homeRoom, Vector2Int position, ServerPlayerState& closestPlayer)
+bool OverworldSimulation::FindClosestPlayer(ServerRoomCoordinate homeRoom, Vector2Int position, const Player*& closestPlayer)
 {
     std::int32_t minDistance = INT32_MAX;
     for (const auto& [id, player] : _players)
     {
-        if (player.dead) continue;
-        auto room = GetRoomAt(player.x, player.y);
+        if (player.IsDead()) continue;
+        auto room = GetRoomAt(player.GetPosition().x, player.GetPosition().y);
         if (!room || room != homeRoom) continue;
 
-        Vector2Int direction = Vector2Int(player.x, player.y) - position;
+        Vector2Int direction = Vector2Int(player.GetPosition().x, player.GetPosition().y) - position;
         std::int32_t distance = direction.LengthSquared();
         if (distance < minDistance)
         {
             minDistance = distance;
-            closestPlayer = player;
+            closestPlayer = &player;
         }
     }
 
@@ -690,7 +650,7 @@ bool OverworldSimulation::TickProjectile(Projectile& projectile)
         return false;
     }
 
-    projectile.MoveTo(candidate);
+    projectile.SetPosition(candidate.x, candidate.y);
     projectile.ElapseTick();
 
     return !projectile.IsExpired();
@@ -708,16 +668,18 @@ bool OverworldSimulation::TryHitPlayer(const Projectile& projectile, Vector2Int 
 
     for (auto& [id, player] : _players)
     {
-        if (player.dead) continue;
+        if (player.IsDead()) continue;
 
-        auto room = GetRoomAt(player.x, player.y);
+        const Vector2Int playerPos = player.GetPosition();
+
+        auto room = GetRoomAt(playerPos.x, playerPos.y);
         if (!room || *room != projectile.GetHomeRoom())
         {
             continue;
         }
 
-        const std::int32_t playerLeft = player.x;
-        const std::int32_t playerTop = player.y;
+        const std::int32_t playerLeft = playerPos.x;
+        const std::int32_t playerTop = playerPos.y;
         const std::int32_t playerRight = playerLeft + PlayerBoxWidth;
         const std::int32_t playerBottom = playerTop + PlayerBoxHeight;
 
@@ -727,20 +689,14 @@ bool OverworldSimulation::TryHitPlayer(const Projectile& projectile, Vector2Int 
 
         if (!overlaps) continue;
 
-        player.hp = std::max<std::int32_t>(0, player.hp - damage);
-        if (player.hp == 0)
-        {
-            player.dead = true;
-            player.latestInput.moveDirection = MoveDirection::None;
-        }
-
+        player.TakeDamage(damage);
         return true;
     }
 
     return false;
 }
 
-bool OverworldSimulation::TryHitEnemy(ServerPlayerState& player)
+bool OverworldSimulation::TryHitEnemy(Player& player)
 {
     constexpr std::int32_t HorizontalSwordWidth = 10;
     constexpr std::int32_t HorizontalSwordHeight = 3;
@@ -757,36 +713,38 @@ bool OverworldSimulation::TryHitEnemy(ServerPlayerState& player)
     std::int32_t width = 0;
     std::int32_t height = 0;
 
-    switch (player.facing)
+    Vector2Int playerPos = player.GetPosition();
+
+    switch (player.GetDirection())
     {
     case MoveDirection::Right:
     {
-        left = player.x + PlayerBoxWidth;
-        top = player.y + 1;
+        left = playerPos.x + PlayerBoxWidth;
+        top = playerPos.y + 1;
         width = HorizontalSwordWidth;
         height = HorizontalSwordHeight;
         break;
     }
     case MoveDirection::Left:
     {
-        left = player.x - HorizontalSwordWidth;
-        top = player.y + 1;
+        left = playerPos.x - HorizontalSwordWidth;
+        top = playerPos.y + 1;
         width = HorizontalSwordWidth;
         height = HorizontalSwordHeight;
         break;
     }
     case MoveDirection::Up:
     {
-        left = player.x + 1;
-        top = player.y - VerticalSwordHeight;
+        left = playerPos.x + 1;
+        top = playerPos.y - VerticalSwordHeight;
         width = VerticalSwordWidth;
         height = VerticalSwordHeight;
         break;
     }
     case MoveDirection::Down:
     {
-        left = player.x + 1;
-        top = player.y + PlayerBoxHeight;
+        left = playerPos.x + 1;
+        top = playerPos.y + PlayerBoxHeight;
         width = VerticalSwordWidth;
         height = VerticalSwordHeight;
         break;
@@ -794,7 +752,7 @@ bool OverworldSimulation::TryHitEnemy(ServerPlayerState& player)
     default: return false;
     }
 
-    const auto room = GetRoomAt(player.x, player.y);
+    const auto room = GetRoomAt(playerPos.x, playerPos.y);
     if (!room) return false;
 
     Enemy* target = nullptr;
@@ -838,13 +796,15 @@ bool OverworldSimulation::TryRespawnEnemy(Enemy& enemy)
     const Vector2Int spawnPosition = enemy.GetSpawnPosition();
     for (const auto& [id, player] : _players)
     {
-        if (player.dead) continue;
+        if (player.IsDead()) continue;
+
+        const Vector2Int playerPos = player.GetPosition();
 
         const bool overlaps =
-            spawnPosition.x < player.x + PlayerBoxWidth &&
-            spawnPosition.y < player.y + PlayerBoxHeight &&
-            player.x < spawnPosition.x + Enemy::BoxWidth &&
-            player.y < spawnPosition.y + Enemy::BoxHeight;
+            spawnPosition.x < playerPos.x + PlayerBoxWidth &&
+            spawnPosition.y < playerPos.y + PlayerBoxHeight &&
+            playerPos.x < spawnPosition.x + Enemy::BoxWidth &&
+            playerPos.y < spawnPosition.y + Enemy::BoxHeight;
 
         if (overlaps) return false;
     }

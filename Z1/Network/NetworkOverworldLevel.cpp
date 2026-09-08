@@ -152,8 +152,7 @@ void NetworkOverworldLevel::Draw()
     else
     {
         netText = "[ONLINE] Player " + std::to_string(*localPlayerId)
-            + " Tick " + std::to_string(snapshot->serverTick)
-            + " Num " + std::to_string(snapshot->players.size());
+            + " Tick " + std::to_string(snapshot->serverTick);
     }
 
     renderer.Submit(Sprite::Create(netText), NetHUDPos);
@@ -175,41 +174,87 @@ void NetworkOverworldLevel::UpdateSnapshot(Game& game)
         return;
     }
 
-    // 1. 서버로부터 받은 플레이어 정보 기반 생성 및 갱신
-    std::unordered_set<std::uint32_t> recvdPlayers;
-    for (const SnapshotPlayerState& state : snapshot->players)
+    // 1. 서버로부터 받은 플레이어/적/투사체 정보 기반 생성 및 갱신
+    std::unordered_set<std::uint32_t> players, enemies, projectiles;
+    for (const ActorInfo& actor : snapshot->actors)
     {
-        if (state.playerId == *localPlayerId)
+        switch (actor.kind)
         {
-            if (!_myPlayer)
+        case ActorKind::Player:
+        {
+            if (actor.id == *localPlayerId)
             {
-                _myPlayer = SpawnActor<MyPlayer>(Vector2(state.x, state.y), state.playerId);
-            }
+                if (!_myPlayer)
+                {
+                    _myPlayer = SpawnActor<MyPlayer>(Vector2(actor.x, actor.y), actor.id);
+                }
 
-            _myPlayer->ApplySnapshot(state);
-            TryChangeRoom(state);    // MyPlayer 한정으로 Room 변경
+                _myPlayer->ApplySnapshot(actor);
+                TryChangeRoom(actor);    // MyPlayer 한정으로 Room 변경
+            }
+            else
+            {
+                // 원격 플레이어는 생성 or 갱신
+                players.emplace(actor.id);
+                auto found = _networkPlayers.find(actor.id);
+                if (found != _networkPlayers.end())
+                {
+                    found->second->ApplySnapshot(actor);
+                    continue;
+                }
+
+                auto remotePlayer = SpawnActor<NetworkPlayer>(Vector2(actor.x, actor.y), actor.id);
+                remotePlayer->ApplySnapshot(actor);
+                _networkPlayers.emplace(actor.id, std::move(remotePlayer));
+            }
+            break;
         }
-        else
+        case ActorKind::Enemy_Octorok:
+        case ActorKind::Enemy_Moblin:
+        case ActorKind::Enemy_Tektite:
         {
             // 원격 플레이어는 생성 or 갱신
-            recvdPlayers.emplace(state.playerId);
-
-            if (_networkPlayers.contains(state.playerId))
+            enemies.emplace(actor.id);
+            auto found = _networkEnemies.find(actor.id);
+            if (found != _networkEnemies.end())
             {
-                _networkPlayers[state.playerId]->ApplySnapshot(state);
+                found->second->ApplySnapshot(actor);
                 continue;
             }
 
-            auto remotePlayer = SpawnActor<NetworkPlayer>(Vector2(state.x, state.y), state.playerId);
-            remotePlayer->ApplySnapshot(state);
-            _networkPlayers.emplace(state.playerId, std::move(remotePlayer));
+            auto remoteEnemy = SpawnActor<NetworkEnemy>(Vector2(actor.x, actor.y), actor.id, actor.kind);
+            remoteEnemy->ApplySnapshot(actor);
+            _networkEnemies.emplace(actor.id, std::move(remoteEnemy));
+            break;
+        }
+        case ActorKind::Projectile_Spear:
+        {
+            // 원격 플레이어는 생성 or 갱신
+            projectiles.emplace(actor.id);
+            auto found = _networkProjectiles.find(actor.id);
+            if (found != _networkProjectiles.end())
+            {
+                found->second->ApplySnapshot(actor);
+                continue;
+            }
+
+            // 최초 생성 시 Sound도 재생하도록 변경
+            auto remoteProjectile = SpawnActor<NetworkProjectile>(Vector2(actor.x, actor.y), actor.id, actor.kind, actor.direction);
+            remoteProjectile->ApplySnapshot(actor);
+            
+            // Room 넘어갈 때, 다른 요인에 의해 이미 생성된 projectile도 여기에 진입할 수 있음
+            // 이 경우 최초 snapshot 또는 room 전환 snapshot으로 엄밀히 비교해야 함
+            _networkProjectiles.emplace(actor.id, std::move(remoteProjectile));
+            break;
+        }
+        default: return;
         }
     }
 
     // 2. 새로 받은 플레이어가 기존 플레이어 명단에 없다면 제거
     for (auto it = _networkPlayers.begin(); it != _networkPlayers.end();)
     {
-        if (!recvdPlayers.contains(it->first))
+        if (!players.contains(it->first))
         {
             it->second->Destroy();
             it = _networkPlayers.erase(it);
@@ -220,28 +265,10 @@ void NetworkOverworldLevel::UpdateSnapshot(Game& game)
         }
     }
 
-    // 3. 서버로부터 받은 적 정보 기반 생성 및 갱신
-    std::unordered_set<std::uint32_t> recvdEnemies;
-    for (const SnapshotEnemyState& state : snapshot->enemies)
-    {
-        // 원격 플레이어는 생성 or 갱신
-        recvdEnemies.emplace(state.id);
-
-        if (_networkEnemies.contains(state.id))
-        {
-            _networkEnemies[state.id]->ApplySnapshot(state);
-            continue;
-        }
-
-        auto remoteEnemy = SpawnActor<NetworkEnemy>(Vector2(state.x, state.y), state.id, state.kind);
-        remoteEnemy->ApplySnapshot(state);
-        _networkEnemies.emplace(state.id, std::move(remoteEnemy));
-    }
-
-    // 4. 새로 받은 적이 기존 적 명단에 없다면 제거
+    // 3. 새로 받은 적이 기존 적 명단에 없다면 제거
     for (auto it = _networkEnemies.begin(); it != _networkEnemies.end();)
     {
-        if (!recvdEnemies.contains(it->first))
+        if (!enemies.contains(it->first))
         {
             it->second->Destroy();
             it = _networkEnemies.erase(it);
@@ -252,31 +279,10 @@ void NetworkOverworldLevel::UpdateSnapshot(Game& game)
         }
     }
 
-    // 5. 서버로부터 받은 투사체 정보 기반 생성 및 갱신
-    std::unordered_set<std::uint32_t> recvdProjectiles;
-    for (const SnapshotProjectileState& state : snapshot->projectiles)
-    {
-        // 원격 플레이어는 생성 or 갱신
-        recvdProjectiles.emplace(state.id);
-        if (_networkProjectiles.contains(state.id))
-        {
-            _networkProjectiles[state.id]->ApplySnapshot(state);
-            continue;
-        }
-
-        // 최초 생성 시 Sound도 재생하도록 변경
-        auto remoteProjectile = SpawnActor<NetworkProjectile>(Vector2(state.x, state.y), state.id, state.kind, state.direction);
-        remoteProjectile->ApplySnapshot(state);
-        _networkProjectiles.emplace(state.id, std::move(remoteProjectile));
-
-        // Room 넘어갈 때, 다른 요인에 의해 이미 생성된 projectile도 여기에 진입할 수 있음
-        // 이 경우 최초 snapshot 또는 room 전환 snapshot으로 엄밀히 비교해야 함
-    }
-
-    // 6. 새로 받은 투사체가 기존 투사체 명단에 없다면 제거
+    // 4. 새로 받은 투사체가 기존 투사체 명단에 없다면 제거
     for (auto it = _networkProjectiles.begin(); it != _networkProjectiles.end();)
     {
-        if (!recvdProjectiles.contains(it->first))
+        if (!projectiles.contains(it->first))
         {
             it->second->Destroy();
             it = _networkProjectiles.erase(it);
@@ -368,9 +374,9 @@ bool NetworkOverworldLevel::LoadMap()
     return true;
 }
 
-void NetworkOverworldLevel::TryChangeRoom(const SnapshotPlayerState& state)
+void NetworkOverworldLevel::TryChangeRoom(const ActorInfo& playerInfo)
 {
-    const RoomCoordinate nextRoom = GetRoomCoordinate(Vector2(state.x, state.y));
+    const RoomCoordinate nextRoom = GetRoomCoordinate(Vector2(playerInfo.x, playerInfo.y));
     if (nextRoom == _currentRoom) return;
 
     _currentRoom = nextRoom;

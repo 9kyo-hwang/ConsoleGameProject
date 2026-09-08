@@ -35,7 +35,7 @@ public:
 
 private:
     bool LoadMap();
-    void TryChangeRoom(const Z1::Protocol::SnapshotPlayerState& state);
+    void TryChangeRoom(const Z1::Protocol::ActorInfo& playerInfo);
     void BuildRoomSprite();
     void DrawLatestEnemyPathDebug(Game& game, Craft::Renderer& renderer, const Craft::Vector2 roomCellOrigin);
 

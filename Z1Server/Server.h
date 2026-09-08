@@ -63,6 +63,5 @@ private:
     std::vector<std::unique_ptr<Session>> _sessions;    // only IOLoop
 
 private:    // IO Thread만 접근한다는 전제
-    std::uint32_t _playerId = 1;
     OverworldSimulation _overworld;
 };

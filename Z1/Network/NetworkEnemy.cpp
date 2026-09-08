@@ -6,7 +6,7 @@
 using namespace Craft;
 using namespace Z1::Protocol;
 
-NetworkEnemy::NetworkEnemy(Vector2 position, std::uint32_t id, EnemyKind kind)
+NetworkEnemy::NetworkEnemy(Vector2 position, std::uint32_t id, ActorKind kind)
     : Super(position)
     , _id(id)
     , _kind(kind)
@@ -14,19 +14,19 @@ NetworkEnemy::NetworkEnemy(Vector2 position, std::uint32_t id, EnemyKind kind)
     _renderer = AddComponent<SpriteRendererComponent>(CreateSprite(), 10);
 }
 
-void NetworkEnemy::ApplySnapshot(const Z1::Protocol::SnapshotEnemyState& state)
+void NetworkEnemy::ApplySnapshot(const Z1::Protocol::ActorInfo& info)
 {
     // 같은 ID에 다른 kind?
 
-    assert(_id == state.id);
-    assert(_kind == state.kind);
+    assert(_id == info.id);
+    assert(_kind == info.kind);
 
-    if (_id != state.id || _kind != state.kind) return;
+    if (_id != info.id || _kind != info.kind) return;
 
-    SetPosition(Vector2(state.x, state.y));
-    _facing = state.facing;
-    _hp = state.hp;
-    _flags = state.flags;
+    SetPosition(Vector2(info.x, info.y));
+    _direction = info.direction;
+    _hp = info.hp;
+    _flags = info.flags;
 }
 
 std::shared_ptr<const Craft::Sprite> NetworkEnemy::CreateSprite()
@@ -46,9 +46,9 @@ std::shared_ptr<const Craft::Sprite> NetworkEnemy::CreateSprite()
     Color bodyColor = Color::Black;
     switch (_kind)
     {
-    case EnemyKind::Octorok: bodyColor = Color::DarkRed; break;
-    case EnemyKind::Moblin:  bodyColor = Color::DarkBlue; break;
-    case EnemyKind::Tektite: bodyColor = Color::DarkViolet; break;
+    case ActorKind::Enemy_Octorok: bodyColor = Color::DarkRed; break;
+    case ActorKind::Enemy_Moblin:  bodyColor = Color::DarkBlue; break;
+    case ActorKind::Enemy_Tektite: bodyColor = Color::DarkViolet; break;
     }
 
     for (const std::string& row : art)
