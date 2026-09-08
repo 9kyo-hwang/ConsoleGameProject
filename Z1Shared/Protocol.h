@@ -16,7 +16,7 @@ namespace Z1::Protocol
         S2C_EnemyPathDebug = 105    // [tick:u32][id:u32][roomX:32][roomY:32][count:u8][indices:u8 x count]
     };
 
-    inline constexpr std::uint16_t ProtocolVersion = 4;
+    inline constexpr std::uint16_t ProtocolVersion = 5;
     inline constexpr std::uint16_t MaxPacketSize = 4096;
 
     struct PacketHeader

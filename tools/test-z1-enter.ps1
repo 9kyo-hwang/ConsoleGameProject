@@ -15,7 +15,7 @@ param(
     [ValidateSet(-1, 0, 3, 4097)]
     [int]$InvalidPacketSize = -1,
     [ValidateRange(0, 65535)]
-    [int]$ProtocolVersion = 4,
+    [int]$ProtocolVersion = 5,
     [switch]$SendInput,
     [switch]$SendAttack,
     [ValidateSet("None", "Up", "Down", "Left", "Right")]
@@ -207,144 +207,83 @@ function Show-WorldSnapshot
     [byte[]]$payload = $Packet.Payload
     $offset = 0
 
-    if ($payload.Length -lt 10)
+    if ($payload.Length -lt 8)
     {
         throw "WorldSnapshot payload is too small: $($payload.Length) bytes."
     }
 
     [uint32]$serverTick = Read-U32BigEndian $payload $offset
     $offset += 4
-    $playerCount = Read-U16BigEndian $payload $offset
-    $offset += 2
+    [uint32]$actorCount = Read-U32BigEndian $payload $offset
+    $offset += 4
 
-    Write-Output "Snapshot: tick=$serverTick, players=$playerCount"
-
-    for ($index = 0; $index -lt $playerCount; ++$index)
+    [int]$actorInfoSize = 15
+    [int]$remaining = $payload.Length - $offset
+    if ($actorCount -gt [math]::Floor($remaining / $actorInfoSize))
     {
-        if ($payload.Length - $offset -lt 18)
-        {
-            throw "WorldSnapshot player[$index] is truncated."
-        }
-
-        [uint32]$playerId = Read-U32BigEndian $payload $offset
-        $offset += 4
-        $x = Read-I32BigEndian $payload $offset
-        $offset += 4
-        $y = Read-I32BigEndian $payload $offset
-        $offset += 4
-        $facing = $payload[$offset]
-        ++$offset
-        $hp = Read-I32BigEndian $payload $offset
-        $offset += 4
-        $flags = $payload[$offset]
-        ++$offset
-
-        if ($x -ne 1190 -or $y -ne 395)
-        {
-            $script:SawPlayerMovement = $true
-        }
-
-        Write-Output ("  Player: id={0}, position=({1}, {2}), facing={3}, hp={4}, flags={5}" -f $playerId, $x, $y, $facing, $hp, $flags)
+        throw "WorldSnapshot actor array is truncated."
     }
 
-    if ($payload.Length - $offset -lt 4)
+    Write-Output "Snapshot: tick=$serverTick, actors=$actorCount"
+
+    for ($index = 0; $index -lt $actorCount; ++$index)
     {
-        throw "WorldSnapshot enemy/projectile count is truncated."
-    }
-
-    $enemyCount = Read-U16BigEndian $payload $offset
-    $offset += 2
-
-    # enemy 정보
-    for ($index = 0; $index -lt $enemyCount; ++$index)
-    {
-        if ($payload.Length - $offset -lt 19)
-        {
-            throw "WorldSnapshot enemy[$index] is truncated."
-        }
-
-        [uint32]$enemyId = Read-U32BigEndian $payload $offset
+        [uint32]$actorId = Read-U32BigEndian $payload $offset
         $offset += 4
-        $kind = $payload[$offset]
+        [int]$hp = Read-I32BigEndian $payload $offset
+        $offset += 4
+        [uint16]$x = Read-U16BigEndian $payload $offset
+        $offset += 2
+        [uint16]$y = Read-U16BigEndian $payload $offset
+        $offset += 2
+        [int]$kind = $payload[$offset]
         ++$offset
-        $x = Read-I32BigEndian $payload $offset
-        $offset += 4
-        $y = Read-I32BigEndian $payload $offset
-        $offset += 4
-        $facing = $payload[$offset]
+        [int]$direction = $payload[$offset]
         ++$offset
-        $hp = Read-I32BigEndian $payload $offset
-        $offset += 4
-        $flags = $payload[$offset]
+        [int]$flags = $payload[$offset]
         ++$offset
 
-        if($enemyId -eq 0)
+        if ($actorId -eq 0)
         {
-            throw "WorldSnapshot enemy[$index] has invalid id=0."
+            throw "WorldSnapshot actor[$index] has invalid id=0."
         }
 
-        if($kind -lt 0 -or $kind -gt 2)
+        switch ($kind)
         {
-            throw "WorldSnapshot enemy[$index] has invalid kind=$kind"
+            1
+            {
+                $kindName = "Player"
+                if (($direction -lt 0) -or ($direction -gt 4) -or (($flags -band 0xFC) -ne 0))
+                {
+                    throw "WorldSnapshot player actor[$index] is invalid."
+                }
+
+                if ($x -ne 1190 -or $y -ne 395)
+                {
+                    $script:SawPlayerMovement = $true
+                }
+            }
+            2 { $kindName = "Enemy_Octorok" }
+            3 { $kindName = "Enemy_Moblin" }
+            4 { $kindName = "Enemy_Tektite" }
+            5
+            {
+                $kindName = "Projectile_Spear"
+                if ($direction -lt 1 -or $direction -gt 4)
+                {
+                    throw "WorldSnapshot projectile actor[$index] has invalid direction=$direction."
+                }
+            }
+            default { throw "WorldSnapshot actor[$index] has unknown kind=$kind." }
         }
 
-        if($facing -lt 0 -or $facing -gt 4)
+        if (($kind -ge 2) -and ($kind -le 4) -and
+            (($direction -lt 0) -or ($direction -gt 4) -or (($flags -band 0xFE) -ne 0)))
         {
-            throw "WorldSnapshot enemy[$index] has invalid facing=$facing"
+            throw "WorldSnapshot enemy actor[$index] is invalid."
         }
 
-        # Attacking(0x01)만 허용 -> 1111 1110 검사했을 때 다른 비트 있으면 invlaid
-        if(($flags -band 0xFE) -ne 0)
-        {
-            throw "WorldSnapshot enemy[$index] has invalid flags=$flags"
-        }
-
-        Write-Output ("  Enemy: id={0}, type={1}, position=({2}, {3}), facing={4}, hp={5}, flags={6}" -f $enemyId, $kind, $x, $y, $facing, $hp, $flags)
-    }
-
-    if($payload.Length - $offset -lt 2)
-    {
-        throw "WorldSnapshot projectile count is truncated."
-    }
-
-    $projectileCount = Read-U16BigEndian $payload $offset
-    $offset += 2
-
-    # projectile 정보
-    for ($index = 0; $index -lt $projectileCount; ++$index)
-    {
-        if ($payload.Length - $offset -lt 14)
-        {
-            throw "WorldSnapshot projectile[$index] is truncated."
-        }
-
-        [uint32]$projectileId = Read-U32BigEndian $payload $offset
-        $offset += 4
-        $kind = $payload[$offset]
-        ++$offset
-        $x = Read-I32BigEndian $payload $offset
-        $offset += 4
-        $y = Read-I32BigEndian $payload $offset
-        $offset += 4
-        $direction = $payload[$offset]
-        ++$offset
-
-        if($projectileId -eq 0)
-        {
-            throw "WorldSnapshot projectile[$index] has invalid id=0."
-        }
-
-        if($kind -ne 0)
-        {
-            throw "WorldSnapshot projectile[$index] has invalid kind=$kind"
-        }
-
-        if($direction -lt 1 -or $direction -gt 4)
-        {
-            throw "WorldSnapshot projectile[$index] has invalid direction=$direction"
-        }
-
-        Write-Output ("  Projectile: id={0}, type={1}, position=({2}, {3}), direction={4}" -f $projectileId, $kind, $x, $y, $direction)
+        Write-Output ("  Actor: id={0}, kind={1}({2}), position=({3}, {4}), direction={5}, hp={6}, flags={7}" -f $actorId, $kind, $kindName, $x, $y, $direction, $hp, $flags)
     }
 
     if ($offset -ne $payload.Length)
@@ -352,7 +291,6 @@ function Show-WorldSnapshot
         throw "WorldSnapshot has unexpected trailing bytes: $($payload.Length - $offset)."
     }
 
-    Write-Output "  Enemies=$enemyCount, Projectiles=$projectileCount"
 }
 
 function Assert-CombatEvent
@@ -461,7 +399,7 @@ function Show-EnemyPathDebug
 if ($RunServerFramingSuite)
 {
     if ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or
-        $ExpectMovement -or $ExpectEnemyPathDebug -or $InvalidPacketSize -ne -1 -or $ProtocolVersion -ne 4 -or
+        $ExpectMovement -or $ExpectEnemyPathDebug -or $InvalidPacketSize -ne -1 -or $ProtocolVersion -ne 5 -or
         $SendInput -or $SendAttack -or $InputDirection -ne 'Up' -or
         $HoldMilliseconds -ne 300 -or $ReadSnapshots -ne 0)
     {
@@ -532,12 +470,12 @@ if ($ExpectEnemyPathDebug -and
 
 if ($InvalidPacketSize -ne -1 -and
     ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or
-     $SendAttack -or $ExpectEnemyPathDebug -or $ProtocolVersion -ne 4 -or $ReadSnapshots -ne 0))
+      $SendAttack -or $ExpectEnemyPathDebug -or $ProtocolVersion -ne 5 -or $ReadSnapshots -ne 0))
 {
     throw "-InvalidPacketSize must be used by itself."
 }
 
-if ($ProtocolVersion -ne 4 -and
+if ($ProtocolVersion -ne 5 -and
     ($SplitSend -or $SplitAt -ne 0 -or $CoalescedEnterInput -or $SendInput -or
      $SendAttack -or $ExpectEnemyPathDebug -or $ReadSnapshots -ne 0))
 {
@@ -597,7 +535,7 @@ try
         $stream.Write($enterPacket, 0, $enterPacket.Length)
     }
 
-    if ($ProtocolVersion -ne 4)
+    if ($ProtocolVersion -ne 5)
     {
         Assert-ServerClosedConnection $stream "protocol version $ProtocolVersion"
         return
@@ -622,9 +560,9 @@ try
     $version = Read-U16BigEndian $payload 0
     [uint32]$playerId = Read-U32BigEndian $payload 2
 
-    if ($version -ne 4)
+    if ($version -ne 5)
     {
-        throw "Unexpected protocol version: $version (expected 4)."
+        throw "Unexpected protocol version: $version (expected 5)."
     }
 
     $hex = (@($header) + @($payload) | ForEach-Object { $_.ToString("X2") }) -join " "
