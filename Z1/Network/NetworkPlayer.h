@@ -17,12 +17,12 @@ class NetworkPlayer : public Craft::Actor
     TYPE_DECLARATIONS(NetworkPlayer, Craft::Actor)
 
 public:
-    NetworkPlayer(Craft::Vector2 position, std::uint32_t playerId);
+    NetworkPlayer(Craft::Vector2 position, std::uint32_t id);
     
-    void ApplySnapshot(const Z1::Protocol::SnapshotPlayerState& state);
+    void ApplySnapshot(const Z1::Protocol::ActorInfo& state);
 
-    inline std::uint32_t GetPlayerId() const noexcept { return _playerId; }
-    inline Z1::Protocol::MoveDirection GetFacing() const noexcept { return _facing; }
+    inline std::uint32_t GetPlayerId() const noexcept { return _id; }
+    inline Z1::Protocol::MoveDirection GetFacing() const noexcept { return _direction; }
     std::int32_t GetHp() const noexcept { return _hp; }
     inline bool IsDead() const noexcept { return (_flags & Z1::Protocol::PlayerStateDead) != 0; }
     inline bool IsAttacking() const noexcept { return (_flags & Z1::Protocol::PlayerStateAttacking) != 0; }
@@ -34,8 +34,8 @@ private:
     std::shared_ptr<Craft::SpriteRendererComponent> _renderer;
 
     bool _hasSnapshot = false;  // 최초 1회 Snapshot을 받은 뒤론 true
-    std::uint32_t _playerId = 0;    // Snapshot마다 바뀌지 않음(생성할 때 ID와 Snapshot이 일치해야 함)
-    Z1::Protocol::MoveDirection _facing = Z1::Protocol::MoveDirection::Up;
+    std::uint32_t _id = 0;    // Snapshot마다 바뀌지 않음(생성할 때 ID와 Snapshot이 일치해야 함)
+    Z1::Protocol::MoveDirection _direction = Z1::Protocol::MoveDirection::Up;
     std::int32_t _hp = 0;
     std::uint8_t _flags = 0;
 };

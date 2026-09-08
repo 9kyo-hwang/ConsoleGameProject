@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <Actor/Player.h>
 #include <Actor/Enemy.h>
 #include <Actor/Projectile.h>
 #include <array>
@@ -25,32 +26,14 @@ class OverworldSimulation
     using FilePath = std::filesystem::path;
 
 public:
-    struct ServerPlayerState
-    {
-        std::uint32_t playerId = 0;
-
-        // Server 시뮬에 사용되는 다른 좌표(단위는 동일)
-        std::int32_t x = 0;
-        std::int32_t y = 0;
-
-        Z1::Protocol::MoveDirection facing = Z1::Protocol::MoveDirection::Up;
-
-        std::int32_t hp = 20;
-        bool dead = false;
-
-        Z1::Protocol::InputCommand latestInput{};
-        std::optional<std::uint32_t> lastInputSequence;
-        bool attackRequested = false;   // 다음 입력이 올 때까지 flag가 유지되어, '1회'만 발동하도록 플래그
-    };
-
-public:
-    // 기존 Z1의 OverworldMap - BlockingMap 파싱 파트만 차용
     bool LoadBlockingMap(const FilePath& path, std::string& error);
-    bool SpawnEnemies(std::uint32_t seed); // Map 로드 시 적 배치
-    bool SpawnProjectile(Enemy& enemy, const ServerPlayerState& target);    // 일단 moblin만
 
-    bool AddPlayer(std::uint32_t playerId);
-    void RemovePlayer(std::uint32_t playerId);
+    // 기존 Z1의 OverworldMap - BlockingMap 파싱 파트만 차용
+    std::optional<std::uint32_t> SpawnPlayer();
+    void DespawnPlayer(std::uint32_t playerId);
+    
+    bool SpawnEnemies(std::uint32_t seed); // Map 로드 시 적 배치
+    bool SpawnProjectile(Enemy& enemy, const Player& target);    // 일단 moblin만
 
     // false: 플레이어 없음 / true: 입력 갱신(오래된 입력 무시)
     bool SetInput(std::uint32_t playerId, const Z1::Protocol::InputCommand& input);
@@ -68,7 +51,6 @@ public:
     bool IsPlayerInRoom(std::uint32_t playerId, ServerRoomCoordinate room);
 
     void Tick();
-    inline std::uint32_t GetTick() const noexcept { return _tick; }
 
 private:
     // 클라의 CanPlaceBox류 충돌맵 검사에 대응
@@ -82,11 +64,11 @@ private:
     std::optional<ServerRoomCoordinate> GetRoomAt(std::int32_t x, std::int32_t y) const;
 
     void TickEnemy(Enemy& enemy);
-    bool FindClosestPlayer(ServerRoomCoordinate homeRoom, Vector2Int position, ServerPlayerState& closestPlayer);
-
+    bool FindClosestPlayer(ServerRoomCoordinate homeRoom, Vector2Int position, const Player*& closestPlayer);
     bool TickProjectile(Projectile& projectile);
+
     bool TryHitPlayer(const Projectile& projectile, Vector2Int candidate);
-    bool TryHitEnemy(ServerPlayerState& player);    // 플레이어 근접 검 공격
+    bool TryHitEnemy(Player& player);    // 플레이어 근접 검 공격
     bool TryRespawnEnemy(Enemy& enemy);
 
     void RecordEnemyChasePath(const Enemy& enemy, const std::vector<TileCoordinate>& path);
@@ -97,11 +79,9 @@ private:
 
 private:
     // id - state
-    std::unordered_map<std::uint32_t, ServerPlayerState> _players;
+    std::unordered_map<std::uint32_t, Player> _players;
     std::unordered_map<std::uint32_t, Enemy> _enemies;
     std::unordered_map<std::uint32_t, Projectile> _projectiles;
-    std::uint32_t _enemyId = 1;
-    std::uint32_t _projectileId = 1;
 
     std::vector<std::uint8_t> _blockedTiles;
     bool _hasBlockingMap = false;
@@ -110,4 +90,3 @@ private:
     std::vector<PendingCombatEvent> _pendingCombatEvents;
     std::unordered_map<std::uint32_t, Z1::Protocol::EnemyPathDebug> _dbgPaths;
 };
-

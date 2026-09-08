@@ -7,9 +7,9 @@
 using namespace Craft;
 using namespace Z1::Protocol;
 
-NetworkPlayer::NetworkPlayer(Vector2 position, std::uint32_t playerId)
+NetworkPlayer::NetworkPlayer(Vector2 position, std::uint32_t id)
     : Super(position)
-    , _playerId(playerId)
+    , _id(id)
 {
     _renderer = AddComponent<SpriteRendererComponent>(CreateSprite(), 10);
 
@@ -24,24 +24,24 @@ NetworkPlayer::NetworkPlayer(Vector2 position, std::uint32_t playerId)
 /// - 사망 Flag
 /// </summary>
 /// <param name="state">서버의 원본 Snapshot</param>
-void NetworkPlayer::ApplySnapshot(const Z1::Protocol::SnapshotPlayerState& state)
+void NetworkPlayer::ApplySnapshot(const Z1::Protocol::ActorInfo& info)
 {
-    assert(_playerId == state.playerId);
-    if (_playerId != state.playerId)
+    assert(_id == info.id);
+    if (_id != info.id)
     {
         return;
     }
 
     // Snapshot 적용 전, 이전 상태 보관
     bool hadSnapshot = _hasSnapshot;
-    std::int32_t _prevHp = _hp;
+    std::int32_t prevHp = _hp;
     bool wasDead = IsDead();
 
     // 새로운 상태로 갱신
-    SetPosition(Vector2(state.x, state.y));
-    _facing = state.facing;
-    _hp = state.hp;
-    _flags = state.flags;
+    SetPosition(Vector2(info.x, info.y));
+    _direction = info.direction;
+    _hp = info.hp;
+    _flags = info.flags;
 
     // 최초 1회에는 안들어옴
     if (hadSnapshot)
@@ -50,7 +50,7 @@ void NetworkPlayer::ApplySnapshot(const Z1::Protocol::SnapshotPlayerState& state
         {
             Engine::Get().PlayOneShot("Z1/LOZ_Link_Die.wav");
         }
-        else if (state.hp < _prevHp)
+        else if (info.hp < prevHp)
         {
             Engine::Get().PlayOneShot("Z1/LOZ_Link_Hurt.wav");
         }

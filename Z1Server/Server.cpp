@@ -106,15 +106,13 @@ bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> p
         return false;
     }
 
-    if (!session.Enter(_playerId++))
-    {
-        return false;
-    }
-
     // C2S_Enter 성공했으니 서버 월드에 입장시키자.
-    const std::uint32_t playerId = *session.GetPlayerId();
-    if (!_overworld.AddPlayer(playerId))
+    const auto playerId = _overworld.SpawnPlayer();
+    if (!playerId) return false;
+    
+    if (!session.Enter(*playerId))
     {
+        _overworld.DespawnPlayer(*playerId);
         return false;
     }
 
@@ -129,7 +127,7 @@ bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> p
     */
 
     std::vector<Byte> enterPacket;
-    if (!BuildPacket_S2CEnter(playerId, enterPacket))
+    if (!BuildPacket_S2CEnter(*playerId, enterPacket))
     {
         return false;
     }
@@ -380,7 +378,7 @@ void Server::CloseSession(Session& session)
 
     if (const auto playerId = session.GetPlayerId())
     {
-        _overworld.RemovePlayer(*playerId);
+        _overworld.DespawnPlayer(*playerId);
     }
 
     session.Close();
