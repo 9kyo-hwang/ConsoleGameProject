@@ -253,7 +253,7 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
     {
         // TCP는 순서를 보장해서, 더 오래된 입력 시퀀스가 들어오는 케이스는 보통 없음
         // 중복되거나 오래된 입력은 무시
-        std::cout << "C2S_Input ignored: player=" << playerId << ", sequence=" << input.sequence << "\n";
+        std::cout << "[C2S_Input] ignored: player=" << playerId << ", sequence=" << input.sequence << "\n";
         return true;
     }
 

@@ -12,5 +12,6 @@ Z1은 NES 기기를 대상으로 출시된 초대 젤다의 전설 컨텐츠를 
 | --- | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 현재 싱글·멀티플레이 구조와 Z1 내부 책임 | Level, Actor, 맵 또는 상태 흐름 변경 |
 | [NETWORK_ARCHITECTURE.md](NETWORK_ARCHITECTURE.md) | 현재 네트워크 책임, wire format, 동시성과 서버 권위 경계 | protocol, Session, thread 또는 권위 규칙 변경 |
+| [NETWORK_RESILIENCE_ROADMAP.md](NETWORK_RESILIENCE_ROADMAP.md) | 서버 이동 시간과 클라이언트 보간·예측의 단계별 제안 | 해당 단계의 우선순위·범위·완료 상태 변경 |
 | [TESTING.md](TESTING.md) | Z1 빌드·실행과 수동/스크립트 검증 | 관찰 가능한 동작이나 검증 방법 변경 |
 | [MAP_DATA.md](MAP_DATA.md) | 외부 맵 자료의 출처와 적용 결정 | 맵 원본·포맷·타일 해석 변경 |
