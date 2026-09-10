@@ -23,19 +23,19 @@ namespace Craft
     bool Input::GetKeyDown(int32 keyCode) const
     {
         if (keyCode < 0 || keyCode >= KeyCount) return false;
-        return _keyStates[keyCode].pressed;
+        return !_keyStates[keyCode].wasKeyDown && _keyStates[keyCode].isKeyDown;
     }
 
     bool Input::GetKeyUp(int32 keyCode) const
     {
         if (keyCode < 0 || keyCode >= KeyCount) return false;
-        return _keyStates[keyCode].released;
+        return _keyStates[keyCode].wasKeyDown && !_keyStates[keyCode].isKeyDown;
     }
 
     bool Input::GetKey(int32 keyCode) const
     {
         if (keyCode < 0 || keyCode >= KeyCount) return false;
-        return _keyStates[keyCode].held;
+        return _keyStates[keyCode].isKeyDown;
     }
 
     void Input::ReadConsoleInputEvents()
@@ -45,11 +45,9 @@ namespace Craft
             return;
         }
 
-        // 매 프레임 초기화
         for (KeyState& state : _keyStates)
         {
-            state.pressed = false;
-            state.released = false;
+            state.wasKeyDown = state.isKeyDown;
         }
 
         DWORD numEvents = 0;
@@ -93,22 +91,14 @@ namespace Craft
         KeyState& state = _keyStates[keyCode];
         if (event.bKeyDown)
         {
-            // 이미 눌려져있는 경우 repeat 이벤트 무시
-            if (!state.held)
-            {
-                state.held = true;
-                state.pressed = true;
-            }
+            state.isKeyDown = true;
         }
-        else  // 키 입력을 중지한 경우
+        else
         {
-            // 현재 프레임에 눌려져있었다면
-            if (state.held)
-            {
-                state.held = false;
-                state.released = true;
-            }
+            state.isKeyDown = false;
         }
+
+        int a = 0;
     }
 
     void Input::HandleFocusEvent(const FOCUS_EVENT_RECORD& event)
@@ -119,11 +109,7 @@ namespace Craft
             for (KeyState& state : _keyStates)
             {
                 // 현재 눌려지고 있는 키들 전부 뗀 상태로 전환
-                if (state.held)
-                {
-                    state.held = false;
-                    state.released = true;
-                }
+                state.isKeyDown = false;
             }
         }
     }

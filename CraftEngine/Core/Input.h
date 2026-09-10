@@ -12,9 +12,8 @@ namespace Craft
 
         struct KeyState
         {
-            bool pressed = false;   // 현재 프레임 기준 눌렸는지
-            bool held = false;      // 눌린 상태인지
-            bool released = false;  // 현재 프레임 기준 뗐는지
+            bool isKeyDown = false;
+            bool wasKeyDown = false;
         };
 
     public:

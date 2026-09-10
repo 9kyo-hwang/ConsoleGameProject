@@ -71,7 +71,7 @@ private:
     std::vector<std::unique_ptr<Session>> _sessions;    // only IOLoop
 
 private:    // IO Thread만 접근한다는 전제
-    inline static constexpr auto TickInterval = std::chrono::milliseconds(50);    // tick 주기는 50ms(== 초당 20번: 20hz)
+    inline static constexpr auto ServerFixedDeltaTime = std::chrono::milliseconds(50);    // tick 주기는 50ms(== 초당 20번: 20hz)
     inline static constexpr int MaxCatchupTicks = 5;  // 한 Tick Loop 안에서 과거 Tick을 최대 몇 번 보정할 지
     TimePoint _nextTick;
 

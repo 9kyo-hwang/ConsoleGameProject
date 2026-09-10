@@ -1,14 +1,14 @@
 # Z1 네트워크 시뮬레이션 및 표시 보정 로드맵
 
-마지막 갱신: 2026-09-09
+마지막 갱신: 2026-09-10
 
-상태: 제안. 아직 구현되지 않았으며, 다른 콘텐츠 기능보다 먼저 진행할 우선 작업 후보로 검토한다.
+상태: 1단계 구현 완료. 기본 20Hz와 40Hz 수동 확인을 마쳤으며, 지연·jitter 관찰과 클라이언트 표시 보정은 아직 제안 상태다.
 
 ## 문서 목적
 
-현재 Z1 멀티플레이는 localhost Loopback에서 서버 권위형 이동과 Snapshot 적용이 정상 동작하는 것을 중심으로 검증했다. 그러나 서버 Tick 지연, 네트워크 지연·jitter와 Snapshot 일괄 도착 상황에서 이동 속도와 클라이언트 표시를 안정화하는 처리는 아직 없다.
+현재 Z1 멀티플레이는 localhost Loopback에서 서버 권위형 이동과 Snapshot 적용이 정상 동작하는 것을 중심으로 검증했다. 서버 Player 이동 속도는 고정 Tick 시간에서 계산하도록 변경했지만, 서버 Tick 지연 관찰, 네트워크 지연·jitter와 Snapshot 일괄 도착의 클라이언트 표시 보정은 아직 없다.
 
-이 문서는 다음 두 문제를 하나의 선행 안정화 작업으로 정리한다.
+이 문서는 다음 두 문제를 하나의 선행 안정화 작업으로 정리한다. 첫 번째는 구현됐고, 두 번째는 후속 단계다.
 
 1. 서버 Player 이동 속도를 Tick 호출 횟수가 아닌 초당 이동 거리로 정의한다.
 2. 클라이언트가 서버 Snapshot을 수신 즉시 그대로 적용하는 구조에 원격 Actor 보간, 필요 시 제한적 외삽, local Player 예측·재조정을 단계적으로 추가한다.
@@ -19,7 +19,7 @@
 
 다음 범위는 새로운 게임 규칙을 추가하기 전에 먼저 처리할 가치가 있다.
 
-- 서버 Player의 이동 속도가 Tick 주기 변경에 따라 달라지는 문제 수정
+- 완료: 서버 Player의 이동 속도가 Tick 주기 변경에 따라 달라지는 문제 수정
 - 지연·jitter·일괄 도착을 재현할 수 있는 최소 관찰 수단 추가
 - 원격 Player·Enemy·Projectile의 Snapshot 보간
 
@@ -31,8 +31,8 @@
 
 | 영역 | 현재 구현 | 한계 |
 | --- | --- | --- |
-| 서버 시간 | `IOLoop`가 50ms 간격의 20Hz Tick을 실행하고 최대 5회 catch-up | Tick 하나당 이동량을 사용하면 Tick 주기 변경 시 초당 이동속도가 달라짐 |
-| Player 이동 | 서버 `OverworldSimulation::Tick()`에서 입력 방향으로 매 Tick 1셀 이동 | 현재 20Hz에서는 초당 20셀이지만 Tick rate에 종속됨 |
+| 서버 시간 | `IOLoop`가 `ServerFixedDeltaTime`(기본 50ms)의 20Hz Tick을 실행하고 최대 5회 catch-up | Tick 실행 시간·catch-up·건너뛴 시간의 관찰 지표는 아직 없음 |
+| Player 이동 | `ServerFixedDeltaTime`을 초 단위로 `OverworldSimulation::Tick(float)`에 전달하고, `Player::ConsumeMoveSteps()`가 `_moveSpeed`과 `_moveRemainder`로 정수 셀 수를 계산 | 기본 20Hz와 40Hz 수동 시험은 초당 20셀로 확인. 10Hz와 벽·입력 전환 경계 시험은 아직 없음 |
 | Snapshot | 매 서버 Tick 뒤 `serverTick`과 관심 Room의 `ActorInfo` 배열을 전송 | catch-up 시 여러 Snapshot이 짧은 시간에 연속 생성될 수 있음 |
 | 클라이언트 수신 | `NetworkClient`가 typed message queue에 넣고 `Game::PumpNetwork()`가 소비 | 여러 Snapshot을 소비하더라도 `Game`에는 마지막 Snapshot 하나만 남음 |
 | Actor 적용 | `NetworkOverworldLevel::UpdateSnapshot()`이 `ApplySnapshot()`을 호출 | `NetworkPlayer`, `NetworkEnemy`, `NetworkProjectile`이 위치를 즉시 `SetPosition()`함 |
@@ -102,7 +102,7 @@ NetworkOverworldLevel
 
 ### 구현 범위
 
-- `Server::Tick()`은 20Hz 시간 검사와 `MaxCatchupTicks` 반복 안에서만 호출한다.
+- `Server::RunSimulationTicks()`은 20Hz 시간 검사와 `MaxCatchupTicks` 반복 안에서만 `UpdateSimulation()`을 호출한다.
 - IOCP recv/send completion 횟수가 시뮬레이션 Tick 횟수를 결정하지 않게 한다.
 - 최소한 다음 값을 서버 로그 또는 임시 카운터로 관찰할 수 있게 한다.
   - Tick 실행 시간과 최대값
@@ -121,13 +121,13 @@ NetworkOverworldLevel
 - Loopback 기준 Tick이 정상적으로 증가하고 기존 이동·전투·Actor lifecycle이 유지된다.
 - 이후 지연 테스트에서 서버 계산 지연과 클라이언트 표시 지연을 구분할 수 있다.
 
-## 1단계: 서버 Player 이동 속도의 Tick 독립화
+## 1단계: 서버 Player 이동 속도의 Tick 독립화 (구현 완료, 검증 진행 중)
 
 ### 목표
 
 현재 동작과 같은 초당 20셀을 기본값으로 유지하면서 Tick rate가 바뀌어도 같은 실제 시간 동안 거의 같은 거리를 이동한다.
 
-### 권장 계산
+### 구현된 계산
 
 ```text
 moveRemainder += moveCellsPerSecond × fixedDeltaSeconds
@@ -147,9 +147,9 @@ moveRemainder -= moveSteps
 
 ### 상태와 책임
 
-- `moveCellsPerSecond`와 `moveRemainder`는 `Z1Server::Player`의 서버 전용 상태로 둔다.
-- `Server::IOLoop`가 고정 Tick 시간을 알고 `Server::Tick(fixedDeltaSeconds)`에 전달한다.
-- `Server::Tick()`은 같은 값을 `OverworldSimulation::Tick()`에 전달한다.
+- `_moveSpeed`와 `_moveRemainder`는 `Z1Server::Player`의 서버 전용 상태로 둔다.
+- `Server::UpdateSimulation()`은 `ServerFixedDeltaTime`을 초 단위 `float`으로 바꿔 `OverworldSimulation::Tick(float)`에 전달한다.
+- `OverworldSimulation::Tick(float)`은 같은 값을 `Player::ConsumeMoveSteps(float)`에 전달한다.
 - `OverworldSimulation`은 Player에게 이동 가능한 정수 step 수만 요청하고, 기존 `CanPlacePlayer()`와 `SetPosition()` 경로로 한 셀씩 처리한다.
 - 클라이언트 싱글플레이의 `CellStepComponent`와 개념은 같지만, Z1Server가 CraftEngine에 의존하지 않도록 해당 컴포넌트를 직접 사용하지 않는다.
 
@@ -157,16 +157,16 @@ moveRemainder -= moveSteps
 
 - 여러 step을 이동하더라도 목적지 한 번만 검사하지 않고 매 셀마다 충돌을 검사한다.
 - 벽에 막힌 이동 시 사용하지 못한 정수 step을 다음 Tick으로 이월하지 않는다.
-- 입력이 `None`이 되었을 때 남은 소수 remainder를 유지할지 초기화할지 명시한다. 초기 구현은 재입력 직후 예상하지 못한 빠른 한 걸음을 막기 위해 초기화를 권장한다.
-- 사망, 리스폰 또는 강제 위치 변경에서도 remainder를 초기화한다.
+- 현재 구현은 입력이 `None`이 되어도 남은 소수 remainder를 유지한다. 재입력 직후의 빠른 한 걸음이 허용되는지 경계 시험으로 확인하고, 문제가 되면 `None` 전환에서 초기화한다.
+- 사망, 리스폰 또는 강제 위치 변경에서 remainder 초기화는 아직 필요성이 확인되지 않았다. Player 리스폰을 도입할 때 함께 결정한다.
 - Room 경계와 맵 바깥 좌표 검사는 기존 서버 권위 경로를 유지한다.
 
 ### 완료 조건
 
-- 10Hz, 20Hz, 40Hz 시험 설정에서 2초간 같은 방향 입력 시 이동 거리 차이가 정수 양자화 범위인 1셀 이내다.
-- 20Hz에서는 기존과 같은 초당 20셀 체감이 유지된다.
-- 5회 catch-up은 긴 가변 `deltaTime` 한 번이 아니라 고정 Tick 5회로 처리된다.
-- 벽 앞에서 오래 입력한 뒤 방향을 바꿔도 저장된 이동량 때문에 여러 셀을 갑자기 이동하지 않는다.
+- 완료: 기본 20Hz와 40Hz(25ms) 수동 시험에서 초당 20셀 이동을 확인했다.
+- 미확인: 10Hz, 20Hz, 40Hz에서 2초간 이동 거리 차이가 정수 양자화 범위인 1셀 이내인지 측정한다.
+- 미확인: 5회 catch-up이 긴 가변 `deltaTime` 한 번이 아니라 고정 Tick 5회로 처리되는지 이동 거리까지 포함해 확인한다.
+- 미확인: 벽 앞에서 오래 입력한 뒤 방향을 바꿔도 저장된 이동량 때문에 여러 셀을 갑자기 이동하지 않는지 확인한다.
 
 ### 이 단계에서 하지 않는 일
 
@@ -410,7 +410,7 @@ MVP 트래픽보다 재조정의 명확성이 중요해지는 시점에 결정�
 
 ## 전체 완료 기준
 
-- 서버 Player 이동 속도가 Tick rate에 비례해 변하지 않는다.
+- 완료: 서버 Player 이동 속도가 Tick rate에 비례해 변하지 않는다. 기본 20Hz와 40Hz 수동 시험에서 초당 20셀을 확인했다.
 - 원격 Actor가 짧은 jitter와 Snapshot 일괄 도착에서 같은 프레임에 여러 셀을 건너뛰는 현상이 감소한다.
 - local Player는 예측을 도입하기 전까지 최신 서버 상태를 사용하고, 예측 도입 후에는 입력 ACK 기준으로 재조정된다.
 - 보간·외삽·예측이 서버 권위 충돌, HP, 사망, Room과 Actor lifecycle을 변경하지 않는다.

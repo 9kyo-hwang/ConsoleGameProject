@@ -197,7 +197,7 @@ void Server::AcceptLoop()
 /// </summary>
 void Server::IOLoop()
 {
-    _nextTick = Clock::now() + TickInterval;    // 다음 Tick을 호출해야하는 시각
+    _nextTick = Clock::now() + ServerFixedDeltaTime;    // 다음 Tick을 호출해야하는 시각
     while (true)
     {
         ProcessSessions();  // RemoveClosedSessions + ProcessAcceptedSockets
@@ -281,14 +281,14 @@ void Server::RunSimulationTicks()
         // 그러면 그 간격만큼 Tick을 몰아서 실행하게 되는데
         // 그 횟수의 상한이 MaxCatchupTick
         UpdateSimulation();
-        _nextTick += TickInterval;
+        _nextTick += ServerFixedDeltaTime;
         ++tickCount;
     }
 
     // 횟수 상한을 다 채웠는데도 이 상태라면(즉 너무 오래 멈췄다면) 강제로 시간 보정
     if (now >= _nextTick)
     {
-        _nextTick = now + TickInterval;
+        _nextTick = now + ServerFixedDeltaTime;
     }
 }
 
@@ -413,7 +413,7 @@ void Server::CloseSession(Session& session)
 void Server::UpdateSimulation()
 {
     //std::cout << "Server::Tick(10ms)\n";
-    _overworld.Tick();
+    _overworld.Tick(std::chrono::duration<float>(ServerFixedDeltaTime).count());
 
     BroadcastCombatEvents(_overworld.TakeCombatEvents());
     BroadcastWorldSnapshot();
