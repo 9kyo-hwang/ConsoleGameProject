@@ -36,3 +36,12 @@ void Player::UpdateInput(const Z1::Protocol::InputCommand& input) noexcept
 
     _latestInput.actionFlags = 0;
 }
+
+int Player::ConsumeMoveSteps(float deltaTime)
+{
+    // 서버에서는 고정된 델타 타임 TickInterval 50ms가 넘어옴
+    _moveRemainder += deltaTime * _moveSpeed;
+    int step = (int)_moveRemainder; // 소수점 떼고 칸 만큼 이동
+    _moveRemainder -= step;
+    return step;
+}

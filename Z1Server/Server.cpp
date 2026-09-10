@@ -1,7 +1,7 @@
 ﻿#include "pch.h"
 #include "Server.h"
 #include <Sockets/Endpoint.h>
-#include <chrono>
+
 #include <Z1Shared/PacketFramer.h>
 #include <Z1Shared/PacketCodec.h>
 #include <string>
@@ -106,6 +106,8 @@ bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> p
         return false;
     }
 
+    std::cout << "[C2S_Enter] received\n";
+
     // C2S_Enter 성공했으니 서버 월드에 입장시키자.
     const auto playerId = _overworld.SpawnPlayer();
     if (!playerId) return false;
@@ -137,7 +139,8 @@ bool Server::HandleEnter(Session& session, std::span<const Z1::Protocol::Byte> p
         return false;
     }
 
-    std::cout << "C2S_Enter received\n";
+    std::cout << "[S2C_Enter] send.\n";
+    
     return true;
 }
 
@@ -194,134 +197,31 @@ void Server::AcceptLoop()
 /// </summary>
 void Server::IOLoop()
 {
-    using namespace std::chrono;
-    using Clock = steady_clock;
-
-    constexpr auto TickInterval = milliseconds(50);    // tick 주기는 50ms(== 초당 20번: 20hz)
-    constexpr int MaxCatchupTicks = 5;  // 한 Tick Loop 안에서 과거 Tick을 최대 몇 번 보정할 지
-    auto nextTick = Clock::now() + TickInterval;    // 다음 Tick을 호출해야하는 시각
-
+    _nextTick = Clock::now() + ServerFixedDeltaTime;    // 다음 Tick을 호출해야하는 시각
     while (true)
     {
-        RemoveClosedSessions(); // 단일 스레드이므로, 다른 작업 전에 먼저 제거해놓고 시작
+        ProcessSessions();  // RemoveClosedSessions + ProcessAcceptedSockets
+        RunSimulationTicks();
 
-        ProcessAcceptedSockets();
-
-        const auto now = Clock::now();
-        int tickCount = 0;  // 이번 while 안에서 처리한 catch-up 틱 횟수
-        while (now >= nextTick && tickCount < MaxCatchupTicks)
+        const DWORD timeout = GetTimeoutUntilNextTick();
+        if (!WaitAndDispatchCompletion(timeout))
         {
-            // 일반적인 상황에선 1회만 수행되나, breakpoint 등으로 서버가 잠깐 멈추면 
-            // now가 이전에 설정한 nextTick보다 뒷 시간이 됨
-            // 그러면 그 간격만큼 Tick을 몰아서 실행하게 되는데
-            // 그 횟수의 상한이 MaxCatchupTick
-            Tick();
-            nextTick += TickInterval;
-            ++tickCount;
-        }
-
-        // 횟수 상한을 다 채웠는데도 이 상태라면(즉 너무 오래 멈췄다면) 강제로 시간 보정
-        if (now >= nextTick)
-        {
-            nextTick = now + TickInterval;
-        }
-
-        // 각 세션들이 IOCP를 통해 완료한 입출력 이벤트를 하나 꺼내 실제 처리 수행
-        const auto remaining = nextTick - Clock::now();
-        const long long remainingMs = duration_cast<milliseconds>(remaining).count();
-        const DWORD timeoutMs = (DWORD)((remainingMs > 0 ? remainingMs : 1));
-
-        CompletionEvent event = _cp.Dequeue(timeoutMs);
-        if (event.IsTimeout())
-        {
-            // 무한 대기(INFINITE)가 아닌 Tick 간격만큼만 기다리도록 변경했으므로,
-            // 다음 While-loop 진입에서 Tick 실행 여부를 다시 판단한다.
-            continue;
-        }
-
-        if (event.IsShutdown())
-        {
-            // 종료를 위해 Post~에서 completionKey에 nullptr을 넣었음
             break;
-        }
-
-        // completionKey를 Session*로 넘겼었음!
-        Session* session = (Session*)event.completionKey;
-        if (!session || !event.overlapped)
-        {
-            continue;
-        }
-        
-        // 실패 확인 전, Completion 통지는 이미 왔으므로
-        // overlapped 이벤트 종류를 보고 pending = false로 세팅해야 함
-        if (event.overlapped == session->GetRecvOverlapped())
-        {
-            session->AckRecvCompletion();
-            if (!event.succeeded || event.bytesTransferred == 0)
-            {
-                std::cout << "\t[FAIL] GQCS || Client disconnected.\n";
-                CloseSession(*session);
-                continue;
-            }
-
-            if (!session->HandleRecv(event.bytesTransferred))
-            {
-                std::cout << "\t[FAIL] HandleRecv\n";
-                CloseSession(*session);
-                continue;
-            }
-
-            bool isValidSession = true;
-            Packet packet;
-            while (session->TryPopRecvdPacket(packet))
-            {
-                if (!HandleClientPacket(*session, packet))
-                {
-                    std::cout << "\t[FAIL] HandleClientPacket\n";
-                    CloseSession(*session);
-                    isValidSession = false;
-                    break;
-                }
-            }
-
-            if (isValidSession)
-            {
-                if (!_stopRequested && !session->PostRecv())
-                {
-                    std::cout << "\t[FAIL] PostRecv\n";
-                    CloseSession(*session);
-                }
-            }
-        }
-        else if (event.overlapped == session->GetSendOverlapped())
-        {
-            session->AckSendCompletion();
-            if (!event.succeeded || event.bytesTransferred == 0)
-            {
-                std::cout << "\t[FAIL] GQCS || Client disconnected.\n";
-                CloseSession(*session);
-                continue;
-            }
-
-            // Send Completion에서 전송한 바이트 수가 0이라면 비정상 전송
-            if (!session->HandleSend(event.bytesTransferred))
-            {
-                std::cout << "\t[FAIL] HandleSend\n";
-                CloseSession(*session);
-            }
-        }
-        else
-        {
-            std::cout << "\t[FAIL] Invalid Overlapped Event\n";
-            CloseSession(*session);
         }
     }
 }
 
-void Server::ProcessAcceptedSockets()
+void Server::ProcessSessions()
 {
-    // 수신 스레드에서 큐잉한 소켓들을 지역 변수 큐로 바꾼 뒤 Register 처리
-    // 왜 지역 변수로 옮기는가? -> AcceptThread에서 _acceptedSocket에 소켓 밀어넣고 있을 수도 있음
+    // 1. 삭제 가능한 세션 제거
+    std::erase_if(_sessions,
+        [](const std::unique_ptr<Session>& session)
+        {
+            return session->CanDestroy();
+        });
+
+    // 2. acceptThread에서 수신한 소켓들 꺼내서 IOCP에 등록 후 WSARecv 
+    // AcceptThread에서 _acceptedSocket에 소켓 밀어넣고 있을 수도 있음
     std::deque<Socket> acceptedSockets;
     {
         std::lock_guard lock(_acceptMutex);
@@ -370,6 +270,130 @@ bool Server::RegisterAcceptedSocket(Net::Socket&& clientSocket)
     return true;
 }
 
+void Server::RunSimulationTicks()
+{
+    const auto now = Clock::now();  // 매번 새 now를 계산하는 것이 맞음
+    int tickCount = 0;  // 이번 while 안에서 처리한 catch-up 틱 횟수
+    while (now >= _nextTick && tickCount < MaxCatchupTicks)
+    {
+        // 일반적인 상황에선 1회만 수행되나, breakpoint 등으로 서버가 잠깐 멈추면 
+        // now가 이전에 설정한 nextTick보다 뒷 시간이 됨
+        // 그러면 그 간격만큼 Tick을 몰아서 실행하게 되는데
+        // 그 횟수의 상한이 MaxCatchupTick
+        UpdateSimulation();
+        _nextTick += ServerFixedDeltaTime;
+        ++tickCount;
+    }
+
+    // 횟수 상한을 다 채웠는데도 이 상태라면(즉 너무 오래 멈췄다면) 강제로 시간 보정
+    if (now >= _nextTick)
+    {
+        _nextTick = now + ServerFixedDeltaTime;
+    }
+}
+
+DWORD Server::GetTimeoutUntilNextTick() const
+{
+    const auto now = Clock::now();
+    const auto remaining = _nextTick - now;
+    const long long remainingMs = std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count();
+    return (DWORD)((remainingMs > 0 ? remainingMs : 1));
+}
+
+bool Server::WaitAndDispatchCompletion(DWORD timeout)
+{
+    // 각 세션들이 IOCP를 통해 완료한 입출력 이벤트를 하나 꺼내 실제 처리 수행
+    CompletionEvent event = _cp.Dequeue(timeout);
+    if (event.IsTimeout())
+    {
+        // 무한 대기(INFINITE)가 아닌 Tick 간격만큼만 기다리도록 변경했으므로,
+        // 다음 While-loop 진입에서 Tick 실행 여부를 다시 판단한다.
+        return true;
+    }
+
+    if (event.IsShutdown())
+    {
+        // 종료를 위해 Post~에서 completionKey에 nullptr을 넣었음
+        return false;
+    }
+
+    // completionKey를 Session*로 넘겼었음!
+    Session* session = (Session*)event.completionKey;
+    if (!session || !event.overlapped)
+    {
+        return true;
+    }
+
+    // 실패 확인 전, Completion 통지는 이미 왔으므로
+    // overlapped 이벤트 종류를 보고 pending = false로 세팅해야 함
+    if (event.overlapped == session->GetRecvOverlapped())
+    {
+        session->AckRecvCompletion();
+        if (!event.succeeded || event.bytesTransferred == 0)
+        {
+            std::cout << "\t[FAIL] GQCS || Client disconnected.\n";
+            CloseSession(*session);
+            return true;
+        }
+
+        if (!session->HandleRecv(event.bytesTransferred))
+        {
+            std::cout << "\t[FAIL] HandleRecv\n";
+            CloseSession(*session);
+            return true;
+        }
+
+        bool isValidSession = true;
+        Packet packet;
+        while (session->TryPopRecvdPacket(packet))
+        {
+            if (!HandleClientPacket(*session, packet))
+            {
+                std::cout << "\t[FAIL] HandleClientPacket\n";
+                CloseSession(*session);
+                isValidSession = false;
+                break;
+            }
+        }
+
+        if (isValidSession)
+        {
+            if (!_stopRequested && !session->PostRecv())
+            {
+                std::cout << "\t[FAIL] PostRecv\n";
+                CloseSession(*session);
+            }
+        }
+
+        return true;
+    }
+    
+    if (event.overlapped == session->GetSendOverlapped())
+    {
+        session->AckSendCompletion();
+        if (!event.succeeded || event.bytesTransferred == 0)
+        {
+            std::cout << "\t[FAIL] GQCS || Client disconnected.\n";
+            CloseSession(*session);
+            return true;
+        }
+
+        // Send Completion에서 전송한 바이트 수가 0이라면 비정상 전송
+        if (!session->HandleSend(event.bytesTransferred))
+        {
+            std::cout << "\t[FAIL] HandleSend\n";
+            CloseSession(*session);
+            return true;
+        }
+
+        return true;
+    }
+
+    std::cout << "\t[FAIL] Invalid Overlapped Event\n";
+    CloseSession(*session);
+    return true;
+}
+
 void Server::CloseSession(Session& session)
 {
     if (session.IsClosing()) return;
@@ -384,21 +408,13 @@ void Server::CloseSession(Session& session)
     session.Close();
 }
 
-void Server::RemoveClosedSessions()
-{
-    std::erase_if(_sessions, 
-        [](const std::unique_ptr<Session>& session)
-        {
-            return session->CanDestroy();
-        });
-}
-
 // 서버 시뮬레이션 역할을 하는 Tick
 // 플레이어, 적, 투사체 상태 갱신
-void Server::Tick()
+void Server::UpdateSimulation()
 {
     //std::cout << "Server::Tick(10ms)\n";
-    _overworld.Tick();
+    _overworld.Tick(std::chrono::duration<float>(ServerFixedDeltaTime).count());
+
     BroadcastCombatEvents(_overworld.TakeCombatEvents());
     BroadcastWorldSnapshot();
     BroadcastEnemyPathDebugs();
@@ -438,6 +454,10 @@ void Server::BroadcastCombatEvents(const std::vector<PendingCombatEvent>& events
             {
                 CloseSession(*session);
             }
+            else
+            {
+                std::cout << "[S2C_CombatEvent] send to " << *playerId << "\n";
+            }
         }
     }
 }
@@ -466,6 +486,10 @@ void Server::BroadcastWorldSnapshot()
         {
             CloseSession(*session);
         }
+        else
+        {
+            //std::cout << "[S2C_WorldSnapshot] send to " << *playerId << "\n";
+        }
     }
 }
 
@@ -486,6 +510,10 @@ void Server::BroadcastEnemyPathDebugs()
             if (!BuildPacket_S2CEnemyPathDebug(enemyPath, packet) || !session->Send(std::move(packet)))
             {
                 CloseSession(*session);
+            }
+            else
+            {
+                std::cout << "[S2C_EnemyPathDebug] send to " << *playerId << "\n";
             }
         }
     }

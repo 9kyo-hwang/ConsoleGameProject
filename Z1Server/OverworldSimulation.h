@@ -50,7 +50,7 @@ public:
 
     bool IsPlayerInRoom(std::uint32_t playerId, ServerRoomCoordinate room);
 
-    void Tick();
+    void Tick(float deltaTime);
 
 private:
     // 클라의 CanPlaceBox류 충돌맵 검사에 대응

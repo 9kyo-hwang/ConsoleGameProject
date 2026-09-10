@@ -11,6 +11,7 @@
 #include <OverworldSimulation.h>
 #include <deque>
 #include <mutex>
+#include <chrono>
 
 namespace Z1::Protocol
 {
@@ -19,6 +20,9 @@ namespace Z1::Protocol
 
 class Server
 {
+    using Clock = std::chrono::steady_clock;
+    using TimePoint = Clock::time_point;
+
 public:
     Server() = default;
 
@@ -37,14 +41,19 @@ private:
     // - 세션 생성, IOCP 연결, _session 등록은 모두 IOLoop에서 하도록 변경
     void AcceptLoop();
     void IOLoop();
-    void ProcessAcceptedSockets();
-    bool RegisterAcceptedSocket(Net::Socket&& socket);
 
+private:
+    void ProcessSessions();
+    bool RegisterAcceptedSocket(Net::Socket&& socket);
+    
+    void RunSimulationTicks();
+    
+    DWORD GetTimeoutUntilNextTick() const;
+    bool WaitAndDispatchCompletion(DWORD timeout);
     void CloseSession(Session& session);
-    void RemoveClosedSessions();
         
 private:
-    void Tick();
+    void UpdateSimulation();
     void BroadcastCombatEvents(const std::vector<PendingCombatEvent>& events);
     void BroadcastWorldSnapshot();
     void BroadcastEnemyPathDebugs();
@@ -57,11 +66,14 @@ private:
     std::thread _ioThread;
 
     std::atomic_bool _stopRequested = false;
-
     std::mutex _acceptMutex;
     std::deque<Net::Socket> _acceptedSockets;
     std::vector<std::unique_ptr<Session>> _sessions;    // only IOLoop
 
 private:    // IO Thread만 접근한다는 전제
+    inline static constexpr auto ServerFixedDeltaTime = std::chrono::milliseconds(50);    // tick 주기는 50ms(== 초당 20번: 20hz)
+    inline static constexpr int MaxCatchupTicks = 5;  // 한 Tick Loop 안에서 과거 Tick을 최대 몇 번 보정할 지
+    TimePoint _nextTick;
+
     OverworldSimulation _overworld;
 };

@@ -10,11 +10,8 @@ using namespace Z1::Protocol;
 
 namespace
 {
-    constexpr std::uint16_t PlayerMoveCellsPerTick = 1;
-    
     // 클라쪽 크기를 일단 가져왔는데...
-    constexpr std::uint16_t PlayerBoxWidth = 8;
-    constexpr std::uint16_t PlayerBoxHeight = 5;
+
     constexpr std::uint16_t EnemiesPerRoom = 6;
     constexpr std::uint16_t MaxSpawnAttempts = 30;
 
@@ -253,7 +250,7 @@ bool OverworldSimulation::SetInput(std::uint32_t playerId, const Z1::Protocol::I
     {
         // TCP는 순서를 보장해서, 더 오래된 입력 시퀀스가 들어오는 케이스는 보통 없음
         // 중복되거나 오래된 입력은 무시
-        std::cout << "C2S_Input ignored: player=" << playerId << ", sequence=" << input.sequence << "\n";
+        std::cout << "[C2S_Input] ignored: player=" << playerId << ", sequence=" << input.sequence << "\n";
         return true;
     }
 
@@ -366,7 +363,7 @@ bool OverworldSimulation::IsPlayerInRoom(std::uint32_t playerId, ServerRoomCoord
     return GetRoomAt(player.GetPosition().x, player.GetPosition().y) == room;
 }
 
-void OverworldSimulation::Tick()
+void OverworldSimulation::Tick(float deltaTime)
 {
     ++_tick;
 
@@ -386,7 +383,8 @@ void OverworldSimulation::Tick()
             player.SetDirection(direction);
 
             const Vector2Int delta = GetMoveDelta(direction);
-            for (std::int32_t step = 0; step < PlayerMoveCellsPerTick; ++step)
+            const int moveSteps = player.ConsumeMoveSteps(deltaTime);
+            for (std::int32_t step = 0; step < moveSteps; ++step)
             {
                 const std::int32_t candidateX = player.GetPosition().x + delta.x;
                 const std::int32_t candidateY = player.GetPosition().y + delta.y;
@@ -500,7 +498,7 @@ bool OverworldSimulation::CanPlaceBox(std::int32_t x, std::int32_t y, std::int32
 // 유효 좌표를 보내주는 것 자체로 원본 Room 표현이 이루어짐
 bool OverworldSimulation::CanPlacePlayer(std::int32_t x, std::int32_t y) const
 {
-    return CanPlaceBox(x, y, PlayerBoxWidth, PlayerBoxHeight);
+    return CanPlaceBox(x, y, Player::BoxWidth, Player::BoxHeight);
 }
 
 bool OverworldSimulation::CanPlaceEnemy(std::int32_t x, std::int32_t y) const
@@ -692,8 +690,8 @@ bool OverworldSimulation::TryHitPlayer(const Projectile& projectile, Vector2Int 
 
         const std::int32_t playerLeft = playerPos.x;
         const std::int32_t playerTop = playerPos.y;
-        const std::int32_t playerRight = playerLeft + PlayerBoxWidth;
-        const std::int32_t playerBottom = playerTop + PlayerBoxHeight;
+        const std::int32_t playerRight = playerLeft + Player::BoxWidth;
+        const std::int32_t playerBottom = playerTop + Player::BoxHeight;
 
         const bool overlaps =
             left < playerRight && playerLeft < right &&
@@ -731,7 +729,7 @@ bool OverworldSimulation::TryHitEnemy(Player& player)
     {
     case MoveDirection::Right:
     {
-        left = playerPos.x + PlayerBoxWidth;
+        left = playerPos.x + Player::BoxWidth;
         top = playerPos.y + 1;
         width = HorizontalSwordWidth;
         height = HorizontalSwordHeight;
@@ -756,7 +754,7 @@ bool OverworldSimulation::TryHitEnemy(Player& player)
     case MoveDirection::Down:
     {
         left = playerPos.x + 1;
-        top = playerPos.y + PlayerBoxHeight;
+        top = playerPos.y + Player::BoxHeight;
         width = VerticalSwordWidth;
         height = VerticalSwordHeight;
         break;
@@ -813,8 +811,8 @@ bool OverworldSimulation::TryRespawnEnemy(Enemy& enemy)
         const Vector2Int playerPos = player.GetPosition();
 
         const bool overlaps =
-            spawnPosition.x < playerPos.x + PlayerBoxWidth &&
-            spawnPosition.y < playerPos.y + PlayerBoxHeight &&
+            spawnPosition.x < playerPos.x + Player::BoxWidth &&
+            spawnPosition.y < playerPos.y + Player::BoxHeight &&
             playerPos.x < spawnPosition.x + Enemy::BoxWidth &&
             playerPos.y < spawnPosition.y + Enemy::BoxHeight;
 
